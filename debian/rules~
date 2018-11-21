@@ -1,0 +1,14 @@
+
+flang/build
+   LLVM_CONFIG:UNINITIALIZED=/usr/lib/llvm-7/bin/llvm-config
+
+:wq
+
+in flang/runtime/libpgmath
+   cmake -DLIBPGMATH_LLVM_LIT_EXECUTABLE=/usr/lib/llvm-7/build/utils/lit/lit.py ..
+
+
+cmake -DFLANG_LIBOMP=/usr/lib/x86_64-linux-gnu/libomp5.so -DLIBPGMATH=/home/alastair/deb-packages/flang/flang-flang_20180921/runtime/libpgmath/build/lib/libpgmath.so ..
+
+
+change -Mreentrant to -frecursive in CMakeLists.txt

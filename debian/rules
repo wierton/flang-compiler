@@ -1,0 +1,29 @@
+#!/usr/bin/make -f
+
+# Uncomment this to turn on verbose mode.
+export DH_VERBOSE=1
+
+BUILDDIR=debian/build
+DEB_HOST_MULTIARCH ?= $(shell dpkg-architecture -qDEB_HOST_MULTIARCH)
+LIBDIR=/usr/lib/$(DEB_HOST_MULTIARCH)
+
+%:
+	dh $@ --buildsystem=cmake 
+
+override_dh_auto_configure:
+	@echo "Skipping simple configure - mixed build"
+
+override_dh_auto_build:
+	mkdir -p $(BUILDDIR)/runtime/libpgmath
+	(cd $(BUILDDIR)/runtime/libpgmath && cmake \
+	    -DLIBPGMATH_LLVM_LIT_EXECUTABLE=/usr/lib/llvm-7/build/utils/lit/lit.py \
+	    ../../runtime/libpgmath && \
+	    $(MAKE) )
+	(cd $(BUILDDIR) && cmake \
+	    -DLLVM_CONFIG=/usr/lib/llvm-7/bin/llvm-config \
+	    -DFLANG_LIBOMP=$(LIBDIR)/libomp5.so	\
+	    -DLIBPGMATH=$(TOPDIR)/$(BUILDDIR)/lib/libpgmath.so \
+	    .. && \
+	    $(MAKE) )
+
+# change -Mreentrant to -frecursive in CMakeLists.txt
