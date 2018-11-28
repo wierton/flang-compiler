@@ -1,0 +1,5 @@
+flang (7.0-1) UNRELEASED; urgency=medium
+
+  * Initial release. (Closes: #XXXXXX)
+
+ -- Alastair McKinstry <mckinstry@debian.org>  Wed, 28 Nov 2018 19:45:24 +0000

@@ -1,6 +1,21 @@
-
-BVuild-dep;
+Source: flang
+Section: devel
+Priority: optional
+Maintainer: LLVM Packaging Team <pkg-llvm-team@lists.alioth.debian.org>
+Uploaders: Alastair McKinstry <mckinstry@debian.org>
+Build-Depends:  debhelper,
   llvm-7,
   llvm-7-dev,
-  libomp-7-dev
-  llvm-7-tools
+  libomp-7-dev,
+  llvm-7-tools,
+  gfortran
+Standards-Version: 4.2.1
+Homepage: https://github.com/flang-compiler/flang
+Vcs-Browser: https://salsa.debian.org:/mckinstry/flang.git
+Vcs-Git: https://salsa.debian.org:/mckinstry/flang.git
+
+Package: flang-7
+Architecture: amd64, ppc64el, arm64
+Depends: ${misc:Depends}, ${shlib:Depends}
+Description: Fortran compiler front-end for LLVM
+ This is a Fortran compiler using LLVM
