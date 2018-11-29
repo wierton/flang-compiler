@@ -1,0 +1,22 @@
+Description: ieee_arithmetic.F95 fails under gfortran without -fno-range-check
+Author: Alastair McKinstry <mckinstry@debian.org>
+Forwarded: no
+Last-Updated: 2018-11-29
+
+Index: flang-flang_20180921/runtime/flang/CMakeLists.txt
+===================================================================
+--- flang-flang_20180921.orig/runtime/flang/CMakeLists.txt
++++ flang-flang_20180921/runtime/flang/CMakeLists.txt
+@@ -25,7 +25,11 @@ endif()
+ # We are using Fortran driver to build this library with fresh compiler
+ # components, so point its binary directory to the build directory to pick up
+ # flang* executables
+-SET(CMAKE_Fortran_FLAGS "-B ${LLVM_RUNTIME_OUTPUT_INTDIR} ${CMAKE_Fortran_FLAGS}")
++if (CMAKE_Fortran_COMPILER_ID MATCHES "gfortran")
++  SET(CMAKE_Fortran_FLAGS "-B ${LLVM_RUNTIME_OUTPUT_INTDIR} ${CMAKE_Fortran_FLAGS} -fno-range-check")
++else()
++  SET(CMAKE_Fortran_FLAGS "-B ${LLVM_RUNTIME_OUTPUT_INTDIR} ${CMAKE_Fortran_FLAGS}")
++endif()
+ 
+ SET(FTN_INTRINSICS_DESC_INDEP
+   abort3f.c
