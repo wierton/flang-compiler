@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, NVIDIA CORPORATION.  All rights reserved.
+ * Copyright (c) 1994-2018, NVIDIA CORPORATION.  All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -663,6 +663,10 @@ share_alnd(int type)
 
   /* make alnd */
   for (sptr = aux.list[type]; sptr != NOSYM; sptr = SLNKG(sptr)) {
+#if DEBUG
+    /* aux.list[] must be terminated with NOSYM, not 0 */
+    assert(sptr > 0, "share_alnd: corrupted aux.list[type]", sptr, 4);
+#endif
     arrdsc = DESCRG(sptr);
     if (gbl.internal > 1 && !INTERNALG(sptr)) {
       /* in a contained subprogram */
@@ -680,6 +684,10 @@ share_alnd(int type)
   }
 
   for (sptr = aux.list[type]; sptr != NOSYM; sptr = SLNKG(sptr)) {
+#if DEBUG
+    /* aux.list[] must be terminated with NOSYM, not 0 */
+    assert(sptr > 0, "share_alnd: corrupted aux.list[type]", sptr, 4);
+#endif
     if (is_bad_dtype(DTYPEG(sptr)))
       continue;
     arrdsc = DESCRG(sptr);
@@ -744,8 +752,13 @@ share_alnd(int type)
       }
     }
   }
-  for (sptr = aux.list[type]; sptr != NOSYM; sptr = SLNKG(sptr))
+  for (sptr = aux.list[type]; sptr != NOSYM; sptr = SLNKG(sptr)) {
+#if DEBUG
+    /* aux.list[] must be terminated with NOSYM, not 0 */
+    assert(sptr > 0, "share_alnd: corrupted aux.list[type]", sptr, 4);
+#endif
     VISITP(sptr, 0);
+  }
 }
 
 LOGICAL
@@ -974,6 +987,10 @@ share_secd(void)
   /* make secd */
   for (sptr = aux.list[ST_ARRAY]; sptr != NOSYM; sptr = SLNKG(sptr)) {
     int secd;
+#if DEBUG
+    /* aux.list[] must be terminated with NOSYM, not 0 */
+    assert(sptr > 0, "share_secd: corrupted aux.list[ST_ARRAY]", sptr, 4);
+#endif
     arrdsc = DESCRG(sptr);
     if (gbl.internal > 1 && !INTERNALG(sptr)) {
       if (arrdsc && SDSCINITG(arrdsc) && SECDSCG(arrdsc) &&
@@ -990,6 +1007,10 @@ share_secd(void)
   }
 
   for (sptr = aux.list[ST_ARRAY]; sptr != NOSYM; sptr = SLNKG(sptr)) {
+#if DEBUG
+    /* aux.list[] must be terminated with NOSYM, not 0 */
+    assert(sptr > 0, "share_secd: corrupted aux.list[ST_ARRAY]", sptr, 4);
+#endif
     if (is_bad_dtype(DTYPEG(sptr)))
       continue;
     arrdsc = DESCRG(sptr);
@@ -1044,11 +1065,16 @@ share_secd(void)
       }
     }
   }
-  for (sptr = aux.list[ST_ARRAY]; sptr != NOSYM; sptr = SLNKG(sptr))
+  for (sptr = aux.list[ST_ARRAY]; sptr != NOSYM; sptr = SLNKG(sptr)) {
+#if DEBUG
+    /* aux.list[] must be terminated with NOSYM, not 0 */
+    assert(sptr > 0, "share_secd: corrupted aux.list[ST_ARRAY]", sptr, 4);
+#endif
     VISITP(sptr, 0);
+  }
 
-  NEW(make_secd_flag, int, stb.dt_avail);
-  BZERO(make_secd_flag, int, stb.dt_avail);
+  NEW(make_secd_flag, int, stb.dt.stg_avail);
+  BZERO(make_secd_flag, int, stb.dt.stg_avail);
 
   /* now handle array members in derived types */
   for (sptr = stb.firstosym; sptr < stb.stg_avail; sptr++) {
@@ -1075,7 +1101,7 @@ share_secd(void)
   if (flg.debug || (gbl.internal == 1 && XBIT(57, 0x40000))) {
     /* for hosts, or if debug set, initialize all members */
     int dtype;
-    for (dtype = 1; dtype < stb.dt_avail; dtype += dlen(DTY(dtype))) {
+    for (dtype = 1; dtype < stb.dt.stg_avail; dtype += dlen(DTY(dtype))) {
       if (DTY(dtype) == TY_DERIVED) {
         make_secd_for_members(dtype);
       }
@@ -1197,8 +1223,8 @@ is_kopy_in_needed(int arg)
     /* only dummies, result variables passed like dummies */
     if (SCG(arg) != SC_DUMMY && !RESULTG(arg))
       return FALSE;
-    /* pointer need kopy-in, regardless of type */
-    if (POINTERG(arg))
+    /* pointer needs kopy-in, regardless of type */
+    if (POINTERG(arg) || IS_PROC_DUMMYG(arg))
       return TRUE;
     /* other nonarrays need no kopy in */
     if (DTY(DTYPEG(arg)) != TY_ARRAY)
@@ -1320,7 +1346,7 @@ _wrap_symbol(int sptr, int memberast, int basesptr)
     for (mem = DTY(dtype + 1); mem > NOSYM; mem = SYMLKG(mem)) {
       if (!POINTERG(mem) &&
           !USELENG(mem) /* TBD - use of length type parameters */
-          ) {
+      ) {
         _wrap_symbol(mem, memberast, basesptr);
       }
     }
@@ -1523,17 +1549,18 @@ transform_wrapup(void)
        * in semfin and we can't do it in lower as it is
        * too late for uplevel reference.
        */
-      if (flg.smp && PARREFG(sptr) && SCG(sptr) != SC_DUMMY 
-          && (ADJLENG(sptr) || AUTOBJG(sptr))) {
+      if (flg.smp && PARREFG(sptr) && SCG(sptr) != SC_DUMMY &&
+          (ADJLENG(sptr) || AUTOBJG(sptr))) {
         int midnum = MIDNUMG(sptr);
         if (midnum == 0) {
           SCP(sptr, SC_BASED);
           midnum = sym_get_ptr(sptr);
           MIDNUMP(sptr, midnum);
           set_parref_flag2(midnum, sptr, 0);
-        } 
+        }
       }
     }
+
     /* there is an ast_visit inside interface_for_entry, called above;
      * the scope of that ast_visit/ast_unvisit continues until here */
     ast_unvisit();
@@ -1580,7 +1607,7 @@ prepare_for_astout(void)
       goto do_parref;
       continue;
     }
-    
+
     arrdsc = DESCRG(sptr);
     if (!arrdsc)
       continue;
@@ -1612,10 +1639,7 @@ prepare_for_astout(void)
       int encl = ENCLFUNCG(sptr);
       int sdsc = SDSCG(sptr);
       if (sdsc && !PARREFG(sdsc) && DESCUSEDG(sptr)) {
-        if (encl)
-          set_parref_flag(sptr, sptr, PARUPLEVELG(encl));
-        else
-          set_parref_flag2(sptr, 0, 0);
+        set_parref_flag2(sptr, 0, 0);
       }
     }
   }
@@ -1722,8 +1746,9 @@ undouble_callee_args_f90(void)
 static LOGICAL
 arg_has_descriptor(int oldarg)
 {
-  return oldarg > NOSYM && (ASSUMSHPG(oldarg) || POINTERG(oldarg) ||
-                            ALLOCATTRG(oldarg) || is_kopy_in_needed(oldarg));
+  return oldarg > NOSYM &&
+         (ASSUMSHPG(oldarg) || POINTERG(oldarg) || IS_PROC_DUMMYG(oldarg) ||
+          ALLOCATTRG(oldarg) || is_kopy_in_needed(oldarg));
 }
 
 void
@@ -1852,7 +1877,7 @@ size_of_dtype(int dtype, int sptr, int memberast)
   if (DTY(dtype) == TY_CHAR) {
     /* assumed length character */
     if (dtype == DT_ASSCHAR || dtype == DT_DEFERCHAR) {
-      sizeAst = sym_mkfunc_nodesc(mkRteRtnNm(RTE_len), astb.bnd.dtype);
+      sizeAst = sym_mkfunc_nodesc(mkRteRtnNm(RTE_lena), astb.bnd.dtype);
       sizeAst = begin_call(A_FUNC, sizeAst, 1);
       add_arg(check_member(memberast, mk_id(sptr)));
     } else {
@@ -1956,8 +1981,8 @@ emit_secd(int sptr, int memberast, LOGICAL free_flag, LOGICAL for_allocate)
       mk_isz_cval(dtype_to_arg(DTY(INS_DTYPE(secd) + 1)), astb.bnd.dtype);
 
   dtype = DTY(INS_DTYPE(secd) + 1);
-  sizeast = size_of_dtype(typed_alloc != DT_NONE ? typed_alloc : dtype,
-			  sptr, memberast);
+  sizeast = size_of_dtype(typed_alloc != DT_NONE ? typed_alloc : dtype, sptr,
+                          memberast);
   ARGT_ARG(argt, 3) = sizeast;
 
   j = 4;
@@ -2175,9 +2200,7 @@ set_type_in_descriptor(int descriptor_ast, int sptr, DTYPE dtype0,
       if (typedsc_sptr > NOSYM)
         type_ast = mk_id(typedsc_sptr);
     }
-    if (type_ast == 0 &&
-        sptr > NOSYM &&
-        (CLASSG(sptr) || FINALIZEDG(sptr))) {
+    if (type_ast == 0 && sptr > NOSYM && (CLASSG(sptr) || FINALIZEDG(sptr))) {
       type_ast = find_descriptor_ast(sptr, parent_ast);
       if (type_ast == 0) {
         int typedsc_sptr = get_static_type_descriptor(sptr);
@@ -2332,6 +2355,28 @@ emit_alnd(int sptr, int memberast, LOGICAL free_flag, LOGICAL for_allocate,
   if (STYPEG(sptr) == ST_MEMBER)
     set_type_in_descriptor(check_member(memberast, mk_id(TMPL_DESCR(alnd))),
                            sptr, typed_alloc, 0 /* no parent AST */, Lbegin);
+}
+
+void
+make_temp_descriptor(int ast_ele, SPTR sptr_orig, SPTR sptr_tmp, int before_std)
+{
+    /* call pgf90_temp_desc(tmp desc, orig desc) */
+    SPTR sptr_descr;
+    int  ast;
+    int nargs = 2;
+    int argt = mk_argt(nargs);
+    sptr_descr = DESCRG(sptr_tmp);
+    assert(sptr_descr,"missing descriptor for tmp",(int)sptr_tmp,ERR_Fatal);
+    ARGT_ARG(argt, 0) = mk_id(sptr_descr);
+    sptr_descr = DESCRG(sptr_orig);
+    assert(sptr_descr,"missing descriptor for orig",(int)sptr_orig,ERR_Fatal);
+    ARGT_ARG(argt, 1) = check_member(ast_ele,mk_id(sptr_descr));
+
+    ast =
+        mk_func_node(A_CALL, 
+                     mk_id(sym_mkfunc(mkRteRtnNm(RTE_tmp_desc), DT_NONE)),
+                     nargs, argt);
+    (void) add_stmt_before(ast, before_std);
 }
 
 void
@@ -2528,7 +2573,8 @@ newargs_for_entry(int this_entry)
     arg = aux.dpdsc_base[dscptr];
     if (arg == 0) {
       formal = 0;
-    } else if (STYPEG(arg) != ST_ARRAY && STYPEG(arg) != ST_VAR) {
+    } else if (STYPEG(arg) != ST_ARRAY && STYPEG(arg) != ST_VAR &&
+               !IS_PROC_DUMMYG(arg)) {
       formal = arg;
     } else {
       newarg = NEWARGG(arg);
@@ -2546,11 +2592,11 @@ newargs_for_entry(int this_entry)
       }
       if (!F90POINTERG(arg) &&
           ((is_array_type(arg) && !is_bad_dtype(DTYPEG(arg))) ||
-           POINTERG(arg) || ALLOCATTRG(arg))) {
+           POINTERG(arg) || ALLOCATTRG(arg) || IS_PROC_DUMMYG(arg))) {
         /* use the address field to hold new name for param/section */
         formal = newarg;
         if (XBIT(57, 0x80000) && (formal == arg || formal == 0) &&
-            (POINTERG(arg) || ALLOCATTRG(arg))) {
+            (POINTERG(arg) || ALLOCATTRG(arg) || IS_PROC_DUMMYG(arg))) {
           if (MIDNUMG(arg)) {
             SCP(MIDNUMG(arg), SC_DUMMY);
             OPTARGP(MIDNUMG(arg), OPTARGG(arg));
@@ -2584,8 +2630,10 @@ newargs_for_entry(int this_entry)
          * since their results (which are converted into new first
          * arguments) don't have the mystery ALLOCDESC flag set on them.
          */
-        set_preserve_descriptor(CLASSG(arg) ||
-                                (/* ALLOCDESCG(arg) && */ RESULTG(arg)));
+        set_preserve_descriptor(CLASSG(arg) || is_procedure_ptr(arg) ||
+                                (sem.which_pass && IS_PROC_DUMMYG(arg)) ||
+                                (ALLOCDESCG(arg) && RESULTG(arg)));
+
         newdsc = sym_get_arg_sec(arg);
         set_preserve_descriptor(0);
         NEWDSCP(arg, newdsc);
@@ -3922,26 +3970,108 @@ set_assumsz_bound(int arg, int entry)
   ENTSTDP(entry, std);
 }
 
+/*
+ * return '1' if astx is a A_ID of a compiler-created temp
+ */
+static int
+cc_tmp_var(int astx)
+{
+  if (A_TYPEG(astx) == A_ID &&
+      (CCSYMG(A_SPTRG(astx)) || HCCSYMG(A_SPTRG(astx))))
+    return 1;
+  return 0;
+} /* cc_tmp_var */
+
+static bool
+update_shape_info_expr(int arg, int ast)
+{
+  int i;
+  int aptr, sptr, shd, nd;
+
+  switch (A_TYPEG(ast)) {
+  case A_SUBSCR:
+    aptr = (int)A_LOPG(ast);
+    sptr = A_SPTRG(aptr);
+    if (sptr == arg) {
+      if (shd = A_SHAPEG(aptr)) {
+        nd = SHD_NDIM(shd);
+        for (i = 0; i < nd; ++i)
+          SHD_LWB(shd, i) = astb.bnd.one;
+        return true;
+      }
+    }
+    return false;
+    break;
+  case A_UNOP:
+  case A_CONV:
+  case A_PAREN:
+    if (update_shape_info_expr(arg, A_LOPG(ast)))
+      return true;
+    break;
+  case A_BINOP:
+    if (update_shape_info_expr(arg, A_LOPG(ast)))
+      return true;
+    if (update_shape_info_expr(arg, A_ROPG(ast)))
+      return true;
+    break;
+  default:
+    break;
+  }
+  return false;
+}
+
+static void
+update_shape_info(int arg)
+{
+  int std, ast, dst, asd, aptr, sptr;
+  int i, j, nd, shd;
+
+  for (std = STD_NEXT(0); std; std = STD_NEXT(std)) {
+    ast = STD_AST(std);
+    if (A_TYPEG(ast) != A_ASN && !A_ISEXPR(A_TYPEG(ast)))
+      continue;
+    dst = A_DESTG(ast);
+    if (A_TYPEG(dst) != A_SUBSCR)
+      continue;
+    aptr = (int)A_LOPG(dst);
+    sptr = A_SPTRG(aptr);
+    if (sptr != arg) {
+      if (update_shape_info_expr(arg, A_SRCG(ast)))
+        return;
+      continue;
+    }
+
+    if (shd = A_SHAPEG(aptr)) {
+      nd = SHD_NDIM(shd);
+      for (i = 0; i < nd; ++i)
+        SHD_LWB(shd, i) = astb.bnd.one;
+      return; /* found match and adjustment made */
+    }
+  }
+}
+
 void
 set_assumed_bounds(int arg, int entry, int actual)
 {
   ADSC *ad;
   int dtype;
   int r;
-  int i;
-  int ast1, ast2;
-  int sav;
+  int i, ndim;
+  int ast, ast1, ast2, ast_gbl;
+  int sav = 0;
   int tmp_lb, tmp_ub;
   int std;
   int argt, nargs;
   int newarg, newdsc;
   int astnew, present, zbaseast, prevmpyer;
+  int asd;
 
   assert(is_array_type(arg), "set_assumed_bounds: arg not array", 0, 4);
   dtype = DTYPEG(arg);
   ad = AD_DPTR(dtype);
   assert(AD_DEFER(ad), "set_assumed_bounds: arg not deferred", arg, 4);
   std = ENTSTDG(entry);
+  r = AD_NUMDIM(ad);
 
   newarg = NEWARGG(arg);
   newdsc = NEWDSCG(arg);
@@ -3963,8 +4093,30 @@ set_assumed_bounds(int arg, int entry, int actual)
   zbaseast = 0;
   prevmpyer = 0;
 
-  /* arg is assumed shape, need to set its bounds */
-  r = AD_NUMDIM(ad);
+  /* did we not set lower bound to 1 in to_assumed_shape() or
+   * mk_assumed_shape() because TARGET was not yet available
+   * (still in parser) when this xbit was set?
+   */
+  if (XBIT(58, 0x400000) && !TARGETG(arg)) {
+    for (i = 0; i < r; ++i) {
+      if (AD_LWBD(ad, i) == AD_LWAST(ad, i)) {
+        if (A_TYPEG(AD_LWBD(ad, i)) == A_ID) {
+          /* add assignment std to set lb to 1 */
+          ast = mk_stmt(A_ASN, 0);
+          A_DESTP(ast, AD_LWBD(ad, i));
+          A_SRCP(ast, astb.bnd.one);
+          std = add_stmt_after(ast, std);
+        }
+        AD_LWBD(ad, i) = astb.bnd.one;
+        AD_LWAST(ad, i) = astb.bnd.one;
+      }
+    }
+    /* also, arg is assumed shape, and since !TARGET mark as stride 1 */
+    SDSCS1P(arg, 1); /* see comment below regarding these xbits */
+    if( XBIT(55,0x80) )
+        update_shape_info(arg);
+  }
+
   for (i = 0; i < r; ++i) {
     tmp_lb = AD_LWAST(ad, i); /* temp for lower bound */
     /* declare it by changing the  scope */
@@ -3972,13 +4124,28 @@ set_assumed_bounds(int arg, int entry, int actual)
       IGNOREP(A_SPTRG(tmp_lb), 0);
     }
 
-    ad = AD_DPTR(dtype);
-
     if ((ast1 = AD_LWBD(ad, i)) == 0)
       /* lower bound not specified */
       ast1 = mk_isz_cval(1, astb.bnd.dtype);
     if (A_TYPEG(tmp_lb) == A_CNST) {
       sav = tmp_lb;
+    } else if ((XBIT(58, 0x400000) && TARGETG(arg)) &&
+        tmp_lb == ast1 && A_TYPEG(tmp_lb) == A_ID) {
+      /*
+      FIX ME: setting the descriptor bounds to 1 here does not work since
+      there can be other references (such as loop bounds) which use the
+      symbolic lower bounds for each dimension.
+      ast1 = mk_isz_cval(1, astb.bnd.dtype);
+      sav = AD_LWAST(ad, i) = AD_LWBD(ad, i) = ast1;
+      */
+
+      /* so we just assign the symbolic lower bound ID to 1 */
+      ast1 = mk_isz_cval(1, astb.bnd.dtype);
+      sav = ast1;
+      ast2 = mk_stmt(A_ASN, 0);
+      A_DESTP(ast2, tmp_lb);
+      A_SRCP(ast2, ast1);
+      std = add_stmt_after(ast2, std);
     } else if (tmp_lb != ast1) {
       /* output lower bound assignment */
       /* lb = <declared lower bound> */
@@ -3996,13 +4163,12 @@ set_assumed_bounds(int arg, int entry, int actual)
     /* output upper bound assignment */
     ast2 = extent(arg, check_member(actual, mk_id(newdsc)), i);
     /* ub = lb - 1 + pghpf_extent(a, dim) */
-    ast1 =
-        mk_binop(OP_ADD, mk_binop(OP_SUB, ast1, mk_isz_cval(1, astb.bnd.dtype),
-                                  astb.bnd.dtype),
-                 ast2, astb.bnd.dtype);
+    ast1 = mk_binop(
+        OP_ADD,
+        mk_binop(OP_SUB, ast1, mk_isz_cval(1, astb.bnd.dtype), astb.bnd.dtype),
+        ast2, astb.bnd.dtype);
     ast2 = mk_stmt(A_ASN, 0);
     A_SRCP(ast2, ast1);
-    ad = AD_DPTR(dtype);
     tmp_ub = AD_UPAST(ad, i);
     A_DESTP(ast2, tmp_ub);
     /* declare it by changing the  scope */
@@ -4035,7 +4201,7 @@ set_assumed_bounds(int arg, int entry, int actual)
         int astoff;
         int lb;
         /* account for difference between actual argument lower bound
-        * and assumed-shape argument declared lower bound */
+         * and assumed-shape argument declared lower bound */
         ast = get_global_lower(newdsc, i);
         if (!XBIT(58, 0x40000000)) {
           astoff = get_section_offset(newdsc, i);
@@ -4053,7 +4219,7 @@ set_assumed_bounds(int arg, int entry, int actual)
           }
           if (lbval) {
             ast = mk_binop(OP_SUB, ast, mk_isz_cval(lbval, astb.bnd.dtype),
-                            astb.bnd.dtype);
+                           astb.bnd.dtype);
           }
         } else {
           int lwast;
@@ -4066,7 +4232,7 @@ set_assumed_bounds(int arg, int entry, int actual)
       } else {
         if (AD_ZBASE(ad)) {
           ast = mk_binop(OP_MUL, AD_LWAST(ad, i), AD_MLPYR(ad, i),
-                          astb.bnd.dtype);
+                         astb.bnd.dtype);
         } else {
           ast = 0;
         }
@@ -4188,7 +4354,7 @@ allocate_one_auto(int sptr)
       add_auto_bounds(sptr, Lbegin);
     }
     if (!ALIGNG(sptr)
-            ) {
+    ) {
       ADSC *ad;
       int r, i, ast, subscr[7];
       ad = AD_DPTR(DTYPEG(sptr));

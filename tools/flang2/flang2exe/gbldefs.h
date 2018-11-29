@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, NVIDIA CORPORATION.  All rights reserved.
+ * Copyright (c) 1997-2018, NVIDIA CORPORATION.  All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,8 +21,8 @@
    throughout PGFTN.
  */
 
-#ifndef BE_GBLDEFS_H
-#define BE_GBLDEFS_H
+#ifndef BE_GBLDEFS_H_
+#define BE_GBLDEFS_H_
 
 #include <stdint.h>
 #include "universal.h"
@@ -54,7 +54,7 @@
 #define XBIT_USE_SCOPE_LABELS !XBIT(198, 0x40000)
 
 #define CNULL ((char *)0)
-#define uf(s) error(0, 1, gbl.lineno, "Unimplemented feature", s)
+#define uf(s) error(V_0000_Internal_compiler_error_OP1_OP2, ERR_Informational, gbl.lineno, "Unimplemented feature", s)
 
 /* Fortran Standard max identifier length (used with -Mstandard) */
 #define STANDARD_MAXIDLEN 63
@@ -85,11 +85,11 @@ typedef BIGINT BV;
 
 /* ETLS/TLS threadprivate features */
 
-typedef int LOGICAL;
+typedef bool LOGICAL;
 #undef TRUE
-#define TRUE 1
+#define TRUE true
 #undef FALSE
-#define FALSE 0
+#define FALSE false
 
 /*
  * Define truth values for Fortran.  The negate operation is dependent
@@ -112,44 +112,46 @@ typedef int LOGICAL;
 
 #if DEBUG
 void reportarea(int full);
-void bjunk(void *p, UINT n);
+void bjunk(void *p, BIGUINT64 n);
 
 #define NEW(p, dt, n)                               \
   if (1) {                                          \
-    p = (dt *)sccalloc((UINT)(sizeof(dt) * (n)));   \
+    p = (dt *)sccalloc((BIGUINT64)(sizeof(dt) * (n)));   \
     if (DBGBIT(7, 2))                               \
-      bjunk((char *)(p), (UINT)(sizeof(dt) * (n))); \
+      bjunk((char *)(p), (BIGUINT64)(sizeof(dt) * (n))); \
   } else
 #define NEED(n, p, dt, size, newsize)                                   \
   if (n > size) {                                                       \
-    p = (dt *)sccrelal((char *)p, ((UINT)((newsize) * sizeof(dt))));    \
+    p = (dt *)sccrelal((char *)p, ((BIGUINT64)((newsize) * sizeof(dt))));    \
     if (DBGBIT(7, 2))                                                   \
-      bjunk((char *)(p + size), (UINT)((newsize - size) * sizeof(dt))); \
+      bjunk((char *)(p + size), (BIGUINT64)((newsize - size) * sizeof(dt))); \
     size = newsize;                                                     \
   } else
 
 #else
-#define NEW(p, dt, n) p = (dt *)sccalloc((UINT)(sizeof(dt) * (n)))
+#define NEW(p, dt, n) p = (dt *)sccalloc((BIGUINT64)(sizeof(dt) * (n)))
 #define NEED(n, p, dt, size, newsize)                                \
   if (n > size) {                                                    \
-    p = (dt *)sccrelal((char *)p, ((UINT)((newsize) * sizeof(dt)))); \
+    p = (dt *)sccrelal((char *)p, ((BIGUINT64)((newsize) * sizeof(dt)))); \
     size = newsize;                                                  \
   } else
 #endif
 
 #define NEEDB(n, p, dt, size, newsize)                               \
   if (n > size) {                                                    \
-    p = (dt *)sccrelal((char *)p, ((UINT)((newsize) * sizeof(dt)))); \
+    p = (dt *)sccrelal((char *)p, ((BIGUINT64)((newsize) * sizeof(dt)))); \
     BZERO(p + size, dt, newsize - size);                             \
     size = newsize;                                                  \
   } else
 
 #include "sharedefs.h"
 
-#define RU_SUBR 1
-#define RU_FUNC 2
-#define RU_PROG 3
-#define RU_BDATA 4
+typedef enum RUTYPE {
+    RU_SUBR = 1,
+    RU_FUNC = 2,
+    RU_PROG = 3,
+    RU_BDATA = 4
+} RUTYPE;
 
 #define CLRFPERR() (Fperr = FPE_NOERR)
 /* NOTE :fperror prints an error message and then sets Fperr to FPE_NOERR    */
@@ -158,26 +160,27 @@ void bjunk(void *p, UINT n);
 
 /*  declare external functions which are used globally:  */
 
-extern void finish();        /* from main.c    */
-extern char *sccalloc(UINT); /* from malloc.c: */
-extern void sccfree(char *);
-extern char *sccrelal(char *, UINT);
+ char *sccalloc(BIGUINT64); /* from malloc.c: */
+ void sccfree(char *);
+ char *sccrelal(char *, BIGUINT64);
 
-extern char *getitem(int, int); /* from salloc.c: */
+ char *getitem(int, int); /* from salloc.c: */
 #define GETITEM(area, type) (type *) getitem(area, sizeof(type))
 #define GETITEMS(area, type, n) (type *) getitem(area, (n) * sizeof(type))
-extern void freearea(int);
-extern int put_getitem_p(void *);
-extern void *get_getitem_p(int);
-extern void free_getitem_p(void);
+ void freearea(int);
+ int put_getitem_p(void *);
+ void *get_getitem_p(int);
+ void free_getitem_p(void);
 
-extern char *mkfname(char *, char *, char *); /* from miscutil.c: */
-extern LOGICAL is_xflag_bit(int);
-extern void set_xflag(int, INT);
-extern void set_yflag(int, INT);
-extern void bzero(void *, size_t);
-extern void list_init(); /* from listing.c: */
-extern void list_line(), list_page();
+ char *mkfname(char *, char *, char *); /* from miscutil.c: */
+ void set_xflag(int, INT);
+ void set_yflag(int, INT);
+#ifndef __cplusplus
+ void bzero(void *, size_t);
+#endif
+void list_init(FILE*); /* from listing.c: */
+void list_line(char*);
+void list_page(void);
 void fprintf_str_esc_backslash(FILE *f, char *str);
 void extractor_end(void);                          /* extractor.h */
 void extractor_single_index_file(char *indexname); /* extractor.h */
@@ -193,4 +196,5 @@ void xcarry(void);                                 /* carry.c */
 /* Enable LDSCMPLX/LDDCMPLX ili for byval arguments in Fortran */
 #undef USE_LLVM_CMPLX
 #define USE_LLVM_CMPLX 1
-#endif /* BE_GBLDEFS_H */
+
+#endif /* BE_GBLDEFS_H_ */

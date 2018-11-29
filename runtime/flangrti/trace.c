@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, NVIDIA CORPORATION.  All rights reserved.
+ * Copyright (c) 2006-2017, NVIDIA CORPORATION.  All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@
 
 #include <signal.h>
 #include <stdlib.h>
+#include <string.h>
 #include "llcrit.h"
 #include "stdioInterf.h"
 
@@ -47,7 +48,6 @@ static struct opts opts[] = {{"debug", T_DEBUG | T_SIGNAL},
 
 static int tracopt = 0;
 
-static long sem = 0;
 static char *fn; /* image name */
 
 /* this routine allows a debugger to set a breakpoint before exit */
@@ -68,6 +68,7 @@ dbg_stop_before_exit(void)
 
 #if defined(WIN32) || defined(WIN64)
 #define getpid _getpid
+#define _Exit _exit
 #endif
 
 void
@@ -76,7 +77,8 @@ __abort(int sv, char *msg)
   char cmd[128];
   char *p;
   int n;
-  int tid;
+  const char * dbg_env = "F90_TERM_DEBUG";
+  const char * dbg_cmd = "gdb -p %d";
 
   if (msg != NULL) {
     fprintf(__io_stderr(), "Error: %s\n", msg);
@@ -87,8 +89,8 @@ __abort(int sv, char *msg)
   }
   fflush(__io_stderr());
   if (tracopt & T_DEBUG) {
-    p = getenv("F90_TERM_DEBUG");
-    p = (p == NULL ? "pgdbg -text -attach %d" : p);
+    p = getenv(dbg_env);
+    p = (char *)(p == NULL ? dbg_cmd : p);
     sprintf(cmd, p, getpid());
     system(cmd);
   } else if (tracopt & T_TRACE) {
@@ -113,7 +115,7 @@ __abort(int sv, char *msg)
     signal(SIGABRT, SIG_DFL);
     abort();
   }
-  _exit(127);
+  _Exit(127);
 }
 
 /*
@@ -140,7 +142,6 @@ __abort_init(char *path)
   struct opts *op;
   int n;
   int neg;
-  int v;
 
 #if defined(WINNT)
   fn = path;

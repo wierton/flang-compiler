@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, NVIDIA CORPORATION.  All rights reserved.
+ * Copyright (c) 1994-2018, NVIDIA CORPORATION.  All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -172,20 +172,20 @@ semant2(int rednum, SST *top)
     SST_PARENP(LHS, 0);
     ast = SST_ASTG(RHS(1));
     if (ast_is_sym(ast)) {
-      /* If this <var ref> is a procedure pointer expression, then we 
+      /* If this <var ref> is a procedure pointer expression, then we
        * need to propagate the dtype from the procedure pointer's interface
        * if it's a function.
-       */ 
+       */
       int mem = memsym_of_ast(ast);
       if (is_procedure_ptr(mem)) {
         int iface = 0;
-        proc_arginfo(mem, NULL, NULL, &iface); 
+        proc_arginfo(mem, NULL, NULL, &iface);
         if (FVALG(iface) && (dtype = DTYPEG(iface)) ) {
           SST_DTYPEP(LHS, dtype);
         }
      }
     }
-      
+
     break;
   /*
    *      <primary> ::= <constant> |
@@ -1070,20 +1070,8 @@ semant2(int rednum, SST *top)
       }
       dtype = DTYPEG(sem.in_struct_constr);
 
-      if (no_data_components(dtype)) {
-        /* Do not generate ACL for empty struct constructor
-         * if our derived type is empty or does not have any
-         * data components (e.g., the struct constructor is a nop).
-         */
-        SST_IDP(LHS, S_SCONST);
-        SST_DTYPEP(LHS, dtype);
-        SST_ACLP(LHS, 0);
-        SST_SYMP(LHS, sem.in_struct_constr);
-        sem.in_struct_constr = SST_TMPG(LHS); /*restore old value */
-        break;
-      } else if (itemp == ITEM_END &&
-                 !no_data_components(DTYPEG(sem.in_struct_constr)) &&
-                 (aclp = all_default_init(DTYPEG(sem.in_struct_constr)))) {
+      if (itemp == ITEM_END &&
+         (aclp = all_default_init(DTYPEG(sem.in_struct_constr)))) {
         /* Initialize the empty structure constructor with
          * the first default initializer...
          */
@@ -1108,12 +1096,16 @@ semant2(int rednum, SST *top)
       aclp = GET_ACL(15);
       aclp->id = AC_SCONST;
       aclp->next = NULL;
-      aclp->subc = (ACL *)SST_BEGG(RHS(3));
       aclp->dtype = dtype = DTYPEG(sem.in_struct_constr);
+      if (no_data_components(dtype)) {
+        aclp->subc = NULL;
+      } else {
+        aclp->subc = (ACL *)SST_BEGG(RHS(3));
+        chk_struct_constructor(aclp);
+      }
       SST_IDP(LHS, S_SCONST);
       SST_DTYPEP(LHS, dtype);
       SST_ACLP(LHS, aclp);
-      chk_struct_constructor(aclp);
       SST_SYMP(LHS, sem.in_struct_constr);
       sem.in_struct_constr = SST_TMPG(LHS); /*restore old value */
       break;
@@ -1219,15 +1211,15 @@ semant2(int rednum, SST *top)
           int mask;
           mask = 0;
           if (SST_IDG(SST_E1G(e1)) == S_NULL) {
-            mask |= 0x1;
+            mask |= lboundMask;
           }
           if (SST_IDG(SST_E2G(e1)) == S_NULL) {
-            mask |= 0x2;
+            mask |= uboundMask;
           }
           if (SST_IDG(SST_E3G(e1)) == S_NULL) {
-            mask |= 0x4;
+            mask |= strideMask;
           }
-          if (empty && mask != 0x7)
+          if (empty && mask != (lboundMask | uboundMask | strideMask))
             empty = 0;
           mask <<= 3 * currDim;
           triple_flag |= mask;

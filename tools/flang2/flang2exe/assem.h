@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, NVIDIA CORPORATION.  All rights reserved.
+ * Copyright (c) 2002-2018, NVIDIA CORPORATION.  All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,6 +26,10 @@
 /* ---------- Functions and data used by the Code Generator: ------ */
 
 extern char *comment_char;
+
+char *getsname(SPTR);
+char *getsname2(int);
+void sym_is_refd(SPTR);
 
 extern void assem_init(void);
 /*  called when processing of user function is begun by the CG */
@@ -87,6 +91,8 @@ extern int get_private_size(void);
 
 extern void add_init_routine(char *initroutine);
 /* Create a .init section to call an initialization function */
+
+void create_static_base(int name);
 
 #define STR_SEC 0
 #define RO_SEC 1

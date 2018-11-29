@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, NVIDIA CORPORATION.  All rights reserved.
+ * Copyright (c) 1994-2018, NVIDIA CORPORATION.  All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,15 +18,21 @@
 #ifndef ILI_H_
 #define ILI_H_
 
+/**
+   \file
+   \brief ILI header file  -  x86-64 version.
+ */
+
 #ifndef ILITP_UTIL  /* don't include if building ilitp utility prog*/
+#include "global.h"
+#include "symtab.h"
 #include "iliatt.h" /* defines ILI_OP */
+#else
+typedef unsigned short ILI_OP;
 #endif
 
 #include "atomic_common.h"
 
-/** \file
- * \brief ILI header file  -  x86-64 version.
- */
 #ifndef MAX_OPNDS
 #define MAX_OPNDS 5 /* Max number of operands for an ili */
 #endif
@@ -34,7 +40,7 @@
 /***** ILI Declarations *****/
 
 typedef struct {
-  unsigned short opc; /**< Logically an ILI_OP */
+  ILI_OP opc;
   /* practically all hosts will insert 2 bytes of padding here. */
   int hshlnk;
   int count;
@@ -52,8 +58,11 @@ typedef struct {
   STG_MEMBERS(ILI);
 } ILIB;
 
+extern ILIB ilib;
+
 #define ILI_REPL(i) ilib.stg_base[i].count
-#define ILI_OPC(i) ilib.stg_base[i].opc
+#define ILI_OPC(i) ((ILI_OP)ilib.stg_base[i].opc)
+#define ILI_OPCP(i, j) ilib.stg_base[i].opc = (j)
 #define ILI_HSHLNK(i) ilib.stg_base[i].hshlnk
 #define ILI_VISIT(i) ilib.stg_base[i].visit
 #define ILI_ALT(i) ilib.stg_base[i].alt
@@ -64,6 +73,21 @@ typedef struct {
 #define ILI_TNDX(i) ilib.stg_base[i].tndx
 #define ILI_TNDX2(i) ilib.stg_base[i].tndx2
 #define ILI_LILI(i) ilib.stg_base[i].lili
+
+#ifndef ILITP_UTIL
+#ifdef __cplusplus
+inline SPTR ILI_SymOPND(int i, int opn) {
+  return static_cast<SPTR>(ILI_OPND(i, opn));
+}
+
+inline DTYPE ILI_DTyOPND(int i, int opn) {
+  return static_cast<DTYPE>(ILI_OPND(i, opn));
+}
+#else
+#define ILI_SymOPND ILI_OPND
+#define ILI_DTyOPND ILI_OPND
+#endif
+#endif
 
 /***** ILI Attributes Declarations *****/
 
@@ -111,6 +135,8 @@ typedef struct {
 
   char oprflag[MAX_OPNDS]; /* ILIO_ type of each opnd.  See IL_OPRFLAG */
 } ILIINFO;
+
+extern ILIINFO ilis[];
 
 typedef enum ILIO_KIND {
   ILIO_NULL = 0,
@@ -247,16 +273,20 @@ typedef enum ILIA_RESULT {
 #define ILIA_ISCS(t) ((t) == ILIA_CS)
 #define ILIA_ISCD(t) ((t) == ILIA_CD)
 
-/* *** operand type:    ILIO_... e.g. ILIO_DPLNK */
+/* operand type:    ILIO_... e.g. ILIO_DPLNK */
+
+#ifdef __cplusplus
+inline ILIO_KIND IL_OPRFLAG(ILI_OP opcode, int opn) {
+  return static_cast<ILIO_KIND>(ilis[opcode].oprflag[opn - 1]);
+}
+#else
 #define IL_OPRFLAG(opcode, opn) (ilis[opcode].oprflag[opn - 1])
+#endif
 
 #define IL_OPRS(opc) (ilis[opc].oprs)
 #define IL_NAME(opc) (ilis[opc].name)
 #define IL_MNEMONIC(opc) (ilis[opc].opcod)
 #define IL_ISLINK(i, opn) (IL_OPRFLAG(i, opn) >= ILIO_LNK)
-
-/* *** operation type:  ILTY_... e.g. ILTY_ARTH  */
-#define IL_TYPE(idx) (ilis[(idx)].attr & 0xf)
 
 #define IL_COMM(i) ((ilis[i].attr >> 4) & 0x1)    /* Yields ILIA_COMM or 0    */
 #define IL_RES(i) \
@@ -292,6 +322,9 @@ typedef enum ILTY_KIND {
   ILTY_PSTORE = 11
 } ILTY_KIND;
 
+/* *** operation type:  ILTY_... e.g. ILTY_ARTH  */
+#define IL_TYPE(idx) ((ILTY_KIND)(ilis[(idx)].attr & 0xf))
+
 /* Reflexive defines for values inspected by #ifdef. */
 #define ILTY_PLOAD ILTY_PLOAD
 #define ILTY_PSTORE ILTY_PSTORE
@@ -305,6 +338,7 @@ typedef enum ILTY_KIND {
 /***** Values of conditions in relationals *****/
 
 typedef enum CC_RELATION {
+  CC_None,
   CC_EQ = 1,
   CC_NE = 2,
   CC_LT = 3,
@@ -364,49 +398,24 @@ typedef enum CC_RELATION {
 #define SUF_i64x2 0x1000 /*   "   "   "    "    "    "    */
 #define SUF_i64x4 0x2000 /*   "   "   "    "    "    "    */
 
-/*
- * Memory reference size/type codes.
- *
- * Legacy assumptions observed:
- *   -  (code & 3) < 2 if and only if the type size is 1 or 2 bytes.
- *   -  (code & 3) == log2(type size) if the type size is 1, 2, 4, or 8 bytes.
- */
-typedef enum MSZ {
-  MSZ_SBYTE = 0x00,  /* signed byte */
-  MSZ_SHWORD = 0x01, /* signed 16-bit short */
-  MSZ_UBYTE = 0x04,  /* unsigned byte */
-  MSZ_UHWORD = 0x05, /* unsigned 16-bit short */
-
-  /* Codes for types larger than two bytes. These are all distinct values
-   * suitable for use as case labels in switches.  The holes in this sequence
-   * of code values avoid violating the first legacy assumption described above.
-   */
-  MSZ_SWORD = 0x02,  /* signed 32-bit int */
-  MSZ_SLWORD = 0x03, /* signed 64-bit long */
-  MSZ_UWORD = 0x06,  /* unsigned 32-bit int */
-  MSZ_ULWORD = 0x07, /* unsigned 64-bit long */
-  MSZ_FWORD = 0x0a,  /* 32-bit single precision float */
-  MSZ_FLWORD = 0x0b, /* 64-bit double precision float */
-  MSZ_I8 = 0x0f,     /* distinct 64-bit integer type */
-  MSZ_PTR = 0x13,    /* distinct 64-bit pointer type */
-  MSZ_F10 = 0x16,    /* X87 FPU 80-bit extended precision */
-  MSZ_F16 = 0x17,    /* 128-bit quad precision float */
-  MSZ_F32 = 0x1a,    /* 256-bit float */
-  MSZ_F8x2 = 0x1b,   /* 128-bit double-double float */
-
-  MSZ_UNDEF = 0xff, /* undefined MSZ code */
-} MSZ;
+#ifdef __cplusplus
+inline MSZ MSZ_ILI_OPND(int i, int opn) {
+  return static_cast<MSZ>(ILI_OPND(i, opn));
+}
+#else
+#define MSZ_ILI_OPND ILI_OPND
+#endif
 
 #define MSZ_TO_BYTES                                                  \
   {                                                                   \
     1 /* SBYTE */, 2 /* SHWORD */, 4 /* SWORD */, 8 /* SLWORD */,     \
-        1 /* UBYTE */, 2 /* UHWORD */, 4 /* UWORD */, 8 /* ULWORD */, \
-        0 /* 0x08  */, 0 /* 0x09   */, 4 /* FWORD */, 8 /* FLWORD */, \
-        0 /* 0x0c  */, 0 /* 0x0d   */, 0 /* 0x0e  */, 8 /* I8     */, \
-        0 /* 0x10  */, 0 /* 0x11   */, 0 /* 0x12  */, 8 /* PTR    */, \
-        0 /* 0x14  */, 0 /* 0x15   */, 16 /* F10  */, 16 /* F16   */, \
-        0 /* 0x18  */, 0 /* 0x19   */, 32 /* F32  */, 16 /* F8x2  */, \
-        0 /* 0x1c  */, 0 /* 0x1d   */, 0 /* 0x1e  */, 0 /* 0x1f   */  \
+      1 /* UBYTE */, 2 /* UHWORD */, 4 /* UWORD */, 8 /* ULWORD */,   \
+      0 /* 0x08  */, 0 /* 0x09   */, 4 /* FWORD */, 8 /* FLWORD */,   \
+      0 /* 0x0c  */, 0 /* 0x0d   */, 0 /* 0x0e  */, 8 /* I8     */,   \
+      0 /* 0x10  */, 0 /* 0x11   */, 0 /* 0x12  */, 8 /* PTR    */,   \
+      0 /* 0x14  */, 0 /* 0x15   */, 16 /* F10  */, 16 /* F16   */,   \
+      0 /* 0x18  */, 0 /* 0x19   */, 32 /* F32  */, 16 /* F8x2  */,   \
+      0 /* 0x1c  */, 0 /* 0x1d   */, 0 /* 0x1e  */, 0 /* 0x1f   */    \
   }
 
 /* Reflexive defines for values that are inspected by preprocessor directives */
@@ -445,173 +454,32 @@ typedef struct {
 #define SCH_ATTR(i) (schinfo[(i)].attrs)
 #define SCH_LAT(i) (schinfo[(i)].latency)
 
-/*****  ILI External Data Declarations *****/
-
-extern ILIB ilib;
-extern ILIINFO ilis[];
+/* ---------------------------------------------------------------------- */
 
 #ifndef ILITP_UTIL
-extern LOGICAL share_proc_ili; /* defd in iliutil.c */
-extern LOGICAL share_qjsr_ili; /* defd in iliutil.c */
+extern bool share_proc_ili; /* defd in iliutil.c */
+extern bool share_qjsr_ili; /* defd in iliutil.c */
 
 /*  declare external functions iliutil.c, unless building ilitp utility prog */
-void ili_init(void);
-int ili_traverse(int (*)(), int);
-void ili_visit(int, int);
-void ili_unvisit(void);
-void prilitree(int i); /* iliutil.c */
-void garbage_collect(void (*mark_function)());
-
-int jsrsearch(int);
-int qjsrsearch(int);
-
-int addili(ILI *);
-int get_ili_ns(ILI *);
-int ad1ili(ILI_OP, int);
-int ad2ili(ILI_OP, int, int);
-int ad3ili(ILI_OP, int, int, int);
-int ad4ili(ILI_OP, int, int, int, int);
-int ad5ili(ILI_OP, int, int, int, int, int);
-int ad_cse(int);
-int has_cse(int ilix);
-int ad_icon(INT);
-int ad_kcon(INT, INT);
-int ad_kconi(ISZ_T);
-int ad_aconi(ISZ_T);
-int ad_acon(int, ISZ_T);
-int ad_aconk(INT, INT);
-int ad_load(int);
-int ad_free(int);
-ILI_OP ldopc_from_stopc(ILI_OP);
-ISZ_T get_isz_conili(int);
-
-int ili_opnd(int, int);
-int mk_address(int);
-int compute_address(int);
-
-int sel_icnst(ISZ_T, int);
-int sel_iconv(int, int);
-int sel_decr(int, int);
-int sel_aconv(int);
-
-int is_argili_opcode(ILI_OP);
-int is_cseili_opcode(ILI_OP);
-int is_freeili_opcode(ILI_OP);
-int is_mvili_opcode(ILI_OP);
-int is_rgdfili_opcode(ILI_OP);
-int is_daili_opcode(ILI_OP);
-int is_dfrili_opcode(ILI_OP);
-int is_integer_comparison_opcode(ILI_OP);  /* includes conditional jumps */
-int is_floating_comparison_opcode(ILI_OP); /* ditto */
-int is_unsigned_opcode(ILI_OP);            /* ditto */
-
-DTYPE ili_get_vect_type(int);
-
-int ili_subscript(int);
-int ili_isdeleted(int);
-int ili_throw_label(int);
-int uikmove(int);
-int ikmove(int);
-int kimove(int);
-void initcallargs(int count);
-void addcallarg(int ili, int nme, int dtype);
-int gencallargs(void);
-char *gnr_math(char *, int, int, char *, int);
-char *fast_math(char *, int, int, char *);
-char *relaxed_math(char *, int, int, char *);
-int mkfunc_avx(char *, int);
-void rm_smove(void);
-
-void dump_ili(FILE *, int);
 
 #define XBIT_NEW_MATH_NAMES XBIT(164, 0x800000)
-/* the following macro is for experimenting with the new method for certain
+
+/* The following macro is for experimenting with the new method for certain
  * complex operations/intrinsics -- when complete, just drop _CMPLX from the 
  * use(s).
  */
-#define XBIT_NEW_MATH_NAMES_CMPLX (XBIT_NEW_MATH_NAMES && XBIT(29,1))
+#define XBIT_NEW_MATH_NAMES_CMPLX (XBIT_NEW_MATH_NAMES && XBIT(26,1))
 
 #define XBIT_NEW_RELAXEDMATH XBIT(15, 0x400)
 
-/* Complements a relation; also known as negation or inversion.
- *  complement_int_cc(CC_LT) -> CC_GE
- *  complement_ieee_cc(CC_LT) -> CC_NOTLT
- */
-CC_RELATION complement_int_cc(CC_RELATION cc);
-CC_RELATION complement_ieee_cc(CC_RELATION cc);
-
-/* Commutes a relation to correspond to an exchange of its operands.
- *  commute_cc(CC_LT) -> CC_GT
- */
-CC_RELATION commute_cc(CC_RELATION cc);
-
-/* Reduces a comparison of two operands whose result is compared with zero
- * into a single comparison of the two operands.
- *  combine_*_ccs(CC_x, CC_NE or CC_GT) -> CC_x
- *  combine_*_ccs(CC_x, CC_EQ or CC_LE) -> complement_*_cc(CC_x)
- *  combine_*_ccs(CC_x, CC_LT or CC_GE) -> 0
- */
-CC_RELATION combine_int_ccs(CC_RELATION binary_cc, CC_RELATION zero_cc);
-CC_RELATION combine_ieee_ccs(CC_RELATION binary_cc, CC_RELATION zero_cc);
-
-/* Predicate: if two operands were equal, would that satisfy a condition? */
-bool cc_includes_equality(CC_RELATION cc);
-
-/* Predicate: are two condition codes complements of each other? */
-bool ccs_are_complementary(CC_RELATION cc1, CC_RELATION cc2);
-
-int ll_ad_outlined_func(ILI_OP, ILI_OP, char *, int, int, int, int);
-
-#ifdef DEBUG
-void dmpili(void);
-void dmpilitree(int i);
-void _ddilitree(int i, int flag);
-#endif
-
-MSZ mem_size(TY_KIND ty);
-int rewr_ili_nme(int tree, int oldili, int newili, int oldnme, int newnme,
-                 int douse, int dodef);
-extern int rewr_ili(int, int, int);
-extern void rewr_cln_ili(void);
-
-/* iliutil.h */
-int find_ili(int tree, int it);
-int genretvalue(int ilix, ILI_OP resultopc);
+#define XBIT_VECTORABI_FOR_SCALAR XBIT(26,2)
 
 /*****  ILT, BIH, NME  declarations  *****/
 #include "ilt.h"
 #include "bih.h"
 #include "nme.h"
-LOGICAL qjsr_in(int ilix);
-int alt_qjsr(int ilix);
-LOGICAL find_ili(int tree, int it);
-LOGICAL is_llvm_local_private(int sptr);
-int mk_charlen_parref_sptr(int);
 
 /***** Atomic Operation Encodings *****/
-int atomic_encode(MSZ msz, SYNC_SCOPE scope, ATOMIC_ORIGIN origin);
-int atomic_encode_rmw(MSZ msz, SYNC_SCOPE scope, ATOMIC_ORIGIN origin,
-                      ATOMIC_RMW_OP op);
-MEMORY_ORDER memory_order(int ilix);
-ATOMIC_INFO atomic_info(int ilix);
-extern LOGICAL is_omp_atomic_ld(int);
-extern LOGICAL is_omp_atomic_st(int);
-
-ATOMIC_INFO atomic_decode(int encoding);
-int atomic_info_index(ILI_OP opc);
-
-/* compare-exchange requires 8 inputs.  To avoid having to allow 8-operand ILI
-   operations, it's broken into 2 ILIs, an IL_CMPXCHGx on top of an
-   IL_CMPXCHG_DST.  Clients should avoid creating or referencing the 
-   IL_CMPXCHG_DST instruction directly, and instead use the interfaces below.*/
-
-bool cmpxchg_is_weak(int ilix);
-int cmpxchg_loc(int ilix);
-int ad_cmpxchg(ILI_OP opc, int ilix_val, int ilix_loc, int nme,
-               int stc_atomic_info, int ilix_comparand, int ilix_is_weak,
-               int ilix_sucess, int ilix_failure);
-
-CMPXCHG_MEMORY_ORDER cmpxchg_memory_order(int ilix);
 
 /* Extract MSZ from an int that is a MSZ operand or an encoded ATOMIC_INFO.
    This functionality is handy for extracting the MSZ from an instruction
@@ -624,5 +492,21 @@ CMPXCHG_MEMORY_ORDER cmpxchg_memory_order(int ilix);
 /* Get MSZ of an IL_ST, IL_STSP, IL_STDP, or IL_ATOMICSTx instruction */
 #define ILI_MSZ_OF_ST(ilix) (ILI_MSZ_FROM_STC(ILI_OPND((ilix), 4)))
 
-#endif /* !defined(ILITP_UTIL) */
+#include "iliutil.h"
+
+#ifdef __cplusplus
+inline MSZ GetILI_MSZ_OF_Load(int ilix) {
+  return static_cast<MSZ>(ILI_MSZ_OF_LD(ilix));
+}
+#undef ILI_MSZ_OF_LD
+#define ILI_MSZ_OF_LD GetILI_MSZ_OF_Load
+inline MSZ GetILI_MSZ_OF_Store(int ilix) {
+  return static_cast<MSZ>(ILI_MSZ_OF_ST(ilix));
+}
+#undef ILI_MSZ_OF_ST
+#define ILI_MSZ_OF_ST GetILI_MSZ_OF_Store
+#endif
+
+#endif /* !ILITP_UTIL */
+
 #endif /* ILI_H_ */

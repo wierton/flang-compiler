@@ -43,8 +43,13 @@ module IEEE_ARITHMETIC
 
 #ifdef TARGET_LINUX_ARM
   integer, private, parameter :: FE_TONEAREST  = 0
+#ifdef TARGET_LLVM_ARM64
+  integer, private, parameter :: FE_DOWNWARD   = X'00800000'
+  integer, private, parameter :: FE_UPWARD     = X'00400000'
+#else
   integer, private, parameter :: FE_DOWNWARD   = X'00400000'
   integer, private, parameter :: FE_UPWARD     = X'00800000'
+#endif
   integer, private, parameter :: FE_TOWARDZERO = X'00c00000'
 #else
 #ifdef TARGET_LINUX_POWER
@@ -577,7 +582,7 @@ contains
   subroutine ieee_get_underflow_mode(uflow)
     logical*4, intent(out) :: uflow
     integer i
-#if defined TARGET_LINUX_ARM || defined TARGET_LINUX_POWER
+#if defined TARGET_LINUX_POWER
       uflow = .true.
 #else
     i = __fenv_fegetzerodenorm()
@@ -592,7 +597,7 @@ contains
   subroutine ieee_get_underflow_model8(uflow)
     logical*8, intent(out) :: uflow
     integer i
-#if defined TARGET_LINUX_ARM || defined TARGET_LINUX_POWER
+#if defined TARGET_LINUX_POWER
       uflow = .true.
 #else
     i = __fenv_fegetzerodenorm()

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, NVIDIA CORPORATION.  All rights reserved.
+ * Copyright (c) 1994-2018, NVIDIA CORPORATION.  All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -43,7 +43,7 @@
  *     end_io_call()	   [optional assignment of function]
  */
 
-static struct {/* record info for begin_io_call - end_io_call */
+static struct { /* record info for begin_io_call - end_io_call */
   int ast;
   int ast_type;
   int std;
@@ -208,11 +208,11 @@ typedef struct iol {
 
 /* local data */
 
-static struct pt_tag {/* parameter table for I/O statements */
-  int val;            /* pointer to AST of I/O keyword specifier, except
-                       * for a keyword specifier for a label, in which
-                       * case val is the sptr of the label.
-                       */
+static struct pt_tag { /* parameter table for I/O statements */
+  int val;             /* pointer to AST of I/O keyword specifier, except
+                        * for a keyword specifier for a label, in which
+                        * case val is the sptr of the label.
+                        */
   int set;
   int varref;     /* zero     ==> io specifier is not a variable,
                    * non-zero ==> io specifier is a variable reference,
@@ -231,13 +231,13 @@ static struct pt_tag {/* parameter table for I/O statements */
   char *name;
   int stmt; /* I/O stmts which may use parameter/keyword */
 } pt[PT_MAXV + 1] = {
-    {0, 0, 0, 0, "UNIT", BT_BKSPACE | BT_CLOSE | BT_ENDFILE | BT_INQUIRE |
-                             BT_OPEN | BT_READ | BT_REWIND | BT_WRITE |
-                             BT_WAIT | BT_FLUSH},
+    {0, 0, 0, 0, "UNIT",
+     BT_BKSPACE | BT_CLOSE | BT_ENDFILE | BT_INQUIRE | BT_OPEN | BT_READ |
+         BT_REWIND | BT_WRITE | BT_WAIT | BT_FLUSH},
     {0, 0, 0, 0, "FILE", BT_INQUIRE | BT_OPEN},
-    {0, 0, 0, 0, "IOSTAT", BT_BKSPACE | BT_CLOSE | BT_DECODE | BT_ENCODE |
-                               BT_ENDFILE | BT_INQUIRE | BT_OPEN | BT_READ |
-                               BT_REWIND | BT_WRITE | BT_WAIT | BT_FLUSH},
+    {0, 0, 0, 0, "IOSTAT",
+     BT_BKSPACE | BT_CLOSE | BT_DECODE | BT_ENCODE | BT_ENDFILE | BT_INQUIRE |
+         BT_OPEN | BT_READ | BT_REWIND | BT_WRITE | BT_WAIT | BT_FLUSH},
     {0, 0, 0, 0, "EXIST", BT_INQUIRE},
     {0, 0, 0, 0, "OPENED", BT_INQUIRE},
     {0, 0, 0, 0, "NUMBER", BT_INQUIRE},
@@ -271,9 +271,9 @@ static struct pt_tag {/* parameter table for I/O statements */
     {0, 0, 0, 0, "ROUND", BT_INQUIRE | BT_OPEN | BT_READ | BT_WRITE},
     {0, 0, 0, 0, "DISPOSE", BT_CLOSE | BT_OPEN},
     {0, 0, 0, 0, "END", BT_READ | BT_WAIT},
-    {0, 0, 0, 0, "ERR", BT_BKSPACE | BT_CLOSE | BT_DECODE | BT_ENCODE |
-                            BT_ENDFILE | BT_INQUIRE | BT_OPEN | BT_READ |
-                            BT_REWIND | BT_WRITE | BT_WAIT | BT_FLUSH},
+    {0, 0, 0, 0, "ERR",
+     BT_BKSPACE | BT_CLOSE | BT_DECODE | BT_ENCODE | BT_ENDFILE | BT_INQUIRE |
+         BT_OPEN | BT_READ | BT_REWIND | BT_WRITE | BT_WAIT | BT_FLUSH},
     {0, 0, 0, 0, "FMT", BT_READ | BT_WRITE},
     {0, 0, 0, 0, "NML", BT_READ | BT_WRITE},
     {0, 0, 0, 0, "REC", BT_READ | BT_WRITE},
@@ -283,9 +283,9 @@ static struct pt_tag {/* parameter table for I/O statements */
     {0, 0, 0, 0, "IOLENGTH", BT_INQUIRE},
     {0, 0, 0, 0, "CONVERT", BT_OPEN},
     {0, 0, 0, 0, "SHARED", BT_OPEN},
-    {0, 0, 0, 0, "IOMSG", BT_BKSPACE | BT_CLOSE | BT_DECODE | BT_ENCODE |
-                              BT_ENDFILE | BT_INQUIRE | BT_OPEN | BT_READ |
-                              BT_REWIND | BT_WRITE | BT_WAIT | BT_FLUSH},
+    {0, 0, 0, 0, "IOMSG",
+     BT_BKSPACE | BT_CLOSE | BT_DECODE | BT_ENCODE | BT_ENDFILE | BT_INQUIRE |
+         BT_OPEN | BT_READ | BT_REWIND | BT_WRITE | BT_WAIT | BT_FLUSH},
     {0, 0, 0, 0, "NEWUNIT", BT_OPEN},
 };
 static FormatType fmttyp;     /* formatted or unformatted I/O */
@@ -362,37 +362,37 @@ typedef struct {
 } UnformattedRtns;
 
 UnformattedRtns unf_nm[][3] = {{
-                                   {RTE_f90io_unf_init, RTE_f90io_unf_read,
-                                    RTE_f90io_unf_write, RTE_f90io_unf_end},
-                                   {RTE_f90io_usw_init, RTE_f90io_usw_read,
-                                    RTE_f90io_usw_write, RTE_f90io_usw_end},
-                                   {RTE_f90io_unf_init, RTE_f90io_byte_read,
-                                    RTE_f90io_byte_write, RTE_f90io_unf_end},
+                                   {RTE_f90io_unf_init, RTE_f90io_unf_reada,
+                                    RTE_f90io_unf_writea, RTE_f90io_unf_end},
+                                   {RTE_f90io_usw_init, RTE_f90io_usw_reada,
+                                    RTE_f90io_usw_writea, RTE_f90io_usw_end},
+                                   {RTE_f90io_unf_init, RTE_f90io_byte_reada,
+                                    RTE_f90io_byte_writea, RTE_f90io_unf_end},
                                },
                                {
-                                   {RTE_f90io_unf_init, RTE_f90io_unf_read,
-                                    RTE_f90io_unf_write, RTE_f90io_unf_end},
-                                   {RTE_f90io_usw_init, RTE_f90io_usw_read,
-                                    RTE_f90io_usw_write, RTE_f90io_usw_end},
-                                   {RTE_f90io_unf_init, RTE_f90io_byte_read64,
-                                    RTE_f90io_byte_write64, RTE_f90io_unf_end},
+                                   {RTE_f90io_unf_init, RTE_f90io_unf_reada,
+                                    RTE_f90io_unf_writea, RTE_f90io_unf_end},
+                                   {RTE_f90io_usw_init, RTE_f90io_usw_reada,
+                                    RTE_f90io_usw_writea, RTE_f90io_usw_end},
+                                   {RTE_f90io_unf_init, RTE_f90io_byte_read64a,
+                                    RTE_f90io_byte_write64a, RTE_f90io_unf_end},
                                }};
 
 UnformattedRtns array_unf_nm[][3] = {
     {
-        {RTE_f90io_unf_init, RTE_f90io_unf_read_a, RTE_f90io_unf_write_a,
+        {RTE_f90io_unf_init, RTE_f90io_unf_read_aa, RTE_f90io_unf_write_aa,
          RTE_f90io_unf_end},
-        {RTE_f90io_usw_init, RTE_f90io_usw_read_a, RTE_f90io_usw_write_a,
+        {RTE_f90io_usw_init, RTE_f90io_usw_read_aa, RTE_f90io_usw_write_aa,
          RTE_f90io_usw_end},
-        {RTE_f90io_unf_init, RTE_f90io_byte_read, RTE_f90io_byte_write,
+        {RTE_f90io_unf_init, RTE_f90io_byte_reada, RTE_f90io_byte_writea,
          RTE_f90io_unf_end},
     },
     {
-        {RTE_f90io_unf_init, RTE_f90io_unf_read64_a, RTE_f90io_unf_write64_a,
+        {RTE_f90io_unf_init, RTE_f90io_unf_read64_aa, RTE_f90io_unf_write64_aa,
          RTE_f90io_unf_end},
-        {RTE_f90io_usw_init, RTE_f90io_usw_read64_a, RTE_f90io_usw_write64_a,
+        {RTE_f90io_usw_init, RTE_f90io_usw_read64_aa, RTE_f90io_usw_write64_aa,
          RTE_f90io_usw_end},
-        {RTE_f90io_unf_init, RTE_f90io_byte_read64, RTE_f90io_byte_write64,
+        {RTE_f90io_unf_init, RTE_f90io_byte_read64a, RTE_f90io_byte_write64a,
          RTE_f90io_unf_end},
     }};
 
@@ -408,12 +408,12 @@ static struct {
   FtnRtlEnum read[2];
   FtnRtlEnum write[2];
 } fmt_init[] = {{
-                    {RTE_f90io_fmtr_init2003, RTE_f90io_fmtr_initv2003},
-                    {RTE_f90io_fmtw_init, RTE_f90io_fmtw_initv},
+                    {RTE_f90io_fmtr_init2003a, RTE_f90io_fmtr_initv2003a},
+                    {RTE_f90io_fmtw_inita, RTE_f90io_fmtw_initva},
                 },
                 {
-                    {RTE_f90io_fmtr_intern_init, RTE_f90io_fmtr_intern_initv},
-                    {RTE_f90io_fmtw_intern_init, RTE_f90io_fmtw_intern_initv},
+                    {RTE_f90io_fmtr_intern_inita, RTE_f90io_fmtr_intern_initva},
+                    {RTE_f90io_fmtw_intern_inita, RTE_f90io_fmtw_intern_initva},
                 }};
 
 /* Init routines for DECODE/ENCODE */
@@ -485,7 +485,7 @@ semantio(int rednum, SST *top)
 {
   int sptr, i, iofunc;
   int len;
-  int dtype;
+  int dtype, ddtype;
   int dum;
   ADSC *ad;
   SST *stkptr, *e1;
@@ -506,7 +506,6 @@ semantio(int rednum, SST *top)
   int last_inquire_val;
   ITEM *itemp;
   char *strptr;
-  int rhstop;
   LOGICAL needDescr;
 
   switch (rednum) {
@@ -556,7 +555,7 @@ semantio(int rednum, SST *top)
     print_star = FALSE;
     unit_star = FALSE;
 
-  /* shared entry for all io statements except bufferin/bufferout */
+    /* shared entry for all io statements except bufferin/bufferout */
 
   io_shared:
     set_io_sc();
@@ -608,7 +607,7 @@ semantio(int rednum, SST *top)
       }
       ast1 = mk_id(sptr1);
     }
-    sptr = mk_iofunc(RTE_f90io_src_info03, DT_NONE, 0);
+    sptr = mk_iofunc(RTE_f90io_src_info03a, DT_NONE, 0);
     (void)begin_io_call(A_CALL, sptr, 2);
     (void)add_io_arg(mk_cval((INT)gbl.lineno, DT_INT));
     (void)add_io_arg(ast1);
@@ -689,7 +688,7 @@ semantio(int rednum, SST *top)
     } else
       PTV(PT_STATUS) = PTV(PT_DISPOSE);
     PT_CHECK(PT_STATUS, astb.ptr0c);
-    sptr = mk_iofunc(RTE_f90io_close, DT_INT, 0);
+    sptr = mk_iofunc(RTE_f90io_closea, DT_INT, 0);
     fix_iostat();
     (void)begin_io_call(A_FUNC, sptr, 4);
     (void)add_io_arg(PTARG(PT_UNIT));
@@ -740,7 +739,7 @@ semantio(int rednum, SST *top)
     if (PTS(PT_FILE) && PTS(PT_NAME))
       IOERR2(202, "FILE and NAME in OPEN");
 
-    sptr = mk_iofunc(RTE_f90io_open2003, DT_INT, 0);
+    sptr = mk_iofunc(RTE_f90io_open2003a, DT_INT, 0);
     (void)begin_io_call(A_FUNC, sptr, 14);
     (void)add_io_arg(PTARG(PT_UNIT));
     (void)add_io_arg(mk_cval(bitv, DT_INT));
@@ -767,7 +766,7 @@ semantio(int rednum, SST *top)
       /* ast is an A_ASN of the form
        * z_io = ...open(...)
        */
-      sptr = mk_iofunc(RTE_f90io_open_cvt, DT_INT, 0);
+      sptr = mk_iofunc(RTE_f90io_open_cvta, DT_INT, 0);
       (void)begin_io_call(A_FUNC, sptr, 2);
       (void)add_io_arg(A_DESTG(ast));
       (void)add_io_arg(PTARG(PT_CONVERT));
@@ -777,7 +776,7 @@ semantio(int rednum, SST *top)
       /* ast is an A_ASN of the form
        * z_io = ...open(...)
        */
-      sptr = mk_iofunc(RTE_f90io_open_share, DT_INT, 0);
+      sptr = mk_iofunc(RTE_f90io_open_sharea, DT_INT, 0);
       (void)begin_io_call(A_FUNC, sptr, 2);
       (void)add_io_arg(A_DESTG(ast));
       (void)add_io_arg(PTARG(PT_SHARED));
@@ -787,7 +786,7 @@ semantio(int rednum, SST *top)
       /* ast is an A_ASN of the form
        * z_io = ...open(...)
        */
-      sptr = mk_iofunc(RTE_f90io_open_async, DT_INT, 0);
+      sptr = mk_iofunc(RTE_f90io_open_asynca, DT_INT, 0);
       (void)begin_io_call(A_FUNC, sptr, 2);
       (void)add_io_arg(A_DESTG(ast));
       (void)add_io_arg(PTARG(PT_ASYNCHRONOUS));
@@ -801,7 +800,7 @@ semantio(int rednum, SST *top)
       PT_CHECK(PT_ROUND, astb.ptr0c);
       PT_CHECK(PT_SIGN, astb.ptr0c);
       PT_CHECK(PT_ENCODING, astb.ptr0c);
-      sptr = mk_iofunc(RTE_f90io_open03, DT_INT, 0);
+      sptr = mk_iofunc(RTE_f90io_open03a, DT_INT, 0);
       (void)begin_io_call(A_FUNC, sptr, 5);
       (void)add_io_arg(A_DESTG(ast));
       (void)add_io_arg(PTARG(PT_DECIMAL));
@@ -860,9 +859,9 @@ semantio(int rednum, SST *top)
     }
 
     if (last_inquire_val < PT_LAST_INQUIRE_VAL) {
-      sptr = mk_iofunc(RTE_f90io_inquire2003, DT_INT, 0);
+      sptr = mk_iofunc(RTE_f90io_inquire2003a, DT_INT, 0);
     } else {
-      sptr = mk_iofunc(RTE_f90io_inquire03_2, DT_INT, 0);
+      sptr = mk_iofunc(RTE_f90io_inquire03_2a, DT_INT, 0);
     }
     filename_type = 0;
     (void)begin_io_call(A_FUNC, sptr, last_inquire_val + 2);
@@ -1146,9 +1145,11 @@ semantio(int rednum, SST *top)
                 } else {
                   tast = (arglist->next->next->next->next)->ast;
                 }
-                asn = mk_assn_stmt(ast_ioret(), tast, DT_INT);
-                (void)add_stmt(asn);
-                tast = add_cgoto(asn);
+                sptr1 = mk_iofunc(RTE_f90io_dts_stat, DT_NONE, 0);
+                ast1 = begin_io_call(A_CALL, sptr1, 1);
+                (void)add_io_arg(mk_unop(OP_VAL, tast, DT_INT4));
+                (void)add_stmt(ast1);
+                (void)add_cgoto(tast);
               }
               break;
             } else {
@@ -1163,9 +1164,9 @@ semantio(int rednum, SST *top)
               (void)add_io_arg(i); /* length, stride */
               (void)add_io_arg(astb.i0);
               (void)add_io_arg(ast);     /* item */
-              (void)add_io_arg(astb.i1); /* explicit item_length */
+              (void)add_io_arg(astb.k1); /* explicit item_length */
             } else {
-              i = mk_cval(size_of(dtype), DT_INT);
+              i = mk_cval(size_of(dtype), DT_INT8);
               (void)begin_io_call(A_FUNC, bytfunc, 4);
               (void)add_io_arg(ast2); /* length, stride */
               (void)add_io_arg(ast3);
@@ -1225,13 +1226,11 @@ semantio(int rednum, SST *top)
             STD_PREV(0) = s1;
           }
         }
-        NEED_LOOP(i, DI_DO);
+        NEED_DOIF(i, DI_DO);
         break;
 
       case IE_DOEND:
-        ast = do_end(iolptr->doinfo);
-        sem.doif_depth--;
-        (void)add_stmt_after(ast, (int)STD_PREV(0));
+        do_end(iolptr->doinfo);
         break;
 
       default:
@@ -1243,6 +1242,8 @@ semantio(int rednum, SST *top)
     array_io_item:
       if (DTY(dtype) == TY_ARRAY)
         dtype = DTY(dtype + 1);
+      if (no_data_components(dtype))
+        continue;
       if (!((SST_IDG(stkptr) == S_EXPR && DTYG(dtype) == TY_DERIVED)))
         (void)mkarg(stkptr, &dum);
       if (is_read) {
@@ -1290,7 +1291,7 @@ semantio(int rednum, SST *top)
         if (dtype != DT_ASSNCHAR && dtype != DT_DEFERNCHAR)
           ast3 = mk_cval(size_of(dtype), DT_INT);
         else {
-          i = sym_mkfunc_nodesc(mkRteRtnNm(RTE_nlen), DT_INT);
+          i = sym_mkfunc_nodesc(mkRteRtnNm(RTE_nlena), DT_INT);
           ast3 = begin_call(A_FUNC, i, 1);
           add_arg(ast);
         }
@@ -1435,9 +1436,9 @@ semantio(int rednum, SST *top)
             (void)add_io_arg(ast2); /* length, stride */
             (void)add_io_arg(astb.i0);
             (void)add_io_arg(ast);     /* item */
-            (void)add_io_arg(astb.i1); /* explicit item_length */
+            (void)add_io_arg(astb.k1); /* explicit item_length */
           } else {
-            ast3 = mk_cval(size_of(dtype), DT_INT);
+            ast3 = mk_cval(size_of(dtype), DT_INT8);
             (void)begin_io_call(A_FUNC, bytfunc, 4);
             (void)add_io_arg(ast2); /* length, stride */
             (void)add_io_arg(ast3);
@@ -1577,13 +1578,11 @@ semantio(int rednum, SST *top)
             STD_PREV(0) = s1;
           }
         }
-        NEED_LOOP(i, DI_DO);
+        NEED_DOIF(i, DI_DO);
         break;
 
       case IE_DOEND:
-        ast = do_end(iolptr->doinfo);
-        sem.doif_depth--;
-        (void)add_stmt_after(ast, (int)STD_PREV(0));
+        do_end(iolptr->doinfo);
         break;
 
       default:
@@ -1615,14 +1614,14 @@ semantio(int rednum, SST *top)
       else if (DTY(dtype) == TY_CHAR) {
         (void)mkarg(stkptr, &dum);
         ast2 = SST_ASTG(stkptr);
-        i = sym_mkfunc_nodesc(mkRteRtnNm(RTE_len), DT_INT);
+        i = sym_mkfunc_nodesc(mkRteRtnNm(RTE_lena), DT_INT);
         ast = begin_call(A_FUNC, i, 1);
         add_arg(ast2);
       }
       else if (DTY(dtype) == TY_NCHAR) {
         (void)mkarg(stkptr, &dum);
         ast2 = SST_ASTG(stkptr);
-        i = sym_mkfunc_nodesc(mkRteRtnNm(RTE_nlen), DT_INT);
+        i = sym_mkfunc_nodesc(mkRteRtnNm(RTE_nlena), DT_INT);
         ast = begin_call(A_FUNC, i, 1);
         add_arg(ast2);
         ast1 = mk_cval(size_of(dtype), DT_INT);
@@ -2107,6 +2106,9 @@ semantio(int rednum, SST *top)
    *	<spec item> ::= ADVANCE = <expression> |
    */
   case SPEC_ITEM33:
+    if (DI_IN_NEST(sem.doif_depth, DI_DOCONCURRENT))
+      error(1050, ERR_Severe, gbl.lineno,
+            "I/O statement ADVANCE specifier in", CNULL);
     nondevice_io = TRUE;
     PT_SET(PT_ADVANCE);
     bitv |= BITV_ADVANCE;
@@ -2343,7 +2345,7 @@ semantio(int rednum, SST *top)
       if (PTV(PT_ASYNCHRONOUS) || PTV(PT_ID)) {
         PT_CHECK(PT_ASYNCHRONOUS, astb.ptr0c);
         PT_CHECK(PT_ID, astb.ptr0);
-        sptr = mk_iofunc(RTE_f90io_unf_async, DT_INT, 0);
+        sptr = mk_iofunc(RTE_f90io_unf_asynca, DT_INT, 0);
         (void)begin_io_call(A_CALL, sptr, 2);
         (void)add_io_arg(PTARG(PT_ASYNCHRONOUS));
         (void)add_io_arg(PTARG(PT_ID));
@@ -2397,7 +2399,7 @@ semantio(int rednum, SST *top)
           sptr = mk_iofunc(RTE_f90io_encode_fmtv, DT_INT, 0);
           (void)begin_io_call(A_FUNC, sptr, 1);
         } else {
-          sptr = mk_iofunc(RTE_f90io_encode_fmt, DT_INT, 0);
+          sptr = mk_iofunc(RTE_f90io_encode_fmta, DT_INT, 0);
           (void)begin_io_call(A_FUNC, sptr, 3);
           (void)add_io_arg(mk_cval((INT)ty_to_lib[TY_CHAR], DT_INT));
           (void)add_io_arg(astb.i1);
@@ -2412,7 +2414,7 @@ semantio(int rednum, SST *top)
          * statement, first issue a call to the encode routine
          * and record the fact that it was called.
          */
-        sptr = mk_iofunc(RTE_f90io_encode_fmt, DT_INT, 0);
+        sptr = mk_iofunc(RTE_f90io_encode_fmta, DT_INT, 0);
         ast = PTV(PT_FMT);
         ast1 = mk_cval((INT)ty_to_lib[DTYG(A_DTYPEG(ast))], DT_INT);
         (void)begin_io_call(A_FUNC, sptr, 3);
@@ -2538,9 +2540,9 @@ semantio(int rednum, SST *top)
         fix_iostat();
         if (fmttyp == FT_LIST_DIRECTED) {
           if (is_read)
-            rtlRtn = RTE_f90io_ldr_intern_init;
+            rtlRtn = RTE_f90io_ldr_intern_inita;
           else
-            rtlRtn = RTE_f90io_ldw_intern_init;
+            rtlRtn = RTE_f90io_ldw_intern_inita;
           sptr = mk_iofunc(rtlRtn, DT_INT, 0);
 
           (void)begin_io_call(A_FUNC, sptr, 4);
@@ -2551,9 +2553,9 @@ semantio(int rednum, SST *top)
           ast = end_io_call();
         } else if (fmttyp == FT_NML) { /*  Namelist I/O  */
           if (is_read)
-            rtlRtn = RTE_f90io_nmlr_intern_init;
+            rtlRtn = RTE_f90io_nmlr_intern_inita;
           else
-            rtlRtn = RTE_f90io_nmlw_intern_init;
+            rtlRtn = RTE_f90io_nmlw_intern_inita;
           sptr = mk_iofunc(rtlRtn, DT_INT, 0);
 
           (void)begin_io_call(A_FUNC, sptr, 4);
@@ -2602,7 +2604,10 @@ semantio(int rednum, SST *top)
           (void)add_io_arg(PTARG(PT_UNIT));
           (void)add_io_arg(PTARG(PT_REC));
           (void)add_io_arg(mk_cval(bitv, DT_INT));
-          (void)add_io_arg(PTARG(PT_IOSTAT));
+          if (bitv & BITV_IOSTAT)
+            (void)add_io_arg(PTARG(PT_IOSTAT));
+          else
+            (void)add_io_arg(mk_fake_iostat());
           ast = end_io_call();
         } else {
           if (is_read) {
@@ -2642,7 +2647,7 @@ semantio(int rednum, SST *top)
         }
         if (fmttyp == FT_LIST_DIRECTED) {
           if (is_read) {
-            rtlRtn = RTE_f90io_ldr_init03;
+            rtlRtn = RTE_f90io_ldr_init03a;
             PT_CHECK(PT_BLANK, astb.ptr0c);
             PT_CHECK(PT_DECIMAL, astb.ptr0c);
             PT_CHECK(PT_PAD, astb.ptr0c);
@@ -2655,7 +2660,7 @@ semantio(int rednum, SST *top)
             (void)add_io_arg(PTARG(PT_PAD));
             (void)add_io_arg(PTARG(PT_ROUND));
           } else {
-            rtlRtn = RTE_f90io_ldw_init03;
+            rtlRtn = RTE_f90io_ldw_init03a;
             if (PTV(PT_ROUND))
               IOERR2(201, PTNAME(PT_ROUND));
             PT_CHECK(PT_DECIMAL, astb.ptr0c);
@@ -2671,7 +2676,7 @@ semantio(int rednum, SST *top)
           ast = end_io_call();
         } else if (fmttyp == FT_NML) {
           if (is_read) {
-            rtlRtn = RTE_f90io_nmlr_init03;
+            rtlRtn = RTE_f90io_nmlr_init03a;
             PT_CHECK(PT_BLANK, astb.ptr0c);
             PT_CHECK(PT_DECIMAL, astb.ptr0c);
             PT_CHECK(PT_PAD, astb.ptr0c);
@@ -2684,7 +2689,7 @@ semantio(int rednum, SST *top)
             (void)add_io_arg(PTARG(PT_PAD));
             (void)add_io_arg(PTARG(PT_ROUND));
           } else {
-            rtlRtn = RTE_f90io_nmlw_init03;
+            rtlRtn = RTE_f90io_nmlw_init03a;
             if (PTV(PT_ROUND))
               IOERR2(201, PTNAME(PT_ROUND));
             PT_CHECK(PT_DECIMAL, astb.ptr0c);
@@ -2700,7 +2705,7 @@ semantio(int rednum, SST *top)
           ast = end_io_call();
         } else {
           if (is_read) {
-            rtlRtn = RTE_f90io_fmtr_init03;
+            rtlRtn = RTE_f90io_fmtr_init03a;
             PT_CHECK(PT_BLANK, astb.ptr0c);
             PT_CHECK(PT_DECIMAL, astb.ptr0c);
             PT_CHECK(PT_PAD, astb.ptr0c);
@@ -2713,7 +2718,7 @@ semantio(int rednum, SST *top)
             (void)add_io_arg(PTARG(PT_PAD));
             (void)add_io_arg(PTARG(PT_ROUND));
           } else {
-            rtlRtn = RTE_f90io_fmtw_init03;
+            rtlRtn = RTE_f90io_fmtw_init03a;
             if (PTV(PT_DELIM))
               IOERR2(201, PTNAME(PT_DELIM));
             PT_CHECK(PT_DECIMAL, astb.ptr0c);
@@ -2762,7 +2767,7 @@ semantio(int rednum, SST *top)
         sptr = mk_iofunc(RTE_f90io_encode_fmtv, DT_INT, 0);
         (void)begin_io_call(A_FUNC, sptr, 1);
       } else {
-        sptr = mk_iofunc(RTE_f90io_encode_fmt, DT_INT, 0);
+        sptr = mk_iofunc(RTE_f90io_encode_fmta, DT_INT, 0);
         (void)begin_io_call(A_FUNC, sptr, 3);
         (void)add_io_arg(mk_cval((INT)ty_to_lib[TY_CHAR], DT_INT));
         (void)add_io_arg(astb.i1);
@@ -2777,7 +2782,7 @@ semantio(int rednum, SST *top)
        * statement, first issue a call to the encode routine
        * and record the fact that it was called.
        */
-      sptr = mk_iofunc(RTE_f90io_encode_fmt, DT_INT, 0);
+      sptr = mk_iofunc(RTE_f90io_encode_fmta, DT_INT, 0);
       ast = PTV(PT_FMT);
       ast1 = mk_cval((INT)ty_to_lib[DTYG(A_DTYPEG(ast))], DT_INT);
       (void)begin_io_call(A_FUNC, sptr, 3);
@@ -2894,8 +2899,9 @@ semantio(int rednum, SST *top)
     if (DTY(dtype) == TY_ARRAY)
       dtype = DTY(dtype + 1);
     if (DTY(dtype) == TY_DERIVED && UNLPOLYG(DTY(dtype + 3))) {
-      error(155, 4, gbl.lineno, "Unlimited polymorphic object not allowed"
-                                " in list directed I/O",
+      error(155, 4, gbl.lineno,
+            "Unlimited polymorphic object not allowed"
+            " in list directed I/O",
             CNULL);
     }
     if (DTYG(SST_DTYPEG(RHS(1))) == TY_DERIVED &&
@@ -2910,6 +2916,22 @@ semantio(int rednum, SST *top)
       i = dtype_has_defined_io(dtype);
       if (i & (DT_IO_FWRITE | DT_IO_UWRITE)) {
         sem.defined_io_seen = 1;
+      }
+
+      sptr1 = 0;
+      if (SST_IDG(RHS(1)) == S_SCONST) {
+        sptr1 = SST_SYMG(RHS(1));
+        if (STYPEG(sptr1) == ST_TYPEDEF) {
+          sptr =
+              getcctmp_sc('t', sem.dtemps++, ST_VAR, SST_DTYPEG(RHS(1)), io_sc);
+          sptr = init_derived_w_acl(sptr, SST_ACLG(RHS(1)));
+          SST_IDP(RHS(1), S_IDENT);
+          SST_ASTP(RHS(1), 0);
+          SST_SYMP(RHS(1), sptr);
+          SST_ALIASP(RHS(1), 0);
+          SST_CVLENP(RHS(1), 0);
+          SST_SHAPEP(RHS(1), 0);
+        }
       }
     }
     goto io_item_shared;
@@ -3170,8 +3192,9 @@ semantio(int rednum, SST *top)
        */
       if (DTY(dtype) == TY_DERIVED && A_TYPEG(ast1) == A_INTR &&
           is_iso_cptr(dtype)) {
-        error(155, 3, gbl.lineno, "A derived type containing private "
-                                  "components cannot be an I/O item",
+        error(155, 3, gbl.lineno,
+              "A derived type containing private "
+              "components cannot be an I/O item",
               CNULL);
       }
       stkptr = (SST *)getitem(0, sizeof(SST));
@@ -3448,16 +3471,14 @@ semantio(int rednum, SST *top)
    */
   case FORMAT_LIST3:
     error(W_0548_Incorrect_use_of_unlimited_repetition,
-          flg.standard ? ERR_Severe : ERR_Warning,
-          gbl.lineno, CNULL, CNULL);
+          flg.standard ? ERR_Severe : ERR_Warning, gbl.lineno, CNULL, CNULL);
     break;
   /*
    *    <format list> ::= <format list unl> <format item>
    */
   case FORMAT_LIST4:
     error(W_0548_Incorrect_use_of_unlimited_repetition,
-          flg.standard ? ERR_Severe : ERR_Warning,
-          gbl.lineno, CNULL, CNULL);
+          flg.standard ? ERR_Severe : ERR_Warning, gbl.lineno, CNULL, CNULL);
     break;
 
   /*
@@ -3744,8 +3765,8 @@ semantio(int rednum, SST *top)
    *	<F1 item> ::= <flp> <format list unl> )
    */
   case F1_ITEM19:
-    error(W_0548_Incorrect_use_of_unlimited_repetition,
-	  ERR_Warning, gbl.lineno, CNULL, CNULL);
+    error(W_0548_Incorrect_use_of_unlimited_repetition, ERR_Warning, gbl.lineno,
+          CNULL, CNULL);
     rescan = SST_RNG2G(RHS(1));
     put_edit(FED_RPAREN);
     PUT(SST_RNG1G(RHS(1)));
@@ -4127,24 +4148,24 @@ semantio(int rednum, SST *top)
 
   /* ------------------------------------------------------------------ */
   /*
+   *	<dt vlist> ::= <dt vlist> , <addop> <integer>
    *	<dt vlist> ::= <dt vlist> , <integer>
-   */
-  case DT_VLIST1:
-    rhstop = 3;
-    goto common_dt_vlist;
-  /*
+   *	<dt vlist> ::= <addop> <integer>
    *	<dt vlist> ::= <integer>
    */
+  case DT_VLIST1:
   case DT_VLIST2:
-    rhstop = 1;
-
-  common_dt_vlist:
+  case DT_VLIST3:
+  case DT_VLIST4:
+    count = DT_VLIST4 + 1 - rednum; // RHS symbol count:  4, 3, 2, or 1
+    if ((count == 2 || count == 4) && SST_OPTYPEG(RHS(count - 1)) == OP_SUB)
+      SST_CVALP(RHS(count), -SST_CVALG(RHS(count))); // negate <integer>
     e1 = (SST *)getitem(0, sizeof(SST));
-    *e1 = *RHS(rhstop);
+    *e1 = *RHS(count);
     itemp = (ITEM *)getitem(0, sizeof(ITEM));
     itemp->next = ITEM_END;
     itemp->t.stkp = e1;
-    if (rhstop == 1) {
+    if (count <= 2) {
       SST_BEGP(LHS, itemp);
     } else {
       (SST_ENDG(RHS(1)))->next = itemp;
@@ -4285,7 +4306,6 @@ fix_iostat(void)
 {
   if (PTV(PT_IOSTAT) == 0)
     PTV(PT_IOSTAT) = astb.i0;
-
 }
 
 static int
@@ -4309,6 +4329,7 @@ add_cgoto(int ast)
   int lbsptr;
   int tmp;
   int last_ast;
+  int inquire_cnt = 13;
 
   if (A_TYPEG(ast) == A_ASN)
     ast = A_DESTG(ast);
@@ -4316,7 +4337,7 @@ add_cgoto(int ast)
   if (strcmp(SYMNAME(A_SPTRG(A_LOPG(io_call.ast))),
              mkRteRtnNm(RTE_f90io_fmtr_end)) == 0 ||
       strncmp(SYMNAME(A_SPTRG(A_LOPG(io_call.ast))),
-              mkRteRtnNm(RTE_f90io_inquire), 15) == 0) {
+              mkRteRtnNm(RTE_f90io_inquirea), inquire_cnt) == 0) {
     int asn = chk_SIZE_var();
     if (asn) {
       add_stmt_after(asn, (int)STD_PREV(0));
@@ -4504,7 +4525,6 @@ chk_var(SST *stk, int p, int dtype)
     IOERR2(201, PTNAME(p));
     SST_ASTP(stk, astb.i0);
   }
-
 }
 
 static void
@@ -4592,9 +4612,8 @@ chk_fmtid(SST *stk)
          * label of a FORMAT statement.  First, derive the "name" of the
          * label as in the <label> = <integer> reduction.
          */
-        long labno = DTY(dtype) == TY_INT8 ?
-                       CONVAL2G(SST_CVALG(stk)) :
-                       SST_CVALG(stk);
+        long labno =
+            DTY(dtype) == TY_INT8 ? CONVAL2G(SST_CVALG(stk)) : SST_CVALG(stk);
         lab = declref(getsymf(".L%05ld", labno), ST_LABEL, 'r');
         RFCNTI(lab);
         /*
@@ -4851,7 +4870,6 @@ kwd_errchk(int bt)
         (bt == BT_INQUIRE && i > 1 && i != PT_ERR && i != PT_END && PTS(i) &&
          !PTVARREF(i)))
       IOERR2(201, PTNAME(i));
-
 }
 
 static void
@@ -5012,7 +5030,6 @@ ast_ioret(void)
       SCOPEP(sptr, stb.curr_scope);
       ASSNP(sptr, 1);
       HCCSYMP(sptr, 1);
-      TASKP(sptr, 1);
     }
     ast = mk_id(sptr);
   }
@@ -5577,12 +5594,14 @@ add_iolptrs(int dtype, SST *in_stkptr, int *mndscp)
       if (!print_once) {
         if (!sem.defined_io_seen) {
           if (BINDG(sptrm)) {
-            error(155, 2, gbl.lineno, "Dubious use of derived type with "
-                                      "type bound procedure in I/O statement",
+            error(155, 2, gbl.lineno,
+                  "Dubious use of derived type with "
+                  "type bound procedure in I/O statement",
                   NULL);
           } else {
-            error(155, 2, gbl.lineno, "Dubious use of derived type with "
-                                      "final subroutine in I/O statement",
+            error(155, 2, gbl.lineno,
+                  "Dubious use of derived type with "
+                  "final subroutine in I/O statement",
                   NULL);
           }
         }
@@ -5591,6 +5610,8 @@ add_iolptrs(int dtype, SST *in_stkptr, int *mndscp)
 #endif
       continue; /* skip tbp member */
     }
+    if (KINDG(sptrm) || LENPARMG(sptrm)) /* skip type parameters */
+      continue;
     dtypem = DTYPEG(sptrm);
     if (PRIVATEG(sptrm) && test_private_dtype(ENCLDTYPEG(sptrm)) &&
         !sem.defined_io_seen) {
@@ -5715,7 +5736,6 @@ gen_lastval(DOINFO *doinfo)
   ast1 = mk_binop(OP_ADD, ast1, doinfo->init_expr, dtype);
   ast = mk_assn_stmt(mk_id(doinfo->index_var), ast1, dtype);
   (void)add_stmt(ast);
-
 }
 
 /*
@@ -5745,7 +5765,7 @@ iomsg_check()
   if (PTV(PT_IOMSG)) {
     int sptr;
     int ast;
-    sptr = mk_iofunc(RTE_f90io_iomsg, DT_NONE, 0);
+    sptr = mk_iofunc(RTE_f90io_iomsga, DT_NONE, 0);
     (void)begin_io_call(A_CALL, sptr, 1);
     (void)add_io_arg(PTV(PT_IOMSG));
     (void)add_stmt_after(io_call.ast, (int)STD_PREV(0));
@@ -5984,14 +6004,12 @@ gen_dtio_args(SST *stkptr, int arg1, int iotype_ast, int vlist_ast)
     else
       tast = mk_assn_stmt(iostat_ast, astb.i0, argdtyp);
     (void)add_stmt(tast);
-  } else if (A_DTYPEG(iostat_ast) != argdtyp) {
-    iostat_ast = mk_convert(iostat_ast, argdtyp);
-    SST_IDP(p->t.stkp, S_EXPR);
   }
   p->ast = iostat_ast;
   SST_ASTP(p->t.stkp, iostat_ast);
   SST_DTYPEP(p->t.stkp, A_DTYPEG(iostat_ast));
   SST_SYMP(p->t.stkp, A_SPTRG(iostat_ast));
+  SST_IDP(p->t.stkp, S_IDENT);
   SST_PARENP(p->t.stkp, 0);
   SST_SHAPEP(p->t.stkp, 0);
 
@@ -6069,16 +6087,16 @@ getBasicScalarRWRtn(LOGICAL is_read, FormatType fmttyp)
     if (fmttyp == FT_UNFORMATTED)
       rtlRtn = unf_nm[LARGE_ARRAY_IDX][BYTE_SWAPPED_IO_IDX].read;
     else if (fmttyp == FT_LIST_DIRECTED)
-      rtlRtn = RTE_f90io_ldr;
+      rtlRtn = RTE_f90io_ldra;
     else
-      rtlRtn = RTE_f90io_fmt_read;
+      rtlRtn = RTE_f90io_fmt_reada;
   } else {
     if (fmttyp == FT_UNFORMATTED)
       rtlRtn = unf_nm[LARGE_ARRAY_IDX][BYTE_SWAPPED_IO_IDX].write;
     else if (fmttyp == FT_LIST_DIRECTED)
-      rtlRtn = RTE_f90io_ldw;
+      rtlRtn = RTE_f90io_ldwa;
     else
-      rtlRtn = RTE_f90io_fmt_write;
+      rtlRtn = RTE_f90io_fmt_writea;
   }
   return rtlRtn;
 }
@@ -6167,17 +6185,18 @@ getArrayRWRtn(LOGICAL is_read, FormatType fmtTyp, int dtype, LOGICAL needDescr)
       if (fmtTyp == FT_UNFORMATTED)
         rtlRtn = array_unf_nm[LARGE_ARRAY_IDX][BYTE_SWAPPED_IO_IDX].read;
       else if (fmtTyp == FT_LIST_DIRECTED)
-        rtlRtn = (LARGE_ARRAY) ? RTE_f90io_ldr64_a : RTE_f90io_ldr_a;
+        rtlRtn = (LARGE_ARRAY) ? RTE_f90io_ldr64_aa : RTE_f90io_ldr_aa;
       else
-        rtlRtn = (LARGE_ARRAY) ? RTE_f90io_fmt_read64_a : RTE_f90io_fmt_read_a;
+        rtlRtn =
+            (LARGE_ARRAY) ? RTE_f90io_fmt_read64_aa : RTE_f90io_fmt_read_aa;
     } else {
       if (fmtTyp == FT_UNFORMATTED)
         rtlRtn = array_unf_nm[LARGE_ARRAY_IDX][BYTE_SWAPPED_IO_IDX].write;
       else if (fmtTyp == FT_LIST_DIRECTED)
-        rtlRtn = (LARGE_ARRAY) ? RTE_f90io_ldw64_a : RTE_f90io_ldw_a;
+        rtlRtn = (LARGE_ARRAY) ? RTE_f90io_ldw64_aa : RTE_f90io_ldw_aa;
       else
         rtlRtn =
-            (LARGE_ARRAY) ? RTE_f90io_fmt_write64_a : RTE_f90io_fmt_write_a;
+            (LARGE_ARRAY) ? RTE_f90io_fmt_write64_aa : RTE_f90io_fmt_write_aa;
     }
   } else {
     if (is_read) {

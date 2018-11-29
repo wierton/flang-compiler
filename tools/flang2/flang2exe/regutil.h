@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, NVIDIA CORPORATION.  All rights reserved.
+ * Copyright (c) 1993-2018, NVIDIA CORPORATION.  All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,7 +15,11 @@
  *
  */
 
-/** \file
+#ifndef REGUTIL_H_
+#define REGUTIL_H_
+
+/** 
+ * \file
  * \brief Machine independent register utilities
  *
  * C/FTN macros, typedefs, and data declarations used to access the register
@@ -40,9 +44,8 @@ typedef struct LST_TAG {
 #define ADDNODE(l, entry)                                          \
   {                                                                \
     LST *node;                                                     \
-    extern char *getitem();                                        \
     node = (LST *)getitem(LST_AREA, sizeof(struct LST_TAG));       \
-    assert(node != 0, "no space allocated for linked-list", 0, 3); \
+    assert(node != 0, "no space allocated for linked-list", 0, ERR_Severe); \
     node->item = entry;                                            \
     node->next = l;                                                \
     l = node;                                                      \
@@ -60,19 +63,22 @@ typedef struct arasgntag {
 } ARASGN;
 
 /***** Register Constant Flags *****/
-/* For restricting the assignment of registers to constants per RTYPE.
- * Used in machreg.c to init reg[...].const_flag; checked where
- * assignments occur (i.e., globalreg.c).
- */
 
-#define RCF_NONE 0      /* constants not assigned */
-#define RCF_ALL 0x1     /* no restriction on value */
-#define RCF_NOT0 0x2    /* not if value is 0 */
-#define RCF_NOT32K 0x4  /* not if int value in [-32768, 32767] */
-#define RCF_NOTL16 0x8  /* not if high 16 bits of mask value == 0 */
-#define RCF_NOTH16 0x10 /* not if low 16 bits of mask value == 0 */
-#define RCF_NOTA8B 0x20 /* not if abs(v) <= 255 (8 bits) */
-#define RCF_NOTA9B 0x40 /* not if abs(v) <= 511 (9 bits) */
+/**
+   \brief For restricting the assignment of registers to constants per RTYPE.
+   Used in machreg.c to init reg[...].const_flag; checked where assignments
+   occur (i.e., globalreg.c).
+ */
+typedef enum RegConstFlags_t {
+  RCF_NONE   = 0,    /**< constants not assigned */
+  RCF_ALL    = 1,    /**< no restriction on value */
+  RCF_NOT0   = 2,    /**< not if value is 0 */
+  RCF_NOT32K = 4,    /**< not if int value in [-32768, 32767] */
+  RCF_NOTL16 = 8,    /**< not if high 16 bits of mask value == 0 */
+  RCF_NOTH16 = 0x10, /**< not if low 16 bits of mask value == 0 */
+  RCF_NOTA8B = 0x20, /**< not if abs(v) <= 255 (8 bits) */
+  RCF_NOTA9B = 0x40  /**< not if abs(v) <= 511 (9 bits) */
+} RegrConstFlags_t;
 
 /*****  Register Assigned Table  *****/
 
@@ -91,11 +97,11 @@ typedef struct {
   union {
     uint16_t all;
     struct {
-      uint16_t confl : 1; /* ILI usage conflicts with the existing*/
+      unsigned confl : 1; /* ILI usage conflicts with the existing*/
                           /*     msize - opt 2 only */
-      uint16_t store : 1; /* a store of the variable occurred */
-      uint16_t eint : 1;  /* extended int (ST100) */
-      uint16_t vint : 1;  /* vectorial int (ST140) */
+      unsigned store : 1; /* a store of the variable occurred */
+      unsigned eint : 1;  /* extended int (ST100) */
+      unsigned vint : 1;  /* vectorial int (ST140) */
     } bits;
   } flags;
   INT msize; /* memory size of register; also, the dtype
@@ -115,8 +121,8 @@ typedef struct {
   RAT *stg_base;
   int stg_avail;
   int stg_size;
-  LOGICAL mexits;   /* true => multiple exits in current loop */
-  LOGICAL use_agra; /* true => alternate global reg alloc */
+  bool mexits;   /* true => multiple exits in current loop */
+  bool use_agra; /* true => alternate global reg alloc */
 } RATB;
 
 /*****  Macros for RAT *****/
@@ -140,6 +146,7 @@ typedef struct {
 #define RATA_CX87 11
 
 #define RATA_RTYPES_ACTIVE RATA_X87
+
 /* these RTYPES are not actively processed.
  * They are mapped onto the RATA_SP or RATA_DP rtypes.
  * XM are used for sse xmm registers. STK are the old x87 stack-based regs.
@@ -147,12 +154,6 @@ typedef struct {
 #define RATA_SPXM 12
 #define RATA_DPXM 13
 #define RATA_RTYPES_TOTAL RATA_DPXM + 1
-/****
-Remove these and their refs in regutil.c & ....x86/src/machreg.c
-#define RATA_SPSTK      8
-#define RATA_DPSTK      9
-#define RATA_RTYPES_TOTAL RATA_DPSTK + 1
-****/
 
 #define RATA_NME 0
 #define RATA_CONST 1
@@ -193,11 +194,11 @@ Remove these and their refs in regutil.c & ....x86/src/machreg.c
   {                                                         \
     i = ratb.stg_avail++;                                   \
     if (ratb.stg_avail > MAXRAT)                            \
-      error(7, 4, 0, CNULL, CNULL);                         \
+      error((error_code_t)7, ERR_Severe, 0, CNULL, CNULL); \
     NEED(ratb.stg_avail, ratb.stg_base, RAT, ratb.stg_size, \
          ratb.stg_size + 100);                              \
     if (ratb.stg_base == NULL)                              \
-      error(7, 4, 0, CNULL, CNULL);                         \
+      error((error_code_t)7, ERR_Severe, 0, CNULL, CNULL); \
   }
 
 /*****  Register Candidate Table  *****/
@@ -212,22 +213,22 @@ typedef struct {
   /*   RATA_IR, RATA_SP, RATA_DP, RATA_AR	*/
 
   union {
-    unsigned int all;
+    unsigned all;
     struct {
-      uint16_t confl : 1;  /* ILI usage conflicts with the existing
+      unsigned confl : 1;  /* ILI usage conflicts with the existing
                             *   msize
                             */
-      uint16_t store : 1;  /* variable was stored */
-      uint16_t cse : 1;    /* candidate is an induction cse
+      unsigned store : 1;  /* variable was stored */
+      unsigned cse : 1;    /* candidate is an induction cse
                             * use - for opt 2 only
                             */
-      uint16_t ok : 1;     /* ok to assign register to const cand */
-      uint16_t noreg : 1;  /* do not assign register to non-const cand */
-      uint16_t ignore : 1; /* ignore this candidate */
-      uint16_t eint : 1;   /* extended int (ST100) */
-      uint16_t vint : 1;   /* vectorial int (ST140) */
-      uint16_t inv : 1;    /* this candidate is for an invariant */
-      uint16_t tinv : 1;   /* this candidate is for a transitive invariant */
+      unsigned ok : 1;     /* ok to assign register to const cand */
+      unsigned noreg : 1;  /* do not assign register to non-const cand */
+      unsigned ignore : 1; /* ignore this candidate */
+      unsigned eint : 1;   /* extended int (ST100) */
+      unsigned vint : 1;   /* vectorial int (ST140) */
+      unsigned inv : 1;    /* this candidate is for an invariant */
+      unsigned tinv : 1;   /* this candidate is for a transitive invariant */
     } bits;
   } flags;
   INT msize; /* memory size of register; also, the dtype
@@ -291,11 +292,11 @@ typedef struct {
   {                                                                 \
     i = rcandb.stg_avail++;                                         \
     if (rcandb.stg_avail > MAXRCAND)                                \
-      error(7, 4, 0, CNULL, CNULL);                                 \
+      error((error_code_t)7, ERR_Fatal, 0, CNULL, CNULL);           \
     NEED(rcandb.stg_avail, rcandb.stg_base, RCAND, rcandb.stg_size, \
          rcandb.stg_size + 100);                                    \
     if (rcandb.stg_base == NULL)                                    \
-      error(7, 4, 0, CNULL, CNULL);                                 \
+      error((error_code_t)7, ERR_Fatal, 0, CNULL, CNULL);           \
     RCAND_FLAGS(i) = 0;                                             \
     RCAND_OCAND(i) = 0;                                             \
     RCAND_RAT(i) = 0;                                               \
@@ -316,8 +317,8 @@ typedef struct {
 #define IS_PRIVATE(s) (SCG(s) == SC_PRIVATE)
 
 /* macros used to access register defining/moving ili */
-#define RTYPE_DF(rtype) (il_rtype_df[rtype])
-#define MV_RTYPE(rtype) (il_mv_rtype[rtype])
+#define RTYPE_DF(rtype) ((ILI_OP)il_rtype_df[rtype])
+#define MV_RTYPE(rtype) ((ILI_OP)il_mv_rtype[rtype])
 
 /*****  External Data Declarations  *****/
 
@@ -329,27 +330,118 @@ extern int il_mv_rtype[RATA_RTYPES_TOTAL];
 
 /*****  Function Declarations (defined in regutil.c)  *****/
 
-extern void reg_init(int);
-extern void addrcand(int);
+/**
+   \brief ...
+ */
+int assn_rtemp(int ili);
+
+/**
+   \brief ...
+ */
+int assn_rtemp_sc(int ili, SC_KIND sc);
+
+/**
+   \brief ...
+ */
+int assn_sclrtemp(int ili, SC_KIND sc);
+
+/**
+   \brief ...
+ */
+int getrcand(int candl);
+
+/**
+   \brief ...
+ */
+SPTR mkrtemp_arg1_sc(DTYPE dtype, SC_KIND sc);
+
+/**
+   \brief ...
+ */
+SPTR mkrtemp_cpx(DTYPE dtype);
+
+/**
+   \brief ...
+ */
+SPTR mkrtemp_cpx_sc(DTYPE dtype, SC_KIND sc);
+
+/**
+   \brief ...
+ */
+SPTR mkrtemp(int ilix);
+
+/**
+   \brief ...
+ */
+SPTR mkrtemp_sc(int ilix, SC_KIND sc);
+
+/**
+   \brief ...
+ */
+void addrcand(int ilix);
+
+/**
+   \brief ...
+ */
+void assn_input_rtemp(int ili, int temp);
+
 #if DEBUG
-extern void dmprcand(void);
-extern void dmprat(int);
+/**
+   \brief ...
+ */
+void dmp_rat(int rat);
 #endif
-extern int getrcand(int);
-extern void endrcand(void);
-extern void storedums(int, int);
-extern void mkrtemp_init(void);
-extern SPTR mkrtemp(int);
-extern SPTR mkrtemp_sc(int, SC_KIND);
-extern SPTR mkrtemp_cpx(DTYPE);
-extern SPTR mkrtemp_cpx_sc(DTYPE, SC_KIND);
-extern SPTR mkrtemp_arg1_sc(DTYPE, SC_KIND);
-extern void mkrtemp_end(void);
-extern void mkrtemp_copy(int *);
-extern void mkrtemp_update(int *);
-extern void mkrtemp_reinit(int *);
-extern int assn_rtemp(int);
-extern void assn_input_rtemp(int, int);
-extern int assn_rtemp_sc(int, SC_KIND);
-extern int assn_sclrtemp(int, SC_KIND);
-extern void dmp_rat(int);
+
+#if DEBUG
+/**
+   \brief ...
+ */
+void dmprat(int rat);
+#endif
+
+/**
+   \brief ...
+ */
+void dmprcand(void);
+
+/**
+   \brief ...
+ */
+void endrcand(void);
+
+/**
+   \brief ...
+ */
+void mkrtemp_copy(int *rt);
+
+/**
+   \brief ...
+ */
+void mkrtemp_end(void);
+
+/**
+   \brief ...
+ */
+void mkrtemp_init(void);
+
+/**
+   \brief ...
+ */
+void mkrtemp_reinit(int *rt);
+
+/**
+   \brief ...
+ */
+void mkrtemp_update(int *rt);
+
+/**
+   \brief ...
+ */
+void reg_init(int entr);
+
+/**
+   \brief ...
+ */
+void storedums(int exitbih, int first_rat);
+
+#endif // REGUTIL_H_

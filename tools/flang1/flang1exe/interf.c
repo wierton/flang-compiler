@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, NVIDIA CORPORATION.  All rights reserved.
+ * Copyright (c) 1995-2018, NVIDIA CORPORATION.  All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -303,6 +303,8 @@ static int curr_platform = MOD_ANY;
 static char *import_sourcename = NULL;
 static int import_sourcename_len = 0;
 static LOGICAL ignore_private = FALSE;
+static int curr_import_findex = 0;
+static int top_import_findex = 0;
 
 static char *read_line(FILE *);
 static ISZ_T get_num(int);
@@ -324,19 +326,21 @@ static int new_shape(int);
 static int new_symbol(int);
 static int new_symbol_if_module(int old_sptr);
 static void new_symbol_and_link(int, int *, SYMITEM **);
-static void fill_links_symbol(SYMITEM *);
+static void fill_links_symbol(SYMITEM *, WantPrivates);
 static int can_find_symbol(int);
 static int can_find_dtype(int);
 static SYMITEM *find_symbol(int);
 static int common_conflict(void);
 static int install_common(SYMITEM *, int);
 static LOGICAL common_mem_eq(int, int);
+static int new_installed_dtype(int old_dt);
+static DITEM * finddthash(int old_dt);
 
 static char *import_file_name;
 static void import_constant(SYMITEM *ps);
 static void import_symbol(SYMITEM *ps);
 static void import_ptr_constant(SYMITEM *ps);
-static void import(lzhandle *fdlz);
+static void import(lzhandle *fdlz, WantPrivates);
 static int import_skip_use_stmts(lzhandle *fdlz);
 static void import_done(lzhandle *, int nested);
 static lzhandle *import_header_only(FILE *fd, char *file_name,
@@ -718,8 +722,9 @@ add_to_be_used_list(char *modulename, int public, int except,
         MOD_USE_AREA, strlen(il->modulename) + strlen(MOD_SUFFIX) + 1);
     il->fullfilename = (char *)getitem(MOD_USE_AREA, MAX_FNAME_LEN + 1);
     strcpy(il->modulefilename, il->modulename);
+    convert_2dollar_signs_to_hyphen(il->modulefilename);
     strcat(il->modulefilename, MOD_SUFFIX);
-    if (!get_module_file_name_from_user(il, from_file_name)) {
+    if (!get_module_file_name_from_user(il, from_file_name)) {  
       if (!get_module_file_name(il->modulefilename, il->fullfilename,
                                 MAX_FNAME_LEN)) {
         error(4, 0, gbl.lineno, "Unable to open MODULE file",
@@ -1113,7 +1118,7 @@ adjust_symbol_accessibility(int currmod)
 }
 
 static void
-do_nested_uses(void)
+do_nested_uses(WantPrivates wantPrivates)
 {
   TOBE_IMPORTED_LIST *il;
   LOGICAL nested_in_host = FALSE;
@@ -1241,10 +1246,11 @@ do_nested_uses(void)
       stb.curr_scope = module_sym;
 
       save_import_osym = import_osym;
+      /* import_header_only function sets the original fortran source code */
       fdlz = import_header_only(fd, il->modulefilename, module_sym);
       if (fdlz) {
         if (import_skip_use_stmts(fdlz) == 0) {
-          import(fdlz);
+          import(fdlz, wantPrivates);
         }
       }
       import_osym = save_import_osym;
@@ -1414,6 +1420,7 @@ import_header_only(FILE *fd, char *file_name, int import_which)
     import_sourcename[0] = '\0';
   } else {
     get_nstring(import_sourcename, j);
+    /* put the file names in the fihb */
   }
 
   if (*currp == ' ' && *(currp + 1) == 'S') {
@@ -1573,6 +1580,7 @@ import_header(FILE *fd, char *file_name, int import_which)
 {
   lzhandle *fdlz;
   int i;
+  int cur_findex_backup = 0;
 
   fdlz = import_header_only(fd, file_name, import_which);
   if (fdlz == NULL)
@@ -1583,10 +1591,15 @@ import_header(FILE *fd, char *file_name, int import_which)
     ulzfini(fdlz);
     return NULL;
   }
+  /* save curr_import_findex which will be likely changed in
+   * function do_nested_uses. */
+  cur_findex_backup = curr_import_findex;
   if (to_be_used_list_head != NULL) {
     /* do USEs of modules */
-    do_nested_uses();
+    do_nested_uses(INCLUDE_PRIVATES);
   }
+  /* restore file index after do_nested_uses */
+  curr_import_findex = cur_findex_backup;
   if (import_which > 0 && XBIT(123, 0x30000)) {
     TOBE_IMPORTED_LIST *il;
     if (modinclist == NULL) {
@@ -1874,7 +1887,7 @@ static LOGICAL any_ptr_constant = FALSE;
  </pre>
  */
 static void
-import(lzhandle *fdlz)
+import(lzhandle *fdlz, WantPrivates wantPrivates)
 {
   char *p;
   int i, j;
@@ -2220,7 +2233,7 @@ import(lzhandle *fdlz)
       /* E private lineno sptr substring [subscripts] -1 */
       if (sem.interface == 0) {
         j = get_num(10); /* is it private */
-        if (!ignore_private || j == 0) {
+        if (!ignore_private || wantPrivates == INCLUDE_PRIVATES || j == 0) {
           ITEM *lastitemp;
           int ss, numss, ess;
           evp = sem.eqv_avail;
@@ -2237,8 +2250,8 @@ import(lzhandle *fdlz)
           EQV(evp).ps = 0;
           EQV(evp).lineno = get_num(10);
           EQV(evp).sptr = get_num(10);
-          EQV(evp)
-              .is_first = -get_num(10); /* set negative to avoid redoing it */
+          /* set negative to avoid redoing it: */
+          EQV(evp).is_first = -get_num(10);
           EQV(evp).byte_offset = 0;
           EQV(evp).substring = get_num(10);
           EQV(evp).subscripts = 0;
@@ -2761,7 +2774,7 @@ exit_loop:
   /* postprocess imported symbols */
   for (ps = symbol_list; ps != NULL; ps = ps->next) {
     if (ps->sc >= 0) {
-      fill_links_symbol(ps);
+      fill_links_symbol(ps, wantPrivates);
     }
   }
 
@@ -3026,19 +3039,19 @@ import_inline(FILE *fd, char *file_name)
   BASEast = astb.firstuast;
   BASEdty = DT_MAX;
   saveSym = stb.stg_avail;
-  saveAst = astb.avl;
-  saveDty = stb.dt_avail;
+  saveAst = astb.stg_avail;
+  saveDty = stb.dt.stg_avail;
   saveCmblk = gbl.cmblks;
   fdlz = import_header(fd, file_name, IMPORT_WHICH_INLINE);
   if (fdlz) {
-    import(fdlz);
+    import(fdlz, INCLUDE_PRIVATES);
   }
   import_done(fdlz, 0);
   fclose(fd);
   if (import_errno) {
     stb.stg_avail = saveSym;
-    astb.avl = saveAst;
-    stb.dt_avail = saveDty;
+    astb.stg_avail = saveAst;
+    stb.dt.stg_avail = saveDty;
     gbl.cmblks = saveCmblk;
   }
 #if DEBUG
@@ -3068,7 +3081,7 @@ import_static(FILE *fd, char *file_name)
   BASEdty = DT_MAX;
   fdlz = import_header(fd, file_name, IMPORT_WHICH_PRELINK);
   if (fdlz) {
-    import(fdlz);
+    import(fdlz, INCLUDE_PRIVATES);
   }
   import_done(fdlz, 0);
   return import_errno;
@@ -3080,7 +3093,8 @@ static int IPARECOMPILE = FALSE;
   * specification part of a module for the contained subprograms.
   */
 SPTR
-import_module(FILE *fd, char *file_name, SPTR modsym, int scope_level)
+import_module(FILE *fd, char *file_name, SPTR modsym, WantPrivates wantPrivates,
+              int scope_level)
 {
   SPTR modulesym;
   lzhandle *fdlz;
@@ -3121,7 +3135,7 @@ import_module(FILE *fd, char *file_name, SPTR modsym, int scope_level)
       /* set 'curr_scope' for symbols created when the module is imported */
       modulesym = modsym;
       stb.curr_scope = modulesym;
-      import(fdlz);
+      import(fdlz, wantPrivates);
       add_imported(modulesym);
       stb.curr_scope = savescope;
     }
@@ -3197,7 +3211,7 @@ import_host(FILE *fd, char *file_name, int oldsymavl, int oldastavl,
   HOST_NEWSCOPE = newscope;
   fdlz = import_header(fd, file_name, IMPORT_WHICH_HOST);
   if (fdlz) {
-    import(fdlz);
+    import(fdlz, INCLUDE_PRIVATES);
   }
   import_done(fdlz, 1);
   for_host = FALSE;
@@ -3224,7 +3238,7 @@ import_host_subprogram(FILE *fd, char *file_name, int oldsymavl, int oldastavl,
   BASEdty = olddtyavl;
   fdlz = import_header(fd, file_name, IMPORT_WHICH_HOST);
   if (fdlz) {
-    import(fdlz);
+    import(fdlz, INCLUDE_PRIVATES);
   }
   export_fix_host_append_list(new_symbol);
   import_done(fdlz, 1);
@@ -4097,7 +4111,7 @@ new_dtypes(void)
     }
   }
   if (inmodulecontains)
-    exportb.hmark.dt = stb.dt_avail; /* for subsequent 'export_dtypes()' */
+    exportb.hmark.dt = stb.dt.stg_avail; /* for subsequent 'export_dtypes()' */
 }
 
 static int
@@ -4123,10 +4137,10 @@ fill_ast(ASTITEM *pa)
   /* WARNING, recursive calls (possibly thru other procedures) may
    * clobber this area.  Grab what you need first.
    */
-  BZERO(astb.base, AST, 1);
-  astb.base[0].type = pa->type;
+  BZERO(astb.stg_base, AST, 1);
+  astb.stg_base[0].type = pa->type;
 
-#define GETFIELD(f) astb.base[0].f = pa->a.f
+#define GETFIELD(f) astb.stg_base[0].f = pa->a.f
   GETFIELD(f2);
   GETFIELD(shape);
   GETFIELD(w3);
@@ -4756,7 +4770,7 @@ new_asts(void)
   for (i = 0; i < astz.avl; i++) {
     (void)fill_ast(astz.base + i);
   }
-  BZERO(astb.base + 0, AST, 1); /* reinitialize AST #0 */
+  BZERO(astb.stg_base + 0, AST, 1); /* reinitialize AST #0 */
 }
 
 static int
@@ -4802,7 +4816,7 @@ new_stds(void)
     STD_LABEL(std) = lab;
     STD_LINENO(std) = p_std->lineno;
 #define GETBIT(f)                                          \
-  astb.std.base[std].flags.bits.f = (flags & bit) ? 1 : 0; \
+  astb.std.stg_base[std].flags.bits.f = (flags & bit) ? 1 : 0; \
   bit <<= 1;
     flags = p_std->flags;
     bit = 1;
@@ -5415,7 +5429,8 @@ import_constant(SYMITEM *ps)
 static void
 import_symbol(SYMITEM *ps)
 {
-  int stype, sc;
+  SYMTYPE stype;
+  SC_KIND sc;
   INT val[4];
   int sptr, s1, s2;
   LOGICAL set_dcld;
@@ -5614,13 +5629,14 @@ import_ptr_constant(SYMITEM *ps)
 
 /** \brief Fill DTYPE, and symbol links to other symbol links */
 static void
-fill_links_symbol(SYMITEM *ps)
+fill_links_symbol(SYMITEM *ps, WantPrivates wantPrivates)
 {
   int ast, alias;
   int first, last;
   int mem, nml;
   int old_mem;
-  int old_sptr, sptr, stype, dtype;
+  int old_sptr, sptr, stype;
+  DTYPE dtype; 
 
   old_sptr = ps->sptr;
   sptr = ps->new_sptr;
@@ -5697,8 +5713,10 @@ fill_links_symbol(SYMITEM *ps)
       }
       CONVAL2P(sptr, ast);
       if ((!IGNOREG(sptr)) && (!ignore_private || !PRIVATEG(sptr))) {
-        add_param(sptr); /* add_param() sets SYMLK */
-        end_param();
+        if (!PRIVATEG(sptr) || wantPrivates == INCLUDE_PRIVATES) {
+          add_param(sptr); /* add_param() sets SYMLK */
+          end_param();
+        }
       }
     } else
       CONVAL1P(sptr, new_symbol((int)CONVAL1G(sptr)));
@@ -5721,7 +5739,13 @@ fill_links_symbol(SYMITEM *ps)
     if (for_inliner) {
       AUTOBJP(sptr, 0);
     }
-    SLNKP(sptr, 0);
+    if (SLNKG(sptr) > NOSYM && can_find_symbol(SLNKG(sptr))) {
+      SLNKP(sptr, new_symbol(SLNKG(sptr)));
+    }
+#if DEBUG
+    /* aux.list[] must be terminated with NOSYM, not 0 */
+    assert(sptr > 0, "fill_links_symbol: corrupted aux.list[]", sptr, 3);
+#endif
     if (ps->socptr) {
       int sp;
       SOCPTRP(sptr, ps->socptr);
@@ -5825,6 +5849,9 @@ fill_links_symbol(SYMITEM *ps)
       ALTNAMEP(sptr, new_symbol(ALTNAMEG(sptr)));
     break;
   case ST_PROC:
+    if (IS_PROC_DUMMYG(sptr) && SDSCG(sptr)) {
+      SDSCP(sptr, new_symbol(SDSCG(sptr)));
+    }
     if (FVALG(sptr) && can_find_symbol(FVALG(sptr))) {
       int fval;
       fval = new_symbol(FVALG(sptr));
@@ -5836,7 +5863,13 @@ fill_links_symbol(SYMITEM *ps)
     SYMLKP(sptr, NOSYM);
     if (FUNCG(sptr))
       DCLDP(sptr, 1); /* ensure functions are type declared */
-    SLNKP(sptr, 0);
+    if (SLNKG(sptr) > NOSYM && can_find_symbol(SLNKG(sptr))) {
+      SLNKP(sptr, new_symbol(SLNKG(sptr)));
+    } 
+#if DEBUG
+    /* aux.list[ST_PROC] must be terminated with NOSYM, not 0 */
+    assert(sptr > 0, "fill_links_symbol: corrupted aux.list[ST_PROC]", sptr, 3);
+#endif
     if (GSAMEG(sptr))
       GSAMEP(sptr, new_symbol(GSAMEG(sptr)));
     if (for_interproc || for_static) {
@@ -6284,7 +6317,7 @@ common_diff:
 
 /** \brief return TRUE if two data types are equal.
   *
-  * This function only needs to handle dtype dituations resulting
+  * This function only needs to handle dtype situations resulting
   * from commonblock elements.
   */
 static LOGICAL

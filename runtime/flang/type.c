@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, NVIDIA CORPORATION.  All rights reserved.
+ * Copyright (c) 2010-2018, NVIDIA CORPORATION.  All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,6 +24,8 @@
 #include "type.h"
 #include "f90alloc.h"
 #include "stdioInterf.h"
+
+static struct type_desc *I8(__f03_ty_to_id)[];
 
 void ENTF90(SET_INTRIN_TYPE, set_intrin_type)(F90_Desc *dd,
                                               __INT_T intrin_type);
@@ -255,16 +257,28 @@ ENTF90(KEXTENDS_TYPE_OF, kextends_type_of)
 void ENTF90(SET_TYPE, set_type)(F90_Desc *dd, OBJECT_DESC *td)
 {
   OBJECT_DESC *td2 = (OBJECT_DESC *)dd;
+  TYPE_DESC *type = td->type;
 
-  td2->type = (td->type) ? td->type : (TYPE_DESC *)td;
+  if (type) {
+    td2->type = type;
+    if (type == I8(__f03_ty_to_id)[__STR]) {
+      td2->size = td->size;
+    }
+  } else {
+    td2->type = (TYPE_DESC *)td;
+  }
 }
 
 void ENTF90(TEST_AND_SET_TYPE, test_and_set_type)(F90_Desc *dd, OBJECT_DESC *td)
 {
   OBJECT_DESC *td2 = (OBJECT_DESC *)dd;
+  TYPE_DESC *type = td->type;
 
-  if (td->type) {
-    td2->type = td->type;
+  if (type) {
+    td2->type = type;
+    if (type == I8(__f03_ty_to_id)[__STR]) {
+      td2->size = td->size;
+    }
   } else if (td->tag > 0 && td->tag < __NTYPES) {
     td2->type = (TYPE_DESC *)td;
   }
@@ -276,11 +290,11 @@ ENTF90(GET_OBJECT_SIZE, get_object_size)(F90_Desc *d)
   TYPE_DESC *td;
   OBJECT_DESC *od = (OBJECT_DESC *)d;
 
-  if (!od || !od->type)
+  if (!od)
     return 0;
 
   td = od->type;
-  return td->obj.size;
+  return td ? td->obj.size : od->size;
 }
 
 __INT8_T
@@ -289,11 +303,11 @@ ENTF90(KGET_OBJECT_SIZE, kget_object_size)(F90_Desc *d)
   TYPE_DESC *td;
   OBJECT_DESC *od = (OBJECT_DESC *)d;
 
-  if (!od || !od->type)
-    return (__INT8_T)0;
+  if (!od)
+    return 0;
 
   td = od->type;
-  return (__INT8_T)td->obj.size;
+  return (__INT8_T)(td ? td->obj.size : od->size);
 }
 
 static void
@@ -380,7 +394,7 @@ process_final_procedures(char *area, F90_Desc *sd)
       }
     }
   }
-  if (is_elemental && rank > 0 && finals && finals[0]) {
+  if (is_elemental && rank > 0 && finals && finals[MAXDIMS + 1]) {
     int i;
     int src_sz = sd->lsize * (size_t)src_td->obj.size;
     for (i = 0; i < src_sz; i += src_td->obj.size) {
@@ -418,9 +432,9 @@ void ENTF90(FINALIZE, finalize)(char *area, F90_Desc *sd)
   process_final_procedures(area, sd);
 }
 
-void ENTF90(DEALLOC_POLY_MBR03,
-            dealloc_poly_mbr03)(F90_Desc *sd, __STAT_T *stat, char *area,
-                                __INT_T *firsttime, DCHAR(errmsg) DCLEN(errmsg))
+void ENTF90(DEALLOC_POLY_MBR03A,
+             dealloc_poly_mbr03a)(F90_Desc *sd, __STAT_T *stat, char *area,
+                                  __INT_T *firsttime, DCHAR(errmsg) DCLEN64(errmsg))
 {
 
   OBJECT_DESC *src = (OBJECT_DESC *)sd;
@@ -469,31 +483,23 @@ void ENTF90(DEALLOC_POLY_MBR03,
       if (!g1 && !I8(__fort_allocated)(cb)) {
         continue;
       }
-      if (fd) {
-        __fort_bcopy(area + ld->offset, (char *)ptr1, sizeof(char *));
-        db = ptr1[0];
-        if (ld->tag == 'T' || ld->tag == 'D') {
-          ENTF90(DEALLOC_POLY_MBR03, dealloc_poly_mbr03)
-          (fd, stat, db, firsttime, CADR(errmsg), CLEN(errmsg));
-          if (I8(__fort_allocated)(db)) {
-            ENTF90(DEALLOC_MBR03, dealloc_mbr03)
-            (stat, db, firsttime, CADR(errmsg), CLEN(errmsg));
-          }
-        }
-        else if (I8(__fort_allocated)(db)) {
-          ENTF90(DEALLOC_MBR03, dealloc_mbr03)
-          (stat, db, firsttime, CADR(errmsg), CLEN(errmsg));
-        }
-      }
     }
   }
   ENTF90(DEALLOC_MBR03, dealloc_mbr03)
   (stat, area, firsttime, CADR(errmsg), CLEN(errmsg));
 }
 
-void ENTF90(DEALLOC_POLY03, dealloc_poly03)(F90_Desc *sd, __STAT_T *stat,
+/* 32 bit CLEN version */
+void ENTF90(DEALLOC_POLY_MBR03,
+            dealloc_poly_mbr03)(F90_Desc *sd, __STAT_T *stat, char *area,
+                                __INT_T *firsttime, DCHAR(errmsg) DCLEN(errmsg))
+{
+  ENTF90(DEALLOC_POLY_MBR03A, dealloc_poly_mbr03a)(sd, stat, area, firsttime, CADR(errmsg), (__CLEN_T)CLEN(errmsg));
+}
+
+void ENTF90(DEALLOC_POLY03A, dealloc_poly03a)(F90_Desc *sd, __STAT_T *stat,
                                             char *area, __INT_T *firsttime,
-                                            DCHAR(errmsg) DCLEN(errmsg))
+                                            DCHAR(errmsg) DCLEN64(errmsg))
 {
   OBJECT_DESC *src = (OBJECT_DESC *)sd;
   TYPE_DESC *src_td;
@@ -515,7 +521,7 @@ void ENTF90(DEALLOC_POLY03, dealloc_poly03)(F90_Desc *sd, __STAT_T *stat,
     F90_Desc *fd;
     char *ptr1[1] = {0};
     char *ptr2[1] = {0};
-    char *cb, *db;
+    char *cb;
     __LOG_T g1;
 
     for (; ld->tag != 0; ld++) {
@@ -541,24 +547,24 @@ void ENTF90(DEALLOC_POLY03, dealloc_poly03)(F90_Desc *sd, __STAT_T *stat,
         continue;
       }
       if (fd) {
-        __fort_bcopy(area + ld->offset, (char *)ptr1, sizeof(char *));
-        db = ptr1[0];
-        if (ld->tag == 'T' || ld->tag == 'D') {
-          ENTF90(DEALLOC_POLY_MBR03, dealloc_poly_mbr03)
-          (fd, stat, db, firsttime, CADR(errmsg), CLEN(errmsg));
-          if (I8(__fort_allocated)(db)) {
-            ENTF90(DEALLOC_MBR03, dealloc_mbr03)
-            (stat, db, firsttime, CADR(errmsg), CLEN(errmsg));
-          }
-        } else if (I8(__fort_allocated)(db)) {
-          ENTF90(DEALLOC_MBR03, dealloc_mbr03)
-          (stat, db, firsttime, CADR(errmsg), CLEN(errmsg));
+        if (ld->tag == 'T' && src_td->obj.tag == __POLY
+            && (fd->tag == __DESC || fd->tag == __POLY)) {
+            ENTF90(DEALLOC_POLY_MBR03A, dealloc_poly_mbr03a)
+            (fd, stat, cb, firsttime, CADR(errmsg), CLEN(errmsg));
         }
       }
     }
   }
-  ENTF90(DEALLOC03, dealloc03)
+  ENTF90(DEALLOC03A, dealloc03a)
   (stat, area, firsttime, CADR(errmsg), CLEN(errmsg));
+}
+/* 32 bit CLEN version */
+void ENTF90(DEALLOC_POLY03, dealloc_poly03)(F90_Desc *sd, __STAT_T *stat,
+                                            char *area, __INT_T *firsttime,
+                                            DCHAR(errmsg) DCLEN(errmsg))
+{
+  ENTF90(DEALLOC_POLY03A, dealloc_poly03a)(sd, stat, area, firsttime,
+         CADR(errmsg), (__CLEN_T)CLEN(errmsg));
 }
 
 static void sourced_alloc_and_assign_array(int extent, char *ab, char *bb, TYPE_DESC *td);
@@ -681,6 +687,9 @@ void ENTF90(POLY_ASN, poly_asn)(char *ab, F90_Desc *ad, char *bb, F90_Desc *bd,
   if (src_td) {
     if (bd && bd->tag == __DESC && bd->rank > 0) {
       src_sz = bd->lsize * (size_t)src_td->obj.size;
+      src_is_array = 1;
+    } else if (src_td->obj.baseTag == __STR) {
+      src_sz = (size_t)(ad->len * ad->lsize);
       src_is_array = 1;
     } else if (bd && (flag || bd->tag == __POLY || bd->tag == __DESC)) {
       src_sz = (size_t)src_td->obj.size;
@@ -889,6 +898,9 @@ void I8(__fort_dump_type)(TYPE_DESC *d)
     break;
   case __POLY:
     fprintf(__io_stderr(), "__POLY'\n");
+    break;
+  case __PROCPTR:
+    fprintf(__io_stderr(), "__PROCPTR'\n");
     break;
   default:
     fprintf(__io_stderr(), "unknown (%d)'\n", d->obj.baseTag);
@@ -1417,7 +1429,9 @@ void ENTF90(INIT_UNL_POLY_DESC, init_unl_poly_desc)(F90_Desc *dd, F90_Desc *sd,
     }
 }
 
-void ENTF90(INIT_FROM_DESC, init_from_desc)(void *object, const F90_Desc *desc)
+void ENTF90(INIT_FROM_DESC, init_from_desc)(void *object,
+                                            const F90_Desc *desc,
+                                            int rank)
 {
   if (object && desc) {
 
@@ -1425,13 +1439,13 @@ void ENTF90(INIT_FROM_DESC, init_from_desc)(void *object, const F90_Desc *desc)
     size_t items = 1;
     size_t index[MAXDIMS];
     TYPE_DESC *type_desc = obj_desc->type;
-    int rank = 0;
     int j;
     size_t element_bytes = 0;
     void *prototype = NULL;
 
     if (desc->tag == __DESC) {
-      rank = desc->rank;
+      if (desc->rank < rank)
+        rank = desc->rank;
       if (rank > 0) {
         items = desc->lsize;
         for (j = 0; j < rank; ++j) {
@@ -1468,3 +1482,21 @@ void ENTF90(INIT_FROM_DESC, init_from_desc)(void *object, const F90_Desc *desc)
     }
   }
 }
+
+void 
+ENTF90(ASN_CLOSURE, asn_closure) 
+      (PROC_DESC * pdesc, void * closure)
+{
+   pdesc->tag = __PROCPTR;
+   pdesc->closure = closure;
+} 
+
+
+void
+ENTF90(COPY_PROC_DESC, copy_proc_desc)
+      (PROC_DESC *dd, PROC_DESC *sd)
+{
+   dd->tag = __PROCPTR;
+   dd->closure = sd->closure;
+}
+

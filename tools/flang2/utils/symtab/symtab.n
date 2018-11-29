@@ -1,5 +1,5 @@
 .\"/*
-.\" * Copyright (c) 2017, NVIDIA CORPORATION.  All rights reserved.
+.\" * Copyright (c) 1994-2018, NVIDIA CORPORATION.  All rights reserved.
 .\" *
 .\" * Licensed under the Apache License, Version 2.0 (the "License");
 .\" * you may not use this file except in compliance with the License.
@@ -261,6 +261,10 @@ Fortran 90 derived type template name.
 Parameter list.
 .ST ST_BLOCK
 Lexical block.
+.ST ST_BASE
+Symbol whose name is used as the base address for a set of static variables.
+.ST ST_DPNAME
+name sptr for deep copy directives
 .ST E
 .SF SC w1:b2
 Storage class of a variable.
@@ -734,6 +738,8 @@ Set if this is a descriptor array, and the compiler has determined that
 the object for which this is a descriptor is always contiguous.
 .FL DESCARRAY
 Set if this is a descriptor array, managed by the compiler/runtime.
+.FL IS_PROC_DESCR f109
+Set if this is a descriptor associated with a procedure dummy argument.
 .FL RESERVED_f50 f50
 reserved
 .FL PASSBYVAL f51
@@ -835,6 +841,10 @@ Set if variable is shared in parallel region.
 Set if variable is already loaded into struct to be passed to outlined function.
 .FL LOCARG f99
 Variable has appeared in a %LOC.
+.FL ALLDEFAULTINIT f100
+default initialization.
+.FL TARGET f108
+Set if variable has the target attribute
 .lp
 .ul
 Other Fields
@@ -1144,6 +1154,8 @@ name list group.
 .lp
 .ul
 Flags
+.FL HAS_OPT_ARGS f110
+Set if this entry has optional arguments.
 .FL DCLD
 Set if currently processing a function subprogram and the
 data type of this entry has been explicitly declared.
@@ -1287,11 +1299,15 @@ this procedure.
 Store st_block sptr for outlined function.
 .SE NUMSECT w24
 Store number of section's for outlined function for omp sections - use in backend only.
+.SE TASKDUP w26
+Store taskdup routine sptr for outlined taskloop routine.
 .SM ST_PROC
 .SI OC_OTHER "subroutine"
 .lp
 .ul
 Flags
+.FL HAS_OPT_ARGS 
+Set if this procedure has optional arguments.
 .FL DCLD
 Data type of this (function) subprogram has been explicitly declared.
 .FL CCSYM
@@ -1395,6 +1411,8 @@ Calls to this routine do not modify any section descriptors,
 either passed as arguments or for globals.
 .FL TASKFN f64
 If set, this function represents an OpenMP task.
+.FL ISTASKDUP f65
+If set, this function is a task dup routine for OpenMP taskloop.
 .FL ARG1PTR f67
 Set if this is a special runtime routine that acts like a function,
 but which writes to its first argument, where the first argument
@@ -1444,6 +1462,10 @@ List head is pointed to by
 .cw gbl.externs .
 The end of the list is denoted by
 .cw NOSYM .
+#.SE SDSC
+When ST_PROC symbol is a dummy argument, SDSC is set to its descriptor 
+argument. (SDSC needs to be commented out here since it overloads ARGSIZE
+but does not conflict with it in practice).
 .SE ARGSIZE
 For the x86, number of bytes on the stack used to pass arguments
 to the subprogram; this field is set by the expander.
@@ -1929,6 +1951,11 @@ Flags
 .lp
 .ul
 Other Fields
+.SM ST_DPNAME
+.SI OC_OTHER "deep copy name"
+Flags
+.FL USED f1
+Set if this name is referenced.
 .SM E
 .bp
 .sh 2 "Auxiliary Data Structures"
@@ -2416,7 +2443,7 @@ and
 .cw dims[2*(i-1)+1]
 is the upper bound for dimension
 .cw i .
-.nr ps \\n(PS
+.nr ps \n(PS
 .sp
 .sh 3 "Dummy Parameter Descriptors"
 A dummy parameter descriptor is built for each entry point in a program

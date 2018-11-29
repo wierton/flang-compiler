@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, NVIDIA CORPORATION.  All rights reserved.
+ * Copyright (c) 1997-2018, NVIDIA CORPORATION.  All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -968,6 +968,7 @@ fix_array_fields(int dtype)
   }
 } /* fix_array_fields */
 
+
 /* if there are alternate return labels, convert to a function call */
 static void
 handle_arguments(int ast, int symfunc, int via_ptr)
@@ -980,6 +981,8 @@ handle_arguments(int ast, int symfunc, int via_ptr)
   int via_tbp, tbp_mem, tbp_pass_arg, tbp_bind;
   int tbp_nopass_arg, tbp_nopass_sdsc;
   int unlpoly; /* CLASS(*) */
+
+  bool procDummyNeedsDesc = proc_arg_needs_proc_desc(symfunc);
 
   switch (A_TYPEG(A_LOPG(ast))) {
   case A_ID:
@@ -1052,6 +1055,11 @@ handle_arguments(int ast, int symfunc, int via_ptr)
     iface = DTY(dtproc + 2);
     paramcount = DTY(dtproc + 3);
     params = DTY(dtproc + 4);
+  }
+  if (procDummyNeedsDesc) {
+    lower_expression(A_LOPG(ast));
+
+    callee = lower_base(A_LOPG(ast));
   }
   altreturn = 0;
 
@@ -1384,7 +1392,7 @@ handle_arguments(int ast, int symfunc, int via_ptr)
         plower("sm", tbp_nopass_sdsc);
       }
     }
-  } else if (!via_ptr) {
+  } else if (!via_ptr && !procDummyNeedsDesc) {
     if (altreturn) {
       ilm = plower("onm", "IUFUNC", count - altreturn);
     } else {
@@ -1394,12 +1402,31 @@ handle_arguments(int ast, int symfunc, int via_ptr)
     paramcount = PARAMCTG(symfunc);
   } else {
     if (altreturn) {
-      ilm = plower("om", "IUFUNCA");
-      plower("nim", count - altreturn, callee);
+      if (is_procedure_ptr(symfunc) || procDummyNeedsDesc) {
+        int sdsc = A_INVOKING_DESCG(ast) ? sym_of_ast(A_INVOKING_DESCG(ast))
+                                         : SDSCG(symfunc);
+        ilm = plower("om", "PIUFUNCA");
+        plower("nnsim", count - altreturn,
+               (CFUNCG(symfunc) || (iface && CFUNCG(iface))) ? 1 : 0, sdsc,
+               callee);
+      } else {
+        ilm = plower("om", "IUFUNCA");
+        plower("nnim", count - altreturn,
+               (CFUNCG(symfunc) || (iface && CFUNCG(iface))) ? 1 : 0, callee);
+      }
     } else {
-      plower("om", "UCALLA");
-      plower("nnim", count,
-             (CFUNCG(symfunc) || (iface && CFUNCG(iface))) ? 1 : 0, callee);
+      if (SDSCG(symfunc) == 0) {
+        plower("om", "UCALLA");
+        plower("nnim", count,
+               (CFUNCG(symfunc) || (iface && CFUNCG(iface))) ? 1 : 0, callee);
+      } else {
+        int sdsc = A_INVOKING_DESCG(ast) ? sym_of_ast(A_INVOKING_DESCG(ast))
+                                         : SDSCG(symfunc);
+        plower("om", "UPCALLA");
+        plower("nnsim", count,
+               (CFUNCG(symfunc) || (iface && CFUNCG(iface))) ? 1 : 0, sdsc,
+               callee);
+      }
     }
     paramcount = DTY(dtproc + 3);
   }
@@ -1527,6 +1554,8 @@ dotemp(char letter, int dtype, int std)
   pf[2] = '\0';
   if (STD_PAR(std) || STD_TASK(std)) {
     temp = getccssym_sc(pf, lowersym.docount, stype, SC_PRIVATE);
+    if (STD_TASK(std))
+      TASKP(temp, 1);
   } else {
     temp = getccssym_sc(pf, lowersym.docount, stype, SC_LOCAL);
   }
@@ -1669,7 +1698,7 @@ llvm_omp_sched(int std, int ast, int dtype, int dotop, int dobottom, int dovar,
                int plast, int dotrip, int doinitilm, int doinc, int doincilm,
                int doendilm, int schedtype, int lineno)
 {
-  int chunkilm, ncpusilm, lcpuilm, ostep, ostepilm, odovar, doend, hxdovar;
+  int chunkilm, ncpusilm, lcpuilm, ostep, ostepilm, odovar, doend, newdovar;
   int itrip, itop, ibottom, itripilm, iendilm, istepilm, iinitilm, chunkast;
   int newend, dost, ilm, o_ub, o_lb, ub, dotripilm, oldsched, oldtop, dyn;
   int pupperd, is_dist = 0;
@@ -1685,7 +1714,7 @@ llvm_omp_sched(int std, int ast, int dtype, int dotop, int dobottom, int dovar,
       if (_i4_cmp(doinc, stb.i0) > 0)
         incr_loop = 1;
     } else if (DTYPEG(doinc) == DT_INT8) {
-      if (_i8_cmp(doinc, stb.k0))
+      if (_i8_cmp(doinc, stb.k0) > 0)
         incr_loop = 1;
     }
   } else {
@@ -1762,10 +1791,21 @@ llvm_omp_sched(int std, int ast, int dtype, int dotop, int dobottom, int dovar,
   chunkilm = lower_conv(chunkast, dtype);
 
   odovar = dotemp('X', dtype, std);
-
-    o_lb = dovar;
-    ub = newend;
-    hxdovar = odovar;
+  {
+    if (dyn == 1) {
+      newdovar = dotemp('x', dtype, std);
+      set_mp_loop_var(newdovar, doinitilm, dtype);
+      o_lb = dotemp('l', dtype, std);
+      set_mp_loop_var(o_lb, doinitilm, dtype);
+      ub = dotemp('U', dtype, std);
+      set_mp_loop_var(ub, doendilm, dtype);
+    } else {
+      o_lb = dotemp('l', dtype, std);
+      set_mp_loop_var(o_lb, doinitilm, dtype);
+      ub = newend;
+      newdovar = odovar;
+    }
+  }
 
   plower("osssssdn", "MPLOOP", o_lb, ub, dost, A_SPTRG(chunkast), plast, dtype,
          schedtype);
@@ -1781,12 +1821,19 @@ llvm_omp_sched(int std, int ast, int dtype, int dotop, int dobottom, int dovar,
     int lilm, newbottom;
     plower("oL", "LABEL", dotop);
 
-    ilm = plower("ossssd", "MPSCHED", hxdovar, newend, dost, plast, dtype);
+    ilm = plower("ossssd", "MPSCHED", newdovar, newend, dost, plast, dtype);
     lilm = plower("oS", "ICON", lowersym.intzero);
     ilm = plower("oii", "ICMP", ilm, lilm);
     ilm = plower("oi", "EQ", ilm);
 
     plower("oiS", "BRT", ilm, dobottom);
+    {
+      int lilm;
+      doinitilm = plower("oS", "BASE", newdovar);
+      doinitilm = lower_typeload(dtype, doinitilm);
+      lilm = lower_sptr(odovar, VarBase);
+      lower_typestore(dtype, lilm, doinitilm);
+    }
 
     /* dovar = odovar */
     doinitilm = plower("oS", "BASE", odovar);
@@ -1819,6 +1866,12 @@ llvm_omp_sched(int std, int ast, int dtype, int dotop, int dobottom, int dovar,
     lower_end_stmt(std);
 
   } else {
+    if (o_lb != dovar) {
+      doinitilm = plower("oS", "BASE", o_lb);
+      doinitilm = lower_typeload(dtype, doinitilm);
+      ilm = lower_sptr(dovar, VarBase);
+      lower_typestore(dtype, ilm, doinitilm);
+    }
 
     /* odovar = dovar */
     doinitilm = plower("oS", "BASE", dovar);
@@ -2051,7 +2104,7 @@ lower_do_stmt(int std, int ast, int lineno, int label)
   ilm = lower_ilm(doendast);
   doendilm = lower_conv_ilm(doendast, ilm, A_NDTYPEG(doendast), dtype);
 
-  if (A_TYPEG(ast) != A_MP_PDO) {
+  if (A_TYPEG(ast) != A_MP_PDO || A_TASKLOOPG(ast)) {
     /* sequential DO:
      *  doinc = doincilm
      *  dovar = doinitilm
@@ -2060,18 +2113,42 @@ lower_do_stmt(int std, int ast, int lineno, int label)
      *  dovar = dovar + doinc
      *  DOEND(lab,lab)
      */
+    if (A_TASKLOOPG(ast)) {
+      /* lower taskloop as a regular loop */
+      int ub;
+      if (doinc == 0) {
+        /* convert and store in a temp */
+        doinc = dotemp('i', dtype, std);
+        lilm = lower_sptr(doinc, VarBase);
+        lower_typestore(dtype, lilm, doincilm);
+      }
+      ub = dotemp('U', dtype, std);
+      plower("ossssd", "MPTASKLOOP", dovar, ub, doinc, plast, dtype);
 
-    ilm = compute_dotrip(std, doinitast == doincast, doinitilm, doendilm, doinc,
-                         doincilm, dtype, dotrip);
-
-    if (doinc == 0) {
-      /* convert and store in a temp */
-      doinc = dotemp('i', dtype, std);
-      lilm = lower_sptr(doinc, VarBase);
-      lower_typestore(dtype, lilm, doincilm);
+      /* those values will be loaded from task alloc at the
+       * beginning of an outlined function.
+       */
+      ilm = plower("oS", "BASE", dovar);
+      doinitilm = lower_typeload(DTYPEG(dovar), ilm);
+      ilm = plower("oS", "BASE", ub);
+      doendilm = lower_typeload(DTYPEG(ub), ilm);
+      ilm = plower("oS", "BASE", doinc);
+      doincilm = lower_typeload(DTYPEG(doinc), ilm);
+      ilm = compute_dotrip(std, FALSE, doinitilm, doendilm, doinc, doincilm,
+                           dtype, dotrip);
+    } else
+    {
+      ilm = compute_dotrip(std, doinitast == doincast, doinitilm, doendilm,
+                           doinc, doincilm, dtype, dotrip);
+      if (doinc == 0) {
+        /* convert and store in a temp */
+        doinc = dotemp('i', dtype, std);
+        lilm = lower_sptr(doinc, VarBase);
+        lower_typestore(dtype, lilm, doincilm);
+      }
+      lilm = lower_sptr(dovar, VarBase);
+      lower_typestore(dtype, lilm, doinitilm);
     }
-    lilm = lower_sptr(dovar, VarBase);
-    lower_typestore(dtype, lilm, doinitilm);
     if (!XBIT(34, 0x8000000) && STD_ZTRIP(std) && A_M4G(ast)) {
       /* lower condition ilm */
       int tilm;
@@ -2677,7 +2754,7 @@ lower_enddo_stmt(int lineno, int label, int std, int ispdo)
              schedtype == DI_SCH_GUIDED || schedtype == DI_SCH_RUNTIME ||
              schedtype == DI_SCH_AUTO
              || (schedtype & MP_SCH_ATTR_ORDERED)
-                 ) {
+  ) {
 /* handle the 'while' loop */
     if (ispdo && (schedtype & MP_SCH_ATTR_ORDERED)) {
       plower("odn", "MPLOOPFINI", dtype, schedtype);
@@ -2690,7 +2767,7 @@ lower_enddo_stmt(int lineno, int label, int std, int ispdo)
 
 } /* lower_enddo_stmt */
 
-static void 
+static void
 lower_omp_atomic_read(int ast, int lineno)
 {
   int sptr, rilm;
@@ -2709,13 +2786,13 @@ lower_omp_atomic_read(int ast, int lineno)
   plower("oin", "MP_ATOMICREAD", rilm, mem_order);
 }
 
-static void 
+static void
 lower_omp_atomic_write(int ast, int lineno)
 {
   int sptr, lilm, rilm;
   int lop, rop;
   int mem_order;
-  
+
   lop = A_LOPG(ast);
   rop = A_ROPG(ast);
   mem_order = A_MEM_ORDERG(ast);
@@ -2728,52 +2805,51 @@ lower_omp_atomic_write(int ast, int lineno)
   rilm = lower_conv(rop, A_DTYPEG(lop));
 
   plower("oiin", "MP_ATOMICWRITE", lilm, rilm, mem_order);
-} 
+}
 
-void static
-lower_omp_atomic_update(int ast, int lineno)
-{ 
+void static lower_omp_atomic_update(int ast, int lineno)
+{
   int sptr, lilm, rilm;
   int lop, rop;
   int mem_order;
   int aop;
-  
+
   lop = A_LOPG(ast);
   rop = A_ROPG(ast);
   mem_order = A_MEM_ORDERG(ast);
   aop = A_OPTYPEG(ast);
-  
+
   lower_expression(lop);
   lilm = lower_base(lop);
-  
+
   /* lower rhs and convert type to lhs type */
   lower_expression(rop);
   rilm = lower_conv(rop, A_DTYPEG(lop));
-  
+
   plower("oiinn", "MP_ATOMICUPDATE", lilm, rilm, mem_order, aop);
 }
 
-static void 
+static void
 lower_omp_atomic_capture(int ast, int lineno)
-{ 
+{
   int sptr, lilm, rilm;
   int lop, rop;
   int aop;
   int mem_order;
   int flag = 0;
-  
+
   lop = A_LOPG(ast);
   rop = A_ROPG(ast);
   mem_order = A_MEM_ORDERG(ast);
   aop = A_OPTYPEG(ast);
-  
+
   lower_expression(lop);
   lilm = lower_base(lop);
-  
+
   /* lower rhs and convert type to lhs type */
   lower_expression(rop);
   rilm = lower_conv(rop, A_DTYPEG(lop));
-  
+
   plower("oiinnn", "MP_ATOMICCAPTURE", lilm, rilm, mem_order, aop, flag);
 }
 
@@ -2783,7 +2859,7 @@ lower_stmt(int std, int ast, int lineno, int label)
   int dtype, lop, rop, lilm, rilm, ilm = 0, ilm2 = 0, asd, silm;
   int ndim, i, sptr, devsptr, args, arg, count, lab, nlab, fmt, labnum, tyilm,
       nullilm;
-  int astli, src, nextstd, dest;
+  int astli, src, nextstd, dest, ilm3, ilm4;
   int dotop, dobottom, doit, stblk;
   int symfunc, symargs[30], num, sym, secnum;
   iflabeltype iflab;
@@ -2805,7 +2881,7 @@ lower_stmt(int std, int ast, int lineno, int label)
   case A_NULL:
     break;
 
-  /* ------------- statement AST types ------------- */
+    /* ------------- statement AST types ------------- */
 
   case A_AGOTO:
     count = 0;
@@ -2985,20 +3061,20 @@ lower_stmt(int std, int ast, int lineno, int label)
  * declared CLASS, has a finalized component, or
  * has a polymorphic allocatable component.
  */
-                  alloc_func = lower_makefunc(mkRteRtnNm(RTE_ptr_src_calloc04),
+                  alloc_func = lower_makefunc(mkRteRtnNm(RTE_ptr_src_calloc04a),
                                               DT_NONE, FALSE);
               } else {
-                  alloc_func = lower_makefunc(mkRteRtnNm(RTE_ptr_src_alloc04),
+                  alloc_func = lower_makefunc(mkRteRtnNm(RTE_ptr_src_alloc04a),
                                               DT_NONE, FALSE);
               }
             } else {
               if (lowersym.alloc == 0) {
                   lowersym.alloc =
-                      lower_makefunc(mkRteRtnNm(RTE_alloc04), DT_NONE, FALSE);
+                      lower_makefunc(mkRteRtnNm(RTE_alloc04a), DT_NONE, FALSE);
               }
               if (lowersym.alloc_chk == 0) {
                   lowersym.alloc_chk = lower_makefunc(
-                      mkRteRtnNm(RTE_alloc04_chk), DT_NONE, FALSE);
+                      mkRteRtnNm(RTE_alloc04_chka), DT_NONE, FALSE);
               }
               if (ALLOCATTRG(sptr)) {
                 alloc_func = lowersym.alloc_chk;
@@ -3023,17 +3099,17 @@ lower_stmt(int std, int ast, int lineno, int label)
              */
             if (lowersym.calloc == 0) {
                 lowersym.calloc =
-                    lower_makefunc(mkRteRtnNm(RTE_calloc04), DT_NONE, FALSE);
+                    lower_makefunc(mkRteRtnNm(RTE_calloc04a), DT_NONE, FALSE);
             }
             alloc_func = lowersym.calloc;
           } else {
             if (lowersym.alloc == 0) {
                 lowersym.alloc =
-                    lower_makefunc(mkRteRtnNm(RTE_alloc04), DT_NONE, FALSE);
+                    lower_makefunc(mkRteRtnNm(RTE_alloc04a), DT_NONE, FALSE);
             }
             if (lowersym.alloc_chk == 0) {
-                lowersym.alloc_chk =
-                    lower_makefunc(mkRteRtnNm(RTE_alloc04_chk), DT_NONE, FALSE);
+                lowersym.alloc_chk = lower_makefunc(
+                    mkRteRtnNm(RTE_alloc04_chka), DT_NONE, FALSE);
             }
             if (ALLOCATTRG(sptr)) {
               alloc_func = lowersym.alloc_chk;
@@ -3106,12 +3182,12 @@ lower_stmt(int std, int ast, int lineno, int label)
             }
 
             lowersym.ptr_alloc = 0;
-              alloc_func = lower_makefunc(mkRteRtnNm(RTE_ptr_src_alloc04),
+              alloc_func = lower_makefunc(mkRteRtnNm(RTE_ptr_src_alloc04a),
                                           DT_NONE, FALSE);
           } else {
             if (lowersym.ptr_alloc == 0) {
-                lowersym.ptr_alloc =
-                    lower_makefunc(mkRteRtnNm(RTE_ptr_alloc04), DT_NONE, FALSE);
+                lowersym.ptr_alloc = lower_makefunc(
+                    mkRteRtnNm(RTE_ptr_alloc04a), DT_NONE, FALSE);
             }
             alloc_func = lowersym.ptr_alloc;
           }
@@ -3119,7 +3195,7 @@ lower_stmt(int std, int ast, int lineno, int label)
         } else {
           if (lowersym.ptr_alloc == 0) {
               lowersym.ptr_alloc =
-                  lower_makefunc(mkRteRtnNm(RTE_ptr_alloc04), DT_NONE, FALSE);
+                  lower_makefunc(mkRteRtnNm(RTE_ptr_alloc04a), DT_NONE, FALSE);
           }
           alloc_func = lowersym.ptr_alloc;
         }
@@ -3258,9 +3334,9 @@ lower_stmt(int std, int ast, int lineno, int label)
       } else
         errilm = lower_nullc_arg();
       if (A_FIRSTALLOCG(ast))
-        firstilm = plower("oS", "ICON", lowersym.intone);
+        firstilm = plower("oS", lowersym.bnd.con, lowersym.bnd.one);
       else
-        firstilm = plower("oS", "ICON", lowersym.intzero);
+        firstilm = plower("oS", lowersym.bnd.con, lowersym.bnd.zero);
 
       if (DTY(eltype) == TY_DERIVED) {
         int tag = DTY(eltype + 3);
@@ -3268,13 +3344,13 @@ lower_stmt(int std, int ast, int lineno, int label)
           if (have_ptr_alloc) {
             if (lowersym.ptr_calloc == 0) {
                 lowersym.ptr_calloc = lower_makefunc(
-                    mkRteRtnNm(RTE_ptr_calloc04), DT_NONE, FALSE);
+                    mkRteRtnNm(RTE_ptr_calloc04a), DT_NONE, FALSE);
             }
             alloc_func = lowersym.ptr_calloc;
           } else {
             if (lowersym.calloc == 0) {
                 lowersym.calloc =
-                    lower_makefunc(mkRteRtnNm(RTE_calloc04), DT_NONE, FALSE);
+                    lower_makefunc(mkRteRtnNm(RTE_calloc04a), DT_NONE, FALSE);
             }
             alloc_func = lowersym.calloc;
           }
@@ -3405,15 +3481,16 @@ lower_stmt(int std, int ast, int lineno, int label)
       } else
         errilm = lower_nullc_arg();
       if (A_FIRSTALLOCG(ast))
-        firstilm = plower("oS", "ICON", lowersym.intone);
+        firstilm = plower("oS", lowersym.bnd.con, lowersym.bnd.one);
       else
-        firstilm = plower("oS", "ICON", lowersym.intzero);
+        firstilm = plower("oS", lowersym.bnd.con, lowersym.bnd.zero);
+
       if (A_DALLOCMEMG(ast)) {
             if (lowersym.dealloc_mbr == 0 || is_or_has_poly(sptr) ||
                 has_finalized_component(sptr)) {
           if (is_or_has_poly(sptr) || has_finalized_component(sptr)) {
             dealloc_poly_func = lower_makefunc(
-                mkRteRtnNm(RTE_dealloc_poly_mbr03), DT_NONE, FALSE);
+                mkRteRtnNm(RTE_dealloc_poly_mbr03a), DT_NONE, FALSE);
             if (STYPEG(sptr) != ST_MEMBER) {
               poly_dsc = get_type_descr_arg(gbl.currsub, sptr);
             } else if (!CLASSG(sptr)) {
@@ -3437,8 +3514,8 @@ lower_stmt(int std, int ast, int lineno, int label)
               A_NDTYPEP(poly_dsc_ast, A_DTYPEG(poly_dsc_ast));
             }
           } else {
-              lowersym.dealloc_mbr =
-                  lower_makefunc(mkRteRtnNm(RTE_dealloc_mbr03), DT_NONE, FALSE);
+              lowersym.dealloc_mbr = lower_makefunc(
+                  mkRteRtnNm(RTE_dealloc_mbr03a), DT_NONE, FALSE);
           }
         }
       } else {
@@ -3486,7 +3563,7 @@ lower_stmt(int std, int ast, int lineno, int label)
               }
             } else
               lowersym.dealloc =
-                  lower_makefunc(mkRteRtnNm(RTE_dealloc03), DT_NONE, FALSE);
+                  lower_makefunc(mkRteRtnNm(RTE_dealloc03a), DT_NONE, FALSE);
           }
           dealloc_func = lowersym.dealloc;
           if (poly_dsc)
@@ -3856,7 +3933,7 @@ lower_stmt(int std, int ast, int lineno, int label)
           case TY_NCHAR:
             if (ASSUMSHPG(ropsym)) {
               if (DDTG(DTYPEG(sym)) == DT_DEFERCHAR ||
-                  DDTG(DTYPEG(sym)) == DT_DEFERCHAR) {
+                  DDTG(DTYPEG(sym)) == DT_DEFERNCHAR) {
                 symfunc = lower_makefunc(
                     mkRteRtnNm(RTE_ptr_assn_dchar_assumeshp), DT_PTR, FALSE);
                 is_assumeshp = 1;
@@ -3867,21 +3944,22 @@ lower_stmt(int std, int ast, int lineno, int label)
               }
             } else {
               if (DDTG(DTYPEG(sym)) == DT_DEFERCHAR ||
-                  DDTG(DTYPEG(sym)) == DT_DEFERCHAR) {
-                symfunc =
-                    lower_makefunc(count == 5 ? mkRteRtnNm(RTE_ptr_assn_dchar)
-                                              : mkRteRtnNm(RTE_ptr_assn_dcharx),
-                                   DT_PTR, FALSE);
+                  DDTG(DTYPEG(sym)) == DT_DEFERNCHAR) {
+                symfunc = lower_makefunc(count == 5
+                                             ? mkRteRtnNm(RTE_ptr_assn_dchara)
+                                             : mkRteRtnNm(RTE_ptr_assn_dcharxa),
+                                         DT_PTR, FALSE);
               } else {
                 symfunc =
-                    lower_makefunc(count == 5 ? mkRteRtnNm(RTE_ptr_assn_char)
-                                              : mkRteRtnNm(RTE_ptr_assn_charx),
+                    lower_makefunc(count == 5 ? mkRteRtnNm(RTE_ptr_assn_chara)
+                                              : mkRteRtnNm(RTE_ptr_assn_charxa),
                                    DT_PTR, FALSE);
               }
             }
             break;
           default:
-            if (ASSUMSHPG(ropsym)) {
+            if (ASSUMSHPG(ropsym) &&
+                (!XBIT(58, 0x400000) || !TARGETG(ropsym))) {
               symfunc = lower_makefunc(mkRteRtnNm(RTE_ptr_assn_assumeshp),
                                        DT_PTR, FALSE);
               is_assumeshp = 2;
@@ -4058,10 +4136,11 @@ lower_stmt(int std, int ast, int lineno, int label)
         switch (DTYG(DTYPEG(sym))) {
         case TY_CHAR:
         case TY_NCHAR:
-          symfunc = lower_makefunc(mkRteRtnNm(RTE_ptr_in_char), DT_NONE, FALSE);
+          symfunc =
+              lower_makefunc(mkRteRtnNm(RTE_ptr_in_chara), DT_NONE, FALSE);
           break;
         default:
-          symfunc = lower_makefunc(mkRteRtnNm(RTE_ptr_in), DT_NONE, FALSE);
+          symfunc = lower_makefunc(mkRteRtnNm(RTE_ptr_ina), DT_NONE, FALSE);
         }
         num = 0;
         for (i = 0; i < count && i < 7; ++i) {
@@ -4142,7 +4221,7 @@ lower_stmt(int std, int ast, int lineno, int label)
         case TY_CHAR:
         case TY_NCHAR:
           symfunc =
-              lower_makefunc(mkRteRtnNm(RTE_ptr_out_char), DT_NONE, FALSE);
+              lower_makefunc(mkRteRtnNm(RTE_ptr_out_chara), DT_NONE, FALSE);
           break;
         default:
           symfunc = lower_makefunc(mkRteRtnNm(RTE_ptr_out), DT_NONE, FALSE);
@@ -4365,6 +4444,10 @@ lower_stmt(int std, int ast, int lineno, int label)
 
   case A_MP_PDO:
 /* cancel/cancellation */
+    if (A_TASKLOOPG(ast)) {
+      lower_do_stmt(std, ast, lineno, label); /* treat as normal do */
+      break;
+    }
     dotop = A_ENDLABG(ast);
     if (dotop) {
       dotop = A_SPTRG(dotop);
@@ -4406,7 +4489,10 @@ lower_stmt(int std, int ast, int lineno, int label)
     lower_enddo_stmt(lineno, label, std, 0);
     break;
   case A_MP_ENDPDO:
-    lower_enddo_stmt(lineno, label, std, 1);
+    if (A_TASKLOOPG(ast))
+      lower_enddo_stmt(lineno, label, std, 0);
+    else
+      lower_enddo_stmt(lineno, label, std, 1);
     break;
 
   case A_END:
@@ -4839,7 +4925,9 @@ lower_stmt(int std, int ast, int lineno, int label)
     break;
 
   case A_MP_TASK:
+  case A_MP_TASKLOOP:
     lowersym.task_depth++;
+    lowersym.sc = SC_PRIVATE;
     lower_start_stmt(lineno, label, TRUE, std);
     /*
      *  num (bitvector):
@@ -4856,9 +4944,9 @@ lower_stmt(int std, int ast, int lineno, int label)
     if (A_UNTIEDG(ast))
       num |= 1; /* untied was specified */
     if (A_MERGEABLEG(ast))
-      num |= 0x80;
+      num |= MP_TASK_MERGEABLE;
     if (A_IFPARG(ast) == 0) {
-      ilm = plower("oS", "ICON", lowersym.intzero);
+      ilm = plower("oS", "ICON", lowersym.intone);
     } else {
       num |= 2; /* if clause is present */
       lower_expression(A_IFPARG(ast));
@@ -4866,26 +4954,48 @@ lower_stmt(int std, int ast, int lineno, int label)
     }
     ilm2 = plower("oS", "ICON", lowersym.intzero);
     if (A_FINALPARG(ast)) {
-      num |= 0x20;
+      num |= MP_TASK_FINAL;
       lower_expression(A_FINALPARG(ast));
       ilm2 = lower_conv(A_FINALPARG(ast), DT_LOG4);
     }
-    if (A_EXEIMMG(ast))
-      num |= 0x40;
-    lab = lower_lab();
-    ilm = plower("oSnii", "BTASK", lab, num, ilm, ilm2);
+    if (A_PRIORITYG(ast)) {
+      lower_expression(A_PRIORITYG(ast));
+      ilm3 = lower_conv(A_PRIORITYG(ast), DT_INT4);
+    } else {
+      ilm3 = plower("oS", "ICON", lowersym.intzero);
+    }
+
+    if (A_TYPEG(ast) == A_MP_TASK) {
+      if (A_EXEIMMG(ast))
+        num |= 0x40;
+      lab = lower_lab();
+      ilm = plower("oSnii", "BTASK", lab, num, ilm, ilm2);
+    } else {
+      if (A_EXEIMMG(ast))
+        num |= MP_TASK_IMMEDIATE;
+      if (A_NOGROUPG(ast))
+        num |= MP_TASK_NOGROUP;
+      if (A_GRAINSIZEG(ast)) {
+        num |= MP_TASK_GRAINSIZE;
+        lower_expression(A_GRAINSIZEG(ast));
+        ilm4 = lower_conv(A_GRAINSIZEG(ast), DT_INT4);
+      } else if (A_NUM_TASKSG(ast)) {
+        num |= MP_TASK_NUM_TASKS;
+        lower_expression(A_NUM_TASKSG(ast));
+        ilm4 = lower_conv(A_NUM_TASKSG(ast), DT_INT4);
+      } else {
+        ilm4 = plower("oS", "ICON", lowersym.intzero);
+      }
+      lab = lower_lab();
+      ilm = plower("oSniiii", "BTASKLOOP", lab, num, ilm, ilm2, ilm3, ilm4);
+    }
     lower_end_stmt(std);
-    lower_push(STKTASK);
     lower_push(lab); /* label */
-
-/* lower firstprivate - once we get to scope_sptr then we can add it here  */
-
-/* Note: Currentl we store endlabel in A_MP_TASK but A_MP_ETASKREG will pop it
- *       This is OK because we always create ast in this order
- *       A_MP_TASK/A_MP_TASKREG - A_MP_ETASKREG/A_MP_ENDTASK
- *       The reason why we want to pop in A_MP_ETASKREG because that
- *       the acutal task will be within A_MP_TASKREG/A_MP_ETASKREG.
- */
+    lower_push(STKTASK);
+    lowersym.sc = SC_PRIVATE;
+    if (A_TYPEG(ast) == A_MP_TASKLOOP) {
+      break;
+    }
 
     /* cancel/cancellation */
     dotop = A_ENDLABG(ast);
@@ -4899,6 +5009,17 @@ lower_stmt(int std, int ast, int lineno, int label)
 
     break;
 
+  case A_MP_TASKDUP:
+    lower_start_stmt(lineno, label, TRUE, std);
+    ilm = plower("o", "BTASKDUP");
+    lower_end_stmt(std);
+    break;
+  case A_MP_ETASKDUP:
+    lower_start_stmt(lineno, label, TRUE, std);
+    ilm = plower("o", "ETASKDUP");
+    lower_end_stmt(std);
+    break;
+
   case A_MP_TASKREG:
     lowersym.sc = SC_PRIVATE;
 
@@ -4907,19 +5028,44 @@ lower_stmt(int std, int ast, int lineno, int label)
     lower_end_stmt(std);
     break;
 
-  case A_MP_ETASKREG:
-    if (lowersym.parallel_depth == 0 && lowersym.task_depth <= 1)
-      lowersym.sc = SC_LOCAL;
-
-    /* cancel/cancellation */
-    lower_check_stack(STKCANCEL);
-    dotop = lower_pop();
-
+  case A_MP_TASKLOOPREG: {
+    int lb, lbast, ub, ubast, st, stast;
     lower_start_stmt(lineno, label, TRUE, std);
-    if (dotop) {
-      plower("oL", "LABEL", dotop);
+
+    lbast = A_M1G(ast);
+    ubast = A_M2G(ast);
+    stast = A_M3G(ast);
+
+    ilm = plower("o", "TASKLOOPVARS");
+
+    lower_expression(lbast);
+    lb = lower_ilm(lbast);
+    lb = lower_conv_ilm(lbast, lb, A_NDTYPEG(lbast), DT_INT8);
+    lower_reinit();
+
+    lower_expression(ubast);
+    ub = lower_ilm(ubast);
+    ub = lower_conv_ilm(ubast, ub, A_NDTYPEG(ubast), DT_INT8);
+    lower_reinit();
+
+    if (stast == 0) {
+      stast = astb.k1;
     }
-    ilm = plower("o", "ETASKREG");
+    if (A_ALIASG(stast))
+      stast = A_ALIASG(stast);
+    lower_expression(stast);
+    st = lower_ilm(stast);
+    st = lower_conv_ilm(stast, st, A_NDTYPEG(stast), DT_INT8);
+    lower_reinit();
+
+    ilm = plower("oiii", "TASKLOOPREG", lb, ub, st);
+    lower_end_stmt(std);
+    lowersym.sc = SC_PRIVATE;
+  } break;
+
+  case A_MP_ETASKLOOPREG:
+    lower_start_stmt(lineno, label, TRUE, std);
+    ilm = plower("o", "ETASKLOOPREG");
     lower_end_stmt(std);
     break;
 
@@ -5015,12 +5161,33 @@ lower_stmt(int std, int ast, int lineno, int label)
   case A_MP_ENDDISTRIBUTE:
     break;
 
-  case A_MP_ENDTASK:
+  case A_MP_ETASKLOOP:
     --lowersym.task_depth;
     if (lowersym.parallel_depth == 0 && lowersym.task_depth == 0)
       lowersym.sc = SC_LOCAL;
-    lab = lower_pop();
     lower_check_stack(STKTASK);
+    lab = lower_pop();
+    lower_start_stmt(lineno, label, TRUE, std);
+    ilm = plower("oL", "ETASKLOOP", lab);
+    lower_end_stmt(std);
+    break;
+
+  case A_MP_ENDTASK:
+    /* cancel/cancellation */
+    lower_check_stack(STKCANCEL);
+    dotop = lower_pop();
+
+    lower_start_stmt(lineno, label, TRUE, std);
+    if (dotop) {
+      plower("oL", "LABEL", dotop);
+    }
+    lower_end_stmt(std);
+
+    --lowersym.task_depth;
+    if (lowersym.parallel_depth == 0 && lowersym.task_depth == 0)
+      lowersym.sc = SC_LOCAL;
+    lower_check_stack(STKTASK);
+    lab = lower_pop();
 
     lower_start_stmt(lineno, label, TRUE, std);
     ilm = plower("oL", "ETASK", lab);
@@ -5150,7 +5317,7 @@ lower_stmt(int std, int ast, int lineno, int label)
     lower_end_stmt(std);
     break;
 
-  /* ------------- unsupported AST types ------------- */
+    /* ------------- unsupported AST types ------------- */
 
   case A_CRITICAL:
   case A_ELSEFORALL:
@@ -5958,6 +6125,10 @@ export_data_consts(ACL *ict, int spoof)
           wict = construct_acl_from_ast(ast, A_DTYPEG(ast), 0);
           export_data_consts(wict, 0);
         } else if (A_TYPEG(ast) == A_SUBSCR) {
+          ACL *wict;
+          wict = construct_acl_from_ast(ast, A_DTYPEG(ast), 0);
+          export_data_consts(wict, 0);
+        } else if (A_TYPEG(ast) == A_BINOP) {
           ACL *wict;
           wict = construct_acl_from_ast(ast, A_DTYPEG(ast), 0);
           export_data_consts(wict, 0);

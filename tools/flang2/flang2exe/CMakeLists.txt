@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2017, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2017-2018, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,100 +16,83 @@
 
 if( ${TARGET_ARCHITECTURE} STREQUAL "x86_64" )
   set(ARCH_DEP_FILES
-    x86_64-Linux/ll_abi.c
+    x86_64-Linux/ll_abi.cpp
   )
 elseif( ${TARGET_ARCHITECTURE} STREQUAL "aarch64" )
   set(ARCH_DEP_FILES
-      aarch64-Linux/ll_abi.c
+      aarch64-Linux/ll_abi.cpp
   )
 elseif( ${TARGET_ARCHITECTURE} STREQUAL "ppc64le" )
   set(ARCH_DEP_FILES
-    ppc64le-Linux/ll_abi.c
+    ppc64le-Linux/ll_abi.cpp
   )
 endif()
 
-
 set(SOURCES
   ${ARCH_DEP_FILES}
-  bihutil.c
-  dinitutl.c
-  dinit.c
-  direct.c
-  dtypeutl.c
-  error.c
-  fenddf.c
-  ilmutil.c
-  listing.c
-  mall.c
-  miscutil.c
-  mwd.c
-  pragma.c
-  rtlRtns.c
-  salloc.c
-  semsym.c
-  semutil0.c
-  symtab.c
-  symacc.c
-  upper.c
-  xref.c
-  expreg.c
-  exputil.c
-  nmeutil.c
-  regutil.c
-  expdf.c
-  ili-rewrite.c
-  ilidf.c
-  ilidir.c
-  iliutil.c
-  iltutil.c
-  expand.c
-  expatomics.c
-  expsmp.c
-  exp_ftn.c
-  exp_fvec.c
-  exp_rte.c
-  outliner.c
-  rmsmove.c
-  scope.c
-  rbtree.c
-  lili2llvm.c
-  ll_dbgutl.c
-  dwarf_names.c
-  llassem.c
-  llassem_common.c
-  asm_anno.c
-  x86.c
-  main.c
-  version.c
-  cgmain.c
-  fastset.c
-  go.c
-  llmputil.c
-  lldebug.c
-  llutil.c
-  ll_ftn.c
-  ll_structure.c
-  ll_write.c
-  ll_builder.c
-  llopt.c
-  llsched.c
-  machreg.c
-  ccffinfo.c
-  kmpcutil.c
+  bihutil.cpp
+  dinitutl.cpp
+  dinit.cpp
+  dtypeutl.cpp
+  fenddf.cpp
+  ilmutil.cpp
+  listing.cpp
+  mwd.cpp
+  semsym.cpp
+  semutil0.cpp
+  symtab.cpp
+  symacc.cpp
+  upper.cpp
+  xref.cpp
+  expreg.cpp
+  exputil.cpp
+  regutil.cpp
+  expdf.cpp
+  ili-rewrite.cpp
+  ilidf.cpp
+  iliutil.cpp
+  iltutil.cpp
+  expand.cpp
+  expatomics.cpp
+  expsmp.cpp
+  exp_ftn.cpp
+  exp_fvec.cpp
+  exp_rte.cpp
+  outliner.cpp
+  rmsmove.cpp
+  scope.cpp
+  rbtree.cpp
+  ll_dbgutl.cpp
+  dwarf_names.cpp
+  llassem.cpp
+  llassem_common.cpp
+  asm_anno.cpp
+  main.cpp
+  version.cpp
+  cgmain.cpp
+  fastset.cpp
+  lldebug.cpp
+  llutil.cpp
+  ll_ftn.cpp
+  ll_structure.cpp
+  ll_write.cpp
+  ll_builder.cpp
+  llopt.cpp
+  llsched.cpp
+  machreg.cpp
+  kmpcutil.cpp
+  verify.cpp
   kmpcutil.h
-  verify.c
   )
 
 set(COMMON_DEFS
   MMD
   NOVECTORIZE
-  )
-
-set(COMPILE_OPTS
-  -std=c11
+  IN_FLANG2
   )
 
 set(INCLUDE_DIRS
+  ${TOOLS_SHARED_DIR}
   ${FLANG_INCLUDE_DIR}
   ${FLANG_SOURCE_DIR}/lib/scutil
   ${CMAKE_CURRENT_SOURCE_DIR}
@@ -120,10 +103,28 @@ set(INCLUDE_DIRS
   ${UTILS_ILM_BIN_DIR}           # ILM IR headers
   ${UTILS_MACHAR_BIN_DIR}        # ILM IR headers
   ${UTILS_UPPER_BIN_DIR}         # `Upper' headers
+  ${UTILS_SHARED_DIR}
   )
 
+set(SHARED_SOURCES
+  ${SHARED_SOURCES}
+  ${LIB_SOURCE_DIR}/ADT/hash.c
+  ${LIB_SOURCE_DIR}/ArgParser/arg_parser.c
+  ${LIB_SOURCE_DIR}/ArgParser/debug_action.c
+  ${LIB_SOURCE_DIR}/ArgParser/xflag.c
+  )
+
+
+foreach(FILE ${SHARED_SOURCES})
+  get_filename_component(TOFILE ${FILE} NAME)
+  add_custom_command(OUTPUT ${TOFILE}pp 
+    COMMAND ${CMAKE_COMMAND} -E create_symlink ${FILE} ${TOFILE}pp
+    MAIN_DEPENDENCY ${FILE})
+  set(SHARED_CPP_SOURCES ${SHARED_CPP_SOURCES} ${TOFILE}pp)
+endforeach()
+
 add_flang_executable(flang2
-  ${SOURCES}
+  ${SOURCES} ${SHARED_CPP_SOURCES}
   )
 
 target_compile_definitions(flang2

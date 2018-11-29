@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, NVIDIA CORPORATION.  All rights reserved.
+ * Copyright (c) 2000-2018, NVIDIA CORPORATION.  All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -325,17 +325,6 @@ putstype1(int stype)
   appendit();
 } /* putstype1 */
 
-#ifdef EXTRG
-static void
-putextr(char *s, int ex)
-{
-  char extrs[20];
-  extrinsic_string(ex, extrs);
-  sprintf(BUF, "%s:%s", s, extrs);
-  putit();
-} /* putextr */
-#endif
-
 #ifdef CUDAG
 static void
 putcuda(char *s, int cu)
@@ -346,6 +335,12 @@ putcuda(char *s, int cu)
     if (cu & CUDA_HOST) {
       strcat(BUF, "host");
       cu &= ~CUDA_HOST;
+      if (cu)
+        strcat(BUF, "+");
+    }
+    if (cu & CUDA_GRID) {
+      strcat(BUF, "grid");
+      cu &= ~CUDA_GRID;
       if (cu)
         strcat(BUF, "+");
     }
@@ -657,7 +652,7 @@ putast(char *s, int a)
 {
   if (a == 0)
     return;
-  if (a < 0 || a >= astb.avl) {
+  if (a < 0 || a >= astb.stg_avail) {
     if (s && *s) {
       sprintf(BUF, "(%s=%d)", s, a);
     } else {
@@ -710,7 +705,7 @@ dastli(int astli)
 {
   int a;
   for (a = astli; a; a = ASTLI_NEXT(a)) {
-    if (a <= 0 || a > astb.astli.avl) {
+    if (a <= 0 || a > astb.astli.stg_avail) {
       sprintf(BUF, "badastli:%d", a);
       putit();
     } else {
@@ -725,13 +720,13 @@ dast(int astx)
 {
   int atype, dtype, shape, asdx, j, argcnt, args, astli;
   dfile = gbl.dbgfil ? gbl.dbgfil : stderr;
-  if (astx < 0 || astx >= astb.avl) {
-    fprintf(dfile, "\nast %d out of range [0:%d)\n", astx, astb.avl);
+  if (astx < 0 || astx >= astb.stg_avail) {
+    fprintf(dfile, "\nast %d out of range [0:%d)\n", astx, astb.stg_avail);
     return;
   }
   putint("ast", astx);
 
-  BCOPY(astb.base, astb.base + astx, AST, 1);
+  BCOPY(astb.stg_base, astb.stg_base + astx, AST, 1);
 
   atype = A_TYPEG(0);
   putasttype("atype", atype);
@@ -1209,6 +1204,7 @@ dast(int astx)
     A_ROPP(0, 0);
     break;
   case A_MP_TASK:
+  case A_MP_TASKLOOP:
     putnzint("lop", A_LOPG(0));
     A_LOPP(0, 0);
     putnzint("ifpar", A_IFPARG(0));
@@ -1221,6 +1217,16 @@ dast(int astx)
     A_MERGEABLEP(0, 0);
     putbit("exeimm", A_EXEIMMG(0));
     A_EXEIMMP(0, 0);
+    if (atype == A_MP_TASKLOOP) {
+      putnzint("priority", A_PRIORITYG(0));
+      A_PRIORITYP(0, 0);
+      putbit("nogroup", A_NOGROUPG(0));
+      A_NOGROUPP(0, 0);
+      putbit("grainsize", A_GRAINSIZEG(0));
+      A_GRAINSIZEP(0, 0);
+      putbit("num_tasks", A_NUM_TASKSG(0));
+      A_NUM_TASKSP(0, 0);
+    }
     putnzint("endlab", A_ENDLABG(0));
     A_ENDLABP(0, 0);
     break;
@@ -1245,6 +1251,7 @@ dast(int astx)
   case A_MP_WORKSHARE:
   case A_MP_ENDWORKSHARE:
   case A_MP_ENDTASK:
+  case A_MP_ETASKLOOP:
     putnzint("lop", A_LOPG(0));
     A_LOPP(0, 0);
     break;
@@ -1269,6 +1276,15 @@ dast(int astx)
     A_ORDEREDP(0, 0);
     putint("endlab", A_ENDLABG(0));
     A_ENDLABP(0, 0);
+    break;
+  case A_MP_TASKLOOPREG:
+    putint("m1g", A_M1G(0));
+    A_M1P(0, 0);
+    putint("m2g", A_M2G(0));
+    A_M2P(0, 0);
+    putint("m3g", A_M3G(0));
+    A_M3P(0, 0);
+    putint("m3g", A_CHUNKG(0));
     break;
   case A_MP_ATOMICREAD:
     putnzint("src", A_SRCG(0));
@@ -1296,6 +1312,7 @@ dast(int astx)
     A_MEM_ORDERP(0, 0);
     break;
   case A_MP_TASKREG:
+  case A_MP_TASKDUP:
   case A_MP_BARRIER:
   case A_MP_TASKWAIT:
   case A_MP_TASKYIELD:
@@ -1350,7 +1367,7 @@ void
 dumpasts()
 {
   int astx;
-  for (astx = 1; astx < astb.avl; ++astx) {
+  for (astx = 1; astx < astb.stg_avail; ++astx) {
     dast(astx);
   }
 } /* dumpasts */
@@ -1360,8 +1377,8 @@ dumpshape(int shd)
 {
   int l, nd, ii;
   dfile = gbl.dbgfil ? gbl.dbgfil : stderr;
-  if (shd < 0 || shd >= astb.shd.avl) {
-    fprintf(dfile, "\nshd %d out of range [0:%d)\n", shd, astb.shd.avl);
+  if (shd < 0 || shd >= astb.shd.stg_avail) {
+    fprintf(dfile, "\nshd %d out of range [0:%d)\n", shd, astb.shd.stg_avail);
     return;
   }
   putint("shd", shd);
@@ -1381,7 +1398,7 @@ void
 dumpshapes()
 {
   int shd;
-  for (shd = 1; shd < astb.shd.avl;) {
+  for (shd = 1; shd < astb.shd.stg_avail;) {
     if (shd > 1) {
       fprintf(dfile, "\n");
     }
@@ -1402,7 +1419,7 @@ dastreex(int astx, int l, int notlast)
     strcpy(prefix + l - 4, "+-- ");
   fprintf(dfile, "%s", prefix);
   dast(astx);
-  if (astx <= 0 || astx >= astb.avl)
+  if (astx <= 0 || astx >= astb.stg_avail)
     return;
   if (l) {
     if (notlast) {
@@ -1602,6 +1619,7 @@ dastreex(int astx, int l, int notlast)
     dastreex(A_STBLKG(astx), l + 4, 0);
     break;
   case A_MP_TASK:
+  case A_MP_TASKLOOP:
     dastreex(A_IFPARG(astx), l + 4, 0);
     break;
   case A_MP_TASKFIRSTPRIV:
@@ -1615,15 +1633,18 @@ dastreex(int astx, int l, int notlast)
   case A_MP_SINGLE:
   case A_MP_ENDSINGLE:
   case A_MP_BARRIER:
-  case A_MP_ETASKREG:
+  case A_MP_ETASKDUP:
+  case A_MP_ETASKLOOPREG:
   case A_MP_TASKWAIT:
   case A_MP_TASKYIELD:
   case A_MP_ENDTASK:
+  case A_MP_ETASKLOOP:
   case A_MP_EMPSCOPE:
   case A_MP_ENDTARGET:
   case A_MP_ENDTEAMS:
   case A_MP_ENDDISTRIBUTE:
   case A_MP_ENDTARGETDATA:
+  case A_MP_TASKDUP:
     break;
   case A_MP_ATOMICREAD:
     dastreex(A_SRCG(astx), l + 4, 0);
@@ -1635,6 +1656,11 @@ dastreex(int astx, int l, int notlast)
     break;
   case A_MP_TASKREG:
     dastreex(A_ENDLABG(astx), l + 4, 0);
+    break;
+  case A_MP_TASKLOOPREG:
+    dastreex(A_M1G(astx), l + 4, 1);
+    dastreex(A_M2G(astx), l + 4, 1);
+    dastreex(A_M3G(astx), l + 4, 1);
     break;
   case A_MP_CANCEL:
     dastreex(A_IFPARG(astx), l + 4, 0);
@@ -2214,8 +2240,8 @@ dstd(int stdx)
 {
   int astx;
   dfile = gbl.dbgfil ? gbl.dbgfil : stderr;
-  if (stdx < 0 || stdx >= astb.std.avl) {
-    fprintf(dfile, "\nstd %d out of range [0:%d)\n", stdx, astb.std.avl);
+  if (stdx < 0 || stdx >= astb.std.stg_avail) {
+    fprintf(dfile, "\nstd %d out of range [0:%d)\n", stdx, astb.std.stg_avail);
     return;
   }
   astx = STD_AST(stdx);
@@ -2265,8 +2291,8 @@ dsstd(int stdx)
 {
   int astx;
   dfile = gbl.dbgfil ? gbl.dbgfil : stderr;
-  if (stdx < 0 || stdx >= astb.std.avl) {
-    fprintf(dfile, "\nstd %d out of range [0:%d)\n", stdx, astb.std.avl);
+  if (stdx < 0 || stdx >= astb.std.stg_avail) {
+    fprintf(dfile, "\nstd %d out of range [0:%d)\n", stdx, astb.std.stg_avail);
     return;
   }
   astx = STD_AST(stdx);
@@ -2289,8 +2315,8 @@ void
 dstdtree(int stdx)
 {
   dfile = gbl.dbgfil ? gbl.dbgfil : stderr;
-  if (stdx < 0 || stdx >= astb.std.avl) {
-    fprintf(dfile, "\nstd %d out of range [0:%d)\n", stdx, astb.std.avl);
+  if (stdx < 0 || stdx >= astb.std.stg_avail) {
+    fprintf(dfile, "\nstd %d out of range [0:%d)\n", stdx, astb.std.stg_avail);
     return;
   }
   dstd(stdx);
@@ -2303,9 +2329,9 @@ void
 dstds(int std1, int std2)
 {
   int stdx;
-  if (std1 <= 0 || std1 >= astb.std.avl)
+  if (std1 <= 0 || std1 >= astb.std.stg_avail)
     std1 = STD_NEXT(0);
-  if (std2 <= 0 || std2 >= astb.std.avl)
+  if (std2 <= 0 || std2 >= astb.std.stg_avail)
     std2 = STD_PREV(0);
   dfile = gbl.dbgfil ? gbl.dbgfil : stderr;
   fprintf(dfile, "subprogram %d %s:\n", gbl.func_count, SYMNAME(gbl.currsub));
@@ -2320,9 +2346,9 @@ void
 dstdps(int std1, int std2)
 {
   int stdx;
-  if (std1 <= 0 || std1 >= astb.std.avl)
+  if (std1 <= 0 || std1 >= astb.std.stg_avail)
     std1 = STD_NEXT(0);
-  if (std2 <= 0 || std2 >= astb.std.avl)
+  if (std2 <= 0 || std2 >= astb.std.stg_avail)
     std2 = STD_PREV(0);
   dfile = gbl.dbgfil ? gbl.dbgfil : stderr;
   fprintf(dfile, "subprogram %d %s:\n", gbl.func_count, SYMNAME(gbl.currsub));
@@ -2340,9 +2366,9 @@ void
 dsstds(int std1, int std2)
 {
   int stdx;
-  if (std1 <= 0 || std1 >= astb.std.avl)
+  if (std1 <= 0 || std1 >= astb.std.stg_avail)
     std1 = STD_NEXT(0);
-  if (std2 <= 0 || std2 >= astb.std.avl)
+  if (std2 <= 0 || std2 >= astb.std.stg_avail)
     std2 = STD_PREV(0);
   dfile = gbl.dbgfil ? gbl.dbgfil : stderr;
   fprintf(dfile, "subprogram %d %s:\n", gbl.func_count, SYMNAME(gbl.currsub));
@@ -2359,16 +2385,16 @@ dstdr(int stdx, int count)
 {
   int s1, s2, c;
   dfile = gbl.dbgfil ? gbl.dbgfil : stderr;
-  if (stdx < 0 || stdx >= astb.std.avl) {
-    fprintf(dfile, "\nstd %d out of range [0:%d)\n", stdx, astb.std.avl);
+  if (stdx < 0 || stdx >= astb.std.stg_avail) {
+    fprintf(dfile, "\nstd %d out of range [0:%d)\n", stdx, astb.std.stg_avail);
     return;
   }
   /* go backwards for 'count' */
-  for (s1 = stdx, c = count; c > 0 && s1 > 0 && s1 <= astb.std.avl;
+  for (s1 = stdx, c = count; c > 0 && s1 > 0 && s1 <= astb.std.stg_avail;
        s1 = STD_PREV(s1), --c)
     ;
   /* go forwards for 'count' */
-  for (s2 = stdx, c = count; c > 0 && s2 > 0 && s2 <= astb.std.avl;
+  for (s2 = stdx, c = count; c > 0 && s2 > 0 && s2 <= astb.std.stg_avail;
        s2 = STD_NEXT(s2), --c)
     ;
   dstds(s1, s2);
@@ -2711,7 +2737,7 @@ dsym(int sptr)
     PARAMVALP(0, 0);
 #ifdef PDALNG
     putnzint("pdaln", PDALNG(0));
-    PDALNP(0, 0);
+    b4P(0, 0);
 #endif
     putnzint("socptr", SOCPTRG(0));
     SOCPTRP(0, 0);
@@ -3252,10 +3278,6 @@ dsym(int sptr)
     ENTNUMP(0, 0);
     putint("entstd", ENTSTDG(0));
     ENTSTDP(0, 0);
-#ifdef EXTRG
-    putextr("extr", EXTRG(0));
-    EXTRP(0, 0);
-#endif
 #ifdef CUDAG
     putcuda("cuda", CUDAG(0));
     CUDAP(0, 0);
@@ -3438,10 +3460,6 @@ dsym(int sptr)
     CMEMFP(0, 0);
     putnzint("endline", ENDLINEG(0));
     ENDLINEP(0, 0);
-#ifdef EXTRG
-    putextr("extr", EXTRG(0));
-    EXTRP(0, 0);
-#endif
 #ifdef CUDAG
     putcuda("cuda", CUDAG(0));
     CUDAP(0, 0);
@@ -3470,10 +3488,6 @@ dsym(int sptr)
     DPDSCP(0, 0);
     putnzint("endline", ENDLINEG(0));
     ENDLINEP(0, 0);
-#ifdef EXTRG
-    putextr("extr", EXTRG(0));
-    EXTRP(0, 0);
-#endif
 #ifdef CUDAG
     putcuda("cuda", CUDAG(0));
     CUDAP(0, 0);
@@ -4233,8 +4247,8 @@ void
 dumpdt(int dt)
 {
   dfile = gbl.dbgfil ? gbl.dbgfil : stderr;
-  if (dt <= 0 || dt >= stb.dt_avail) {
-    fprintf(dfile, "\ndatatype %d out of %d\n", dt, stb.dt_avail);
+  if (dt <= 0 || dt >= stb.dt.stg_avail) {
+    fprintf(dfile, "\ndatatype %d out of %d\n", dt, stb.dt.stg_avail);
     return;
   }
   putint("dtype", dt);
@@ -4291,7 +4305,7 @@ dumpdt(int dt)
     break;
   }
   putline();
-  if (dt > 0 && dt < stb.dt_avail && DTY(dt) > 0)
+  if (dt > 0 && dt < stb.dt.stg_avail && DTY(dt) > 0)
     putdtype("type", dt);
   putline();
 } /* dumpdt */
@@ -4301,7 +4315,8 @@ dumpdts()
 {
   int dt;
   dfile = gbl.dbgfil ? gbl.dbgfil : stderr;
-  for (dt = 1; dt < stb.dt_avail; dt += dlen(DTY(dt))) {
+  fprintf(dfile, "\n********** DATATYPE TABLE **********\n");
+  for (dt = 1; dt < stb.dt.stg_avail; dt += dlen(DTY(dt))) {
     if (dt) {
       fprintf(dfile, "\n");
     }
@@ -4320,6 +4335,7 @@ dumpdtypes()
 {
   dumpdts();
 }
+
 /* hlvect.h */
 char *
 getdddir(DDEDGE *dd)

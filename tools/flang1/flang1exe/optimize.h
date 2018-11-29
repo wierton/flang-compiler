@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, NVIDIA CORPORATION.  All rights reserved.
+ * Copyright (c) 1994-2018, NVIDIA CORPORATION.  All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -681,10 +681,7 @@ typedef struct {
   int sc;          /* storage class used for optimizer-created
                     * temporaries (SC_LOCAL, SC_PRIVATE).
                     */
-  struct {
-    OAST *stg_base;
-    int stg_size;
-  } astb;
+  STG_DECLARE(astb, OAST);
 } OPT;
 
 OPT opt;
@@ -723,12 +720,7 @@ void dmpilt(int);
 void dump_flowgraph(void);
 
 /*****  findloop.c *****/
-void findloop(int);
-LOGICAL is_dominator(int, int);
-LOGICAL is_tail_aexe(int);
-void dump_region(int);
-void dump_loops(void);
-void reorder_dfn_loops(void);
+#include "findloop.h"
 
 /*****  flow.c *****/
 void flow(void);
@@ -796,7 +788,6 @@ LOGICAL lhs_needtmp(int, int, int);
 void postdominators(void);
 void findlooptopsort(void);
 void reorderloops();
-LOGICAL is_post_dominator(int, int);
 void putstdpta(int);
 void putstdassigns(int);
 void unconditional_branches(void);
@@ -805,7 +796,7 @@ void bv_intersect3(BV *a, BV *b, BV *c, UINT len);
 void optimize_alloc(void);                     /* commopt.c */
 void points_to_anal(void);                     /* pointsto.c */
 void fini_points_to_all(void);                 /* pointsto.c */
-LOGICAL pta_stride1(int ptrstdx, int ptrsptr); /* pointsto.c */
+bool pta_stride1(int ptrstdx, int ptrsptr); /* pointsto.c */
 void pstride_analysis(void);                   /* pstride.c */
 void fini_pstride_analysis(void);              /* pstride.c */
 void call_analyze(void);                       /* rest.c */

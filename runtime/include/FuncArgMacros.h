@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, NVIDIA CORPORATION.  All rights reserved.
+ * Copyright (c) 1998-2018, NVIDIA CORPORATION.  All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,7 +19,7 @@
 
 /**
  * \file
- * \brief pghpfent.h - Fortran RTE name build and  entry symbol macros
+ * \brief Fortran RTE name build and entry symbol macros
  */
 
 /* TODO FOR FLANG: resolve/merge w/ent3f.h??? */
@@ -28,7 +28,6 @@
 #define _PGHPFENT_H_
 
 /* Alternate Fortran entry symbol formats */
-
 #if defined(WIN64)
 #if defined(DESC_I8)
 #define ENTF90IO(UC, LC) pgf90io_##LC##_i8
@@ -53,6 +52,19 @@
 #define ENTCRFTN(UC, LC) pgcrhpf_##LC
 #define ENTCOMN(UC, LC) pghpf_##LC##_
 
+#elif defined(WIN32)
+#define ENTF90(UC, LC) pgf90_##LC
+#define ENTF90IO(UC, LC) pgf90io_##LC
+#define ENTFTN(UC, LC) pghpf_##LC
+#define ENTFTNIO(UC, LC) pghpfio_##LC
+#define ENTRY(UC, LC) LC
+#define ENTCRF90IO(UC, LC) pgcrf90io_##LC
+#define ENTCRFTNIO(UC, LC) pgcrhpfio_##LC
+#define ENTCRF90(UC, LC) pgcrf90_##LC
+#define ENTCRFTN(UC, LC) pgcrhpf_##LC
+#define ENTCOMN(UC, LC) pghpf_##LC
+#define F90_MATMUL(s) pg_mm_##s##_
+
 #elif defined(WINNT)
 #define ENTF90(UC, LC) pgf90_##LC
 #define ENTF90IO(UC, LC) pgf90io_##LC
@@ -67,6 +79,16 @@
 #define F90_MATMUL(s) pg_mm_##s##_
 
 #else
+#if defined(DESC_I8)
+#define ENTF90IO(UC, LC) f90io_##LC##_i8
+#define ENTF90(UC, LC) f90_##LC##_i8
+#define ENTFTN(UC, LC) fort_##LC##_i8
+#define ENTRY(UC, LC) LC##_i8
+#define ENTCRF90IO(UC, LC) crf90io_##LC##_i8 /* FIXME: HPF, delete all with this prefix*/
+#define ENTFTNIO(UC, LC) ftnio_##LC##64
+#define ENTCRFTNIO(UC, LC) crftnio_##LC##_i8 /* FIXME: HPF, delete all with this prefix*/
+#define F90_MATMUL(s) f90_mm_##s##_i8_
+#else
 #define ENTF90IO(UC, LC) f90io_##LC
 #define ENTF90(UC, LC) f90_##LC
 #define ENTFTN(UC, LC) fort_##LC
@@ -75,6 +97,7 @@
 #define ENTFTNIO(UC, LC) ftnio_##LC
 #define ENTCRFTNIO(UC, LC) crftnio_##LC	/* FIXME: HPF, delete all with this prefix*/
 #define F90_MATMUL(s) f90_mm_##s##_
+#endif
 
 #define ENTCRF90(UC, LC) crf90_##LC	/* FIXME: HPF, delete all with this prefix*/
 #define ENTCRFTN(UC, LC) crftn_##LC	/* FIXME: HPF, delete all with this prefix*/ 
@@ -98,8 +121,10 @@
    CADR gets the character pointer.
    CLEN gets the character length.  */
 
+#define __CLEN_T size_t
 #define DCHAR(ARG) char *ARG##_adr
 #define DCLEN(ARG) , int ARG##_len
+#define DCLEN64(ARG) , __CLEN_T ARG##_len
 #define CADR(ARG) (ARG##_adr)
 #define CLEN(ARG) (ARG##_len)
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, NVIDIA CORPORATION.  All rights reserved.
+ * Copyright (c) 1994-2018, NVIDIA CORPORATION.  All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -175,18 +175,13 @@ forall_dependency_analyze(void)
         set_descriptor_sc(SC_LOCAL);
       }
       break;
-    case A_MP_TASKREG:
+    case A_MP_TASK:
+    case A_MP_TASKLOOP:
+      ++task_depth;
       set_descriptor_sc(SC_PRIVATE);
       break;
-    case A_MP_TASK:
-      ++task_depth;
-      break;
-    case A_MP_ETASKREG:
-      if (parallel_depth == 0 && task_depth <= 1) {
-        set_descriptor_sc(SC_LOCAL);
-      }
-      break;
     case A_MP_ENDTASK:
+    case A_MP_ETASKLOOP:
       --task_depth;
       if (parallel_depth == 0 && task_depth == 0) {
         set_descriptor_sc(SC_LOCAL);
@@ -285,6 +280,7 @@ gen_pdo(int do_ast)
   A_DISTPARDOP(ast, 0);
   A_ENDLABP(ast, 0);
   A_DISTCHUNKP(ast, 0);
+  A_TASKLOOPP(ast, 0);
 
   return ast;
 }
@@ -750,34 +746,24 @@ _pgi_kind(int ast)
 } /* _pgi_kind */
 
 /*
- * return an expression that gives the size of dimension i of a stride 1 shape
+ * return an expression that gives the size of dimension i of a shape
  * descriptor
  */
 static int
 size_shape(int shape, int i)
 {
-  int argl, argu, args, dtype, a, mask;
-
-  args = SHD_STRIDE(shape, i);
-  if (args != astb.i1 && args != astb.bnd.one) {
-    /* a = mk_binop(OP_DIV, a, args, dtype);*/
-    interr("size_shape:  stride is not 1", shape, 4);
-  }
-  argl = SHD_LWB(shape, i);
-  argu = SHD_UPB(shape, i);
-  dtype = A_DTYPEG(argl);
-  a = mk_binop(OP_SUB, argu, argl, dtype);
-  a = mk_binop(OP_ADD, a, args, dtype);
+  int a, mask;
+  int args = SHD_STRIDE(shape, i);
+  int argl = SHD_LWB(shape, i);
+  int argu = SHD_UPB(shape, i);
+  a = mk_binop(OP_SUB, argu, argl, astb.bnd.dtype);
+  a = mk_binop(OP_ADD, a, args, astb.bnd.dtype);
+  a = mk_binop(OP_DIV, a, args, astb.bnd.dtype);
   mask = mk_binop(OP_GE, argu, argl, DT_LOG);
-  a = mk_merge(a, mk_isz_cval(0, dtype), mask, dtype);
-  if (XBIT(124, 0x10) && !XBIT(68, 0x1) && dtype != DT_INT8) {
-    /* -i8:  type of size is integer*8, the values in the shape
-     *       descriptor are integer*4, and the specific max intrinsic
-     *       has been changed to integer*8.  Need to convert the
-     *       value from the shape descriptor
-     */
-    a = mk_convert(a, DT_INT8);
-    dtype = DT_INT8;
+  a = mk_merge(a, astb.bnd.zero, mask, astb.bnd.dtype);
+  if (astb.bnd.dtype != stb.user.dt_int) {
+    /* -i8: type of size is integer*8 so convert result */
+    a = mk_convert(a, stb.user.dt_int);
   }
   return a;
 } /* size_shape */
@@ -835,13 +821,18 @@ _PDsize(int ast)
   } else {
     /* compute size from the shape descriptor */
     int shape, i;
+
     shape = A_SHAPEG(arg); /* this shape is always stride one */
     rank = SHD_NDIM(shape);
     if (argdim == astb.ptr0) {
       /* global size */
       newast = 0;
       for (i = 0; i < rank; ++i) {
-        int a;
+        int a, args;
+        args = SHD_STRIDE(shape, i);
+        if (args != astb.i1 && args != astb.bnd.one) {
+          return ast;
+        }
         a = size_shape(shape, i);
         if (!newast) {
           newast = a;
@@ -1973,7 +1964,7 @@ _sect(int ast, int i8)
  *   upper = upper[r]
  *   lower = lower[r]
  *   set extent=upper-lower+1
- *   if extent < 0 then extent = 0; upper = lower-1; endif
+ *   if upper < lower then extent = 0; upper = lower-1; endif
  *   newsd[d].extent = extent
  *   newsd[d].lbound = lower
  *   newsd[d].ubound = upper
@@ -1992,7 +1983,7 @@ _sect(int ast, int i8)
 static int
 _template(int ast, int rank, LOGICAL usevalue, int i8)
 {
-  int argt, newargt, f, funcast;
+  int argt;
   int astnewsd, astflags, argbase;
   int sptrnewsd;
   int flags;
@@ -2050,10 +2041,9 @@ _template(int ast, int rank, LOGICAL usevalue, int i8)
 
   gsizeast = astb.bnd.one;
   for (r = 0; r < rank; ++r) {
-    int astlower = 0, astupper = 0, astextent = 0, sdsc;
-    ISZ_T extent, stride;
-    astlower = VALUE_ARGT_ARG(argt, argbase + 4 + 2 * r);
-    astupper = VALUE_ARGT_ARG(argt, argbase + 5 + 2 * r);
+    int astextent;
+    int astlower = VALUE_ARGT_ARG(argt, argbase + 4 + 2 * r);
+    int astupper = VALUE_ARGT_ARG(argt, argbase + 5 + 2 * r);
     astlower = symvalue(astlower, 'l', sptrnewsd, &lowertemp, 0, 0);
     if (XBIT(70, 0x800000)) {
       astupper = symvalue(astupper, 'u', sptrnewsd, &uppertemp, 0, sptrnewsd);
@@ -2067,7 +2057,7 @@ _template(int ast, int rank, LOGICAL usevalue, int i8)
           mk_binop(OP_ADD, astextent, astb.bnd.one, A_DTYPEG(astextent));
     }
     if (A_TYPEG(astextent) == A_CNST) {
-      extent = CONVAL2G(A_SPTRG(astextent));
+      ISZ_T extent = CONVAL2G(A_SPTRG(astextent));
       if (extent <= 0) {
         if (XBIT(70, 0x800000)) {
           astupper =
@@ -2085,9 +2075,9 @@ _template(int ast, int rank, LOGICAL usevalue, int i8)
       if (XBIT(70, 0x800000)) {
         astupper = symvalue(astupper, 'u', sptrnewsd, &uppertemp, 1, sptrnewsd);
       }
-      /* if( extent < 0 )then */
+      /* if(ub < lb) */
       newif = mk_stmt(A_IFTHEN, 0);
-      cmp = mk_binop(OP_LE, astextent, astb.bnd.zero, DT_LOG);
+      cmp = mk_binop(OP_LT, astupper, astlower, DT_LOG);
       A_IFEXPRP(newif, cmp);
       newstd = add_stmt_before(newif, beforestd);
       STD_PAR(newstd) = STD_PAR(beforestd);
@@ -2144,9 +2134,7 @@ _template(int ast, int rank, LOGICAL usevalue, int i8)
   insert_assign(get_xbase(sptrnewsd), lbaseast, beforestd);
   /* newsd.gbase = 0 */
   insert_assign(get_gbase(sptrnewsd), astb.bnd.zero, beforestd);
-  if (XBIT(49, 0x100) && !XBIT(49, 0x80000000)
-      && !XBIT(68, 0x1)
-          ) {
+  if (XBIT(49, 0x100) && !XBIT(49, 0x80000000) && !XBIT(68, 0x1)) {
     /* pointers are two ints long */
     insert_assign(get_gbase2(sptrnewsd), astb.bnd.zero, beforestd);
   }
@@ -2399,7 +2387,7 @@ _ptrassign(int astx)
       _ptrassign_copy(DESC_HDR_FLAGS, ptrsdx, tgtsdx, ptrsdtype);
       _ptrassign_copy(DESC_HDR_LSIZE, ptrsdx, tgtsdx, ptrsdtype);
       _ptrassign_copy(DESC_HDR_GSIZE, ptrsdx, tgtsdx, ptrsdtype);
-      if (ASSUMSHPG(tgtsptr)) {
+      if (ASSUMSHPG(tgtsptr) && !XBIT(58, 0x400000)) {
         _ptrassign_set(DESC_HDR_LBASE, ptrsdx, 1, ptrsdtype);
       } else {
         _ptrassign_copy(DESC_HDR_LBASE, ptrsdx, tgtsdx, ptrsdtype);
@@ -2414,7 +2402,7 @@ _ptrassign(int astx)
       rank = ADD_NUMDIM(DTYPEG(ptrsptr));
       for (i = 0; i < rank; ++i) {
         int lb;
-        if (!ASSUMSHPG(tgtsptr)) {
+        if (!ASSUMSHPG(tgtsptr) || XBIT(58, 0x400000)) {
           _ptrassign_copy(get_global_lower_index(i), ptrsdx, tgtsdx, ptrsdtype);
         } else {
           /* for assumed-shape arguments, use the declared bounds */
@@ -2425,7 +2413,7 @@ _ptrassign(int astx)
         _ptrassign_set(get_section_stride_index(i), ptrsdx, 0, ptrsdtype);
         _ptrassign_set(get_section_offset_index(i), ptrsdx, 0, ptrsdtype);
         _ptrassign_copy(get_multiplier_index(i), ptrsdx, tgtsdx, ptrsdtype);
-        if (ASSUMSHPG(tgtsptr)) {
+        if (ASSUMSHPG(tgtsptr) && !XBIT(58, 0x400000)) {
           /* adjust the LBASE */
           int a;
           a = mk_binop(OP_MUL,
@@ -2558,18 +2546,13 @@ convert_statements(void)
         set_descriptor_sc(SC_LOCAL);
       }
       break;
-    case A_MP_TASKREG:
+    case A_MP_TASK:
+    case A_MP_TASKLOOP:
+      ++task_depth;
       set_descriptor_sc(SC_PRIVATE);
       break;
-    case A_MP_ETASKREG:
-      if (parallel_depth == 0 && task_depth <= 1) {
-        set_descriptor_sc(SC_LOCAL);
-      }
-      break;
-    case A_MP_TASK:
-      ++task_depth;
-      break;
     case A_MP_ENDTASK:
+    case A_MP_ETASKLOOP:
       --task_depth;
       if (parallel_depth == 0 && task_depth == 0) {
         set_descriptor_sc(SC_LOCAL);
@@ -2758,7 +2741,8 @@ convert_template_instance(void)
         outsd = ARGT_ARG(argsi, 0);
         insd = ARGT_ARG(argsi, 1);
         collapse = ARGT_ARG(argsi, 4);
-        if (outsd == insd && A_TYPEG(insd) == A_ID && collapse == astb.i0) {
+        if (outsd == insd && A_TYPEG(insd) == A_ID &&
+            (collapse == astb.i0 || collapse == astb.k0)) {
           int kind, len, lhs, newasn, newstd;
           insd = A_SPTRG(insd);
           kind = ARGT_ARG(argsi, 2);
@@ -3391,11 +3375,6 @@ conv_forall(int std)
   int revers[7];
   int pos, cnt;
   LOGICAL samemask;
-  int ip, pstd, past;
-  LITEMF *plist;
-  LOGICAL is_local_mode;
-  int mask, rhs;
-  int lhs;
   int lhs_sptr, lhs_ast;
   int doifstmt, ifexpr, zero;
   int stride, tmp_ifexpr;
@@ -3417,11 +3396,6 @@ conv_forall(int std)
   n = 0;
   triplet_list = A_LISTG(forall);
   nd = A_OPT1G(forall);
-
-  mask = A_IFEXPRG(forall);
-  rhs = A_SRCG(A_IFSTMTG(forall));
-  is_local_mode = 0;
-
   lhs_ast = left_subscript_ast(A_DESTG(A_IFSTMTG(forall)));
   lhs_sptr = memsym_of_ast(lhs_ast);
 
@@ -3473,7 +3447,7 @@ conv_forall(int std)
         add_stmt_before(ct->cb_do[ldim], stdnext);
       if (ct->cb_block[ldim]) {
         int astBlock = ct->cb_block[ldim];
-        int astCall, ast1, astl1;
+        int astCall, ast1;
         int argt;
         int dim;
 
@@ -3634,11 +3608,21 @@ conv_forall(int std)
       std = add_stmt_after(ast, std);
       rewrite_asn(ast, 0, FALSE, MAXSUBS);
     } else if (A_TYPEG(rhs) == A_INTR &&
-               (A_OPTYPEG(rhs) == I_ADJUSTL || A_OPTYPEG(rhs) == I_ADJUSTR ||
-                A_OPTYPEG(rhs) == I_TRIM)) {
-      /* make A_CALL instead of yy = A_FUNC */
-      /* add_stmt_before(stmt, stdnext); */
-      ast = mk_func_node(A_CALL, A_LOPG(rhs), A_ARGCNTG(rhs), A_ARGSG(rhs));
+               (A_OPTYPEG(rhs) == I_ADJUSTL || A_OPTYPEG(rhs) == I_ADJUSTR)) {
+      /* make a scalar temp instead of an array to avoid allocating memory. In
+         the case of adjust(l/r) the size of result string is same as incoming
+         string. So, storing the return value can be optimized out. Hence, the
+         use of a scalar temp.
+      */
+      lhs = mk_id(get_temp(DT_INT));
+      ast = mk_assn_stmt(lhs, rhs, dt);
+      add_stmt_before(ast, stdnext);
+    } else if (A_TYPEG(rhs) == A_INTR && A_OPTYPEG(rhs) == I_TRIM) {
+      /* In case of trim, the return value needs to be retained as the size
+         of the returning string may change, hence the incoming lhs with an
+         array of temps need to be retained.
+      */
+      ast = mk_assn_stmt(lhs, rhs, dt);
       add_stmt_before(ast, stdnext);
     } else if (A_SRCG(stmt) != A_DESTG(stmt)) {
       add_stmt_before(stmt, stdnext);
@@ -3727,13 +3711,9 @@ static void
 replace_loop_on_fuse_list(int oldloop, int maskloop)
 {
   int nd = A_OPT1G(STD_AST(oldloop));
-  int masknd;
   int head = FT_HEADER(nd);
   int nfused;
   int i;
-  int j;
-  int std;
-
   nd = A_OPT1G(STD_AST(head));
   nfused = FT_NFUSE(nd, 0);
   for (i = 0; i < nfused; i++) {
@@ -3922,17 +3902,10 @@ static void
 forall_dependency(int std)
 {
   int lhs, rhs;
-  int ast, ast1, ast2;
   int asn;
-  int asd;
-  int subs[7];
-  int i;
-  int ndim;
   int sptr;
   int temp_ast;
   int newasn;
-  int std1;
-  int expr;
   int forall;
   int newforall;
   int newstd;
@@ -3942,9 +3915,10 @@ forall_dependency(int std)
   LOGICAL bIndep, isdepend;
   int sptr_lhs;
   CTYPE *ct;
-  int lhso, tlhs;
+  int lhso;
   int par;
   int task;
+  int expr;
 
   forall = STD_AST(std);
   par = STD_PAR(std);
@@ -4018,16 +3992,10 @@ forall_dependency(int std)
 
       /* need to add this to flow graph otherwise add_loop_hd will drop it */
       if (flg.opt >= 2 && !XBIT(2, 0x400000)) {
-        int fg;
-        int newfg;
-        fg = STD_FG(std);
-        newfg = add_fg(FG_LPREV(fg));
-        if (newfg) {
-          rdilts(newfg);
-          FG_STDLAST(newfg) = newstd;
-          FG_STDFIRST(newfg) = newstd;
-          wrilts(newfg);
-        }
+        int fg = STD_FG(std);
+        int newfg = add_fg(FG_LPREV(fg));
+        FG_STDLAST(newfg) = newstd;
+        FG_STDFIRST(newfg) = newstd;
       }
     }
 
@@ -4315,7 +4283,7 @@ collapse_arrays(void)
   collapse_allocates(FALSE);
 
   /* Reclaim storage. */
-  for (ast = 1; ast < astb.avl; ast++)
+  for (ast = 1; ast < astb.stg_avail; ast++)
     A_OPT2P(ast, 0);
   hlopt_end(0, 0);
 
@@ -6155,8 +6123,8 @@ sectfloat(void)
   }
 #endif
   /* unlink DEF_NEXT list from NME, link into a list based on STD */
-  NEW(stddeflist, int, astb.std.size);
-  BZERO(stddeflist, int, astb.std.size);
+  NEW(stddeflist, int, astb.std.stg_size);
+  BZERO(stddeflist, int, astb.std.stg_size);
   NEW(loopdeflist, int, opt.nloops + 1);
   BZERO(loopdeflist, int, opt.nloops + 1);
   NEW(syminfo, syminfostruct, stb.stg_avail);

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, NVIDIA CORPORATION.  All rights reserved.
+ * Copyright (c) 1997-2018, NVIDIA CORPORATION.  All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,6 +14,9 @@
  * limitations under the License.
  *
  */
+
+#ifndef UPPER_H_
+#define UPPER_H_
 
 /** \file
  * \brief Header file for upper - import the lowered F90/HPF code
@@ -107,23 +110,156 @@
  * 17.2        -- 1.46
  *                All of 1.45 + etls + tls, irrspective of target
  * 17.7        -- 1.47
- *                All of 1.4r + BPARA + PROC_BIND + MP_ATOMIC..
+ *                All of 1.46 + BPARA + PROC_BIND + MP_ATOMIC..
+ * 17.10        -- 1.48 
+ *                All of 1.47 + ETASKFIRSTPRIV, MP_[E]TASKLOOP, 
+ *                MP_[E]TASKLOOPREG
+ * 18.1         -- 1.49 
+ *                All of 1.48 , MP_TASKLOOPVARS, [B/E]TASKDUP
+ *
+ * 18.4
+ *              --1.50
+ *                All of 1.49 +
+ *                Internal procedures passed as arguments and pointer targets
+ * 18.7         -- 1.51
+ *                All of 1.50 +
+ *                remove parsyms field and add parent for ST_BLOCK,
+ *                receive "no_opts" (no optional arguments) flag for ST_ENTRY
+ *                and ST_PROC symbols.
  */
-#define VersionMajor 1
-#define VersionMinor 47
 
-void upper(int);
-void upper_assign_addresses(void);
-void upper_save_syminfo(void);
-void add_llvm_uplevel_symbol(int);
-void fixup_llvm_uplevel_symbol(void);
-int llvm_get_uplevel_newsptr(int oldsptr);
+#include "gbldefs.h"
+#include "semant.h"
+
+#define VersionMajor 1
+#define VersionMinor 51
+
+/**
+   \brief ...
+ */
+char *getexnamestring(char *string, int sptr, int stype, int scg,
+                      int extraunderscore);
+
+/**
+   \brief ...
+ */
 int F90_nme_conflict(int nme1, int nme2);
+
+/**
+   \brief Detect Fortran 90 structure member name conflicts.
+ * Return 0 if they point to different addresses;
+ * Return 1 otherwise.
+ */
+int F90_struct_mbr_nme_conflict(int nme1, int nme2);
+
+/**
+   \brief ...
+ */
+int getswel(int sz);
+
+/**
+   \brief ...
+ */
+int IPA_allcall_safe(int sptr);
+
+/**
+   \brief ...
+ */
+int IPA_call_safe(int funcsptr, int sptr);
+
+/**
+   \brief ...
+ */
 int IPA_func_almostpure(int sptr);
+
+/**
+   \brief ...
+ */
 int IPA_func_pure(int sptr);
-int IPA_pointer_safe(int nme);
+
+/**
+   \brief ...
+ */
 int IPA_nme_conflict(int nme1, int nme2);
-void stb_upper_init(void);
-void upper_init(void);
-void cuda_emu_start(void);
+
+/**
+   \brief ...
+ */
+int IPA_noaddr(int sptr);
+
+/**
+   \brief ...
+ */
+int IPA_NoFree(void);
+
+/**
+   \brief ...
+ */
+int IPA_pointer_safe(int nme);
+
+/**
+   \brief ...
+ */
+int IPA_range(int sptr, int *plo, int *phi);
+
+/**
+   \brief ...
+ */
+int IPA_safe(int sptr);
+
+/**
+   \brief ...
+ */
+SPTR llvm_get_uplevel_newsptr(int oldsptr);
+
+/**
+   \brief ...
+ */
+long IPA_pstride(int sptr);
+
+/**
+   \brief ...
+ */
+long IPA_sstride(int sptr);
+
+/**
+   \brief ...
+ */
 void cuda_emu_end(void);
+
+/**
+   \brief ...
+ */
+void cuda_emu_start(void);
+
+/**
+   \brief ...
+ */
+void dmp_const(CONST *acl, int indent);
+
+/**
+   \brief ...
+ */
+void stb_upper_init(void);
+
+/**
+   \brief ...
+ */
+void upper_assign_addresses(void);
+
+/**
+   \brief ...
+ */
+void upper_init(void);
+
+/**
+   \brief ...
+ */
+void upper(int stb_processing);
+
+/**
+   \brief ...
+ */
+void upper_save_syminfo(void);
+
+#endif // UPPER_H_

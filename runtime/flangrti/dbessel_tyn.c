@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, NVIDIA CORPORATION.  All rights reserved.
+ * Copyright (c) 2015-2018, NVIDIA CORPORATION.  All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,10 +15,11 @@
  *
  */
 
-/*  dbessel_tyn.c - implement double F2008 bessel_yn transformational intrinsic
- */
-#include "mthdecls.h"
-#include "stdioInterf.h"
+/* bessel_tyn.c implements float F2008 bessel_yn transformational intrinsic */
+
+double __mth_i_dbessel_y0(double arg);
+double __mth_i_dbessel_y1(double arg);
+double __mth_i_dbessel_yn(int n, double arg);
 
 void
 f90_dbessel_yn(double *rslts, int *n1, int *n2, double *x)
@@ -26,23 +27,16 @@ f90_dbessel_yn(double *rslts, int *n1, int *n2, double *x)
   int i;
   double *rslt_p;
 
-  if (*n1 < 0)
-    __abort(0,"BESSEL_YN: order n1 must be >= 0");
-  if (*n2 < 0)
-    __abort(0,"BESSEL_YN: order n2 must be >= 0");
-  if (*n1 > *n2)
-    __abort(0,"BESSEL_YN: order n1 <= n2");
-
   for (i = *n1, rslt_p = rslts; i <= *n2; i++, rslt_p++) {
     switch (i) {
     case 0:
-      *rslt_p = BESSEL_Y0(*x);
+      *rslt_p = __mth_i_dbessel_y0(*x);
       break;
     case 1:
-      *rslt_p = BESSEL_Y1(*x);
+      *rslt_p = __mth_i_dbessel_y1(*x);
       break;
     default:
-      *rslt_p = BESSEL_YN(i, *x);
+      *rslt_p = __mth_i_dbessel_yn(i, *x);
       break;
     }
   }

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, NVIDIA CORPORATION.  All rights reserved.
+ * Copyright (c) 2016-2018, NVIDIA CORPORATION.  All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -73,9 +73,9 @@ get_scope(int level)
   }
   if (level < 0 || level >= sem.scope_size) {
 #if DEBUG
-    dumpscope(0);
+    dumpscope(gbl.dbgfil);
 #endif
-    assert(FALSE, "bad scope stack level", level, ERR_Fatal);
+    interr("bad scope stack level", level, ERR_Fatal);
   }
   return &sem.scope_stack[level];
 }
@@ -182,7 +182,6 @@ have_use_scope(int sptr)
   while ((scope = next_scope(scope)) != 0) {
     if (scope->kind == SCOPE_USE && scope->sptr == sptr) {
       return get_scope_level(scope);
-      ;
     }
     if (!scope->open) {
       break;
@@ -205,7 +204,7 @@ is_except_in_scope(SCOPESTACK *scope, int sptr)
 LOGICAL
 is_private_in_scope(SCOPESTACK *scope, int sptr)
 {
-  return scope->private && !sym_in_sym_list(sptr, scope->only);
+  return scope->Private && !sym_in_sym_list(sptr, scope->only);
 }
 
 /** \brief Push an entry on the scope stack with this symbol and kind.
@@ -225,18 +224,19 @@ push_scope_level(int sptr, SCOPEKIND kind)
     }
     scope->sptr = sptr;
     break;
-  case SCOPE_MODULE:
   case SCOPE_NORMAL:
+  case SCOPE_MODULE:
   case SCOPE_USE:
     scope->sptr = sptr;
     break;
-  case SCOPE_INTERFACE:
   case SCOPE_OUTER:
-  case SCOPE_HPF:
+  case SCOPE_INTERFACE:
   case SCOPE_PAR:
     ++sem.scope_extra;
     scope->sptr = sem.scope_extra;
     break;
+  default:
+    interr("push_scope_level: unknown scope kind", kind, ERR_Warning);
   }
   /*
    * When entering a parallel scope, the current scope is left to be the
@@ -248,9 +248,16 @@ push_scope_level(int sptr, SCOPEKIND kind)
   scope->kind = kind;
   scope->open = TRUE;
   scope->symavl = stb.stg_avail;
-  scope->private = FALSE;
+  scope->Private = FALSE;
   scope->sym = 0;
   scope->uplevel_sptr = 0;
+#if DEBUG
+  if (DBGBIT(5, 0x200)) {
+    fprintf(gbl.dbgfil, "\n++++++++  push_scope_level(%s)  pass=%d  line=%d\n",
+            kind_to_string(kind), sem.which_pass, gbl.lineno);
+    dumpscope(gbl.dbgfil);
+  }
+#endif
 }
 
 /** \brief Push an interface entry on the scope stack and mark it closed.
@@ -268,7 +275,6 @@ push_iface_scope_level()
 void
 pop_scope_level(SCOPEKIND kind)
 {
-  int sl;
   if (sem.scope_stack == NULL) {
     return;
   }
@@ -326,6 +332,13 @@ pop_scope_level(SCOPEKIND kind)
       stb.curr_scope = sem.scope_stack[1].sptr;
     }
   }
+#if DEBUG
+  if (DBGBIT(5, 0x200)) {
+    fprintf(gbl.dbgfil, "\n--------  pop_scope_level(%s)  pass=%d  line=%d\n",
+            kind_to_string(kind), sem.which_pass, gbl.lineno);
+    dumpscope(gbl.dbgfil);
+  }
+#endif
 }
 
 static SCOPESTACK saved_scope_stack[1];
@@ -343,6 +356,13 @@ save_scope_level(void)
   saved_scope_stack[count_scope_saved++] = *curr_scope();
   pop_scope();
   stb.curr_scope = curr_scope()->sptr;
+#if DEBUG
+  if (DBGBIT(5, 0x200)) {
+    fprintf(gbl.dbgfil, "\n--------  save_scope_level  pass=%d  line=%d\n",
+            sem.which_pass, gbl.lineno);
+    dumpscope(gbl.dbgfil);
+  }
+#endif
 }
 
 /** \brief Restore the scope that was saved by save_scope_level() */
@@ -350,12 +370,18 @@ void
 restore_scope_level(void)
 {
   if (count_scope_saved <= 0) {
-    interr("trying to save restore too many scope levels", count_scope_saved,
-           3);
+    interr("trying to restore too many scope levels", count_scope_saved, 3);
     return;
   }
   *push_scope() = saved_scope_stack[--count_scope_saved];
   stb.curr_scope = curr_scope()->sptr;
+#if DEBUG
+  if (DBGBIT(5, 0x200)) {
+    fprintf(gbl.dbgfil, "\n++++++++  restore_scope_level  pass=%d  line=%d\n",
+            sem.which_pass, gbl.lineno);
+    dumpscope(gbl.dbgfil);
+  }
+#endif
 }
 
 void
@@ -387,7 +413,7 @@ par_push_scope(LOGICAL bind_to_outer)
   scope->di_par = sem.doif_depth;
   scope->shared_list = NULL;
   scope->prev_sc = prev_sc;
-  (void)enter_lexical_block(flg.debug && !XBIT(123, 0x400));
+  enter_lexical_block(flg.debug && !XBIT(123, 0x400));
 }
 
 void
@@ -434,7 +460,6 @@ pop_scope(void)
 }
 
 #if DEBUG
-
 void
 dumpscope(FILE *f)
 {
@@ -454,17 +479,23 @@ dumpscope(FILE *f)
 void
 dump_one_scope(int sl, FILE *f)
 {
-  SCOPESTACK *scope = get_scope(sl);
-  int sptr = scope->sptr;
+  SCOPESTACK *scope;
+  SPTR sptr;
   if (f == NULL) {
     f = stderr;
   }
-  fprintf(f, "scope %3d. %6s %7s symavl=%3d %10s %d=%s", sl,
-          scope->open ? "open  " : "closed",
-          scope->private ? "private" : "public ", scope->symavl,
-          kind_to_string(scope->kind), sptr,
-          sptr >= stb.firstosym ? SYMNAME(sptr) : " ");
-  fprintf(f, "\n");
+  if (sl < 0 || sl >= sem.scope_size) {
+    interr("dump_one_scope: bad scope stack level", sl, ERR_Warning);
+    return;
+  }
+  scope = sem.scope_stack + sl;
+  sptr = scope->sptr;
+  fprintf(f, "%ccope %2d. %-11s %-7s %-8s symavl=%3d  %d=%s\n",
+          sem.which_pass ? 'S' : 's', sl, kind_to_string(scope->kind),
+          scope->open ? "open" : "closed",
+          scope->Private ? "private" : "public",
+          scope->symavl, sptr,
+          sptr >= stb.firstosym ? SYMNAME(sptr) : "");
   if (scope->except) {
     int ex;
     fprintf(f, "+ except");
@@ -487,24 +518,14 @@ static const char *
 kind_to_string(SCOPEKIND kind)
 {
   switch (kind) {
-  case SCOPE_NORMAL:
-    return "Normal";
-  case SCOPE_USE:
-    return "USE";
-  case SCOPE_MODULE:
-    return "Module";
-  case SCOPE_SUBPROGRAM:
-    return "Subprogram";
-  case SCOPE_OUTER:
-    return "Outer";
-  case SCOPE_INTERFACE:
-    return "Interface";
-  case SCOPE_HPF:
-    return "HPF";
-  case SCOPE_PAR:
-    return "PAR";
-  default:
-    return "other";
+  case SCOPE_OUTER:      return "Outer";
+  case SCOPE_NORMAL:     return "Normal";
+  case SCOPE_SUBPROGRAM: return "Subprogram";
+  case SCOPE_MODULE:     return "Module";
+  case SCOPE_INTERFACE:  return "Interface";
+  case SCOPE_USE:        return "Use";
+  case SCOPE_PAR:        return "Par";
+  default:               return "<unknown>";
   }
 }
 

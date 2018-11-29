@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, NVIDIA CORPORATION.  All rights reserved.
+ * Copyright (c) 1997-2018, NVIDIA CORPORATION.  All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -35,7 +35,7 @@
 static int errors;
 
 static void lower_start_subroutine(int);
-static void lower_end_subroutine();
+static void lower_end_subroutine(void);
 static void lower_program(int);
 static void save_contained(void);
 static void init_contained(void);
@@ -98,11 +98,11 @@ lower_ndtypeg(int ast)
 {
   /* If execution gets here, then the macro NDTYPEG has been redefined.  Use
    * the underlying AST field name (w19) to prevent recursion */
-  if (astb.base[ast].w19 < 0) {
+  if (astb.stg_base[ast].w19 < 0) {
     ast_error("NDTYPE not set", ast);
     return A_DTYPEG(ast);
   }
-  return astb.base[ast].w19;
+  return astb.stg_base[ast].w19;
 } /* lower_ndtypeg */
 #endif
 
@@ -194,7 +194,7 @@ lower(int staticinit)
   lower_namelist_plists();
 
   /* clear the A_OPT1 and A_OPT2 fields for use here */
-  for (a = 0; a < astb.avl; ++a) {
+  for (a = 0; a < astb.stg_avail; ++a) {
 #if DEBUG
     A_NDTYPEP(a, -1);
 #endif
@@ -210,7 +210,7 @@ lower(int staticinit)
     switch (DTY(DTYPEG(gbl.currsub))) {
     case TY_DERIVED:
     case TY_STRUCT:
-      if (!is_iso_cptr(DTYPEG(gbl.currsub)) && !CFUNCG(gbl.currsub)) {
+      if (!CFUNCG(gbl.currsub)) {
         gbl.rutype = RU_SUBR;
       }
       break;
@@ -278,7 +278,7 @@ lower(int staticinit)
     dmp_dtype();
   }
 #endif
-  for (a = 0; a < astb.avl; ++a) {
+  for (a = 0; a < astb.stg_avail; ++a) {
     A_NDTYPEP(a, 0);
   }
   lower_unset_symbols();
@@ -355,7 +355,7 @@ lower_start_subroutine(int rutype)
 } /* lower_start_subroutine */
 
 static void
-lower_end_subroutine()
+lower_end_subroutine(void)
 {
   fprintf(lowersym.lowerfile, "end\n");
   if (STB_LOWER()) {
@@ -423,7 +423,8 @@ markid(int astx, int *unused)
           SDSCG(sptr) < lowersym.last_outer_sym_orig)
         outerflags[SDSCG(sptr) - lowersym.first_outer_sym] |= 1;
       break;
-    default:;
+    default:
+      break;
     }
     dtype = DTYPEG(sptr);
     if (dtype && DTY(dtype) == TY_ARRAY) {
@@ -570,7 +571,8 @@ lower_end_contains(void)
                 }
               }
               break;
-            default:;
+            default:
+              break;
             }
           }
           outer = 0;
@@ -653,8 +655,7 @@ lower_directives(void)
 void
 lower_constructor(void)
 {
-  if (!XBIT(137, 2))
-    fprintf(gbl.outfil, "CONSTRUCTORACC\n");
+  fprintf(gbl.outfil, "CONSTRUCTORACC\n");
 } /* lower_constructor */
 
 /*
@@ -805,7 +806,7 @@ trav_struct(int dtype, int off)
     d = AD_NUMELM(ad);
     if (A_TYPEG(d) != A_CNST)
       return;
-    elems = ad_val_of(d);
+    elems = ad_val_of(A_SPTRG(d));
     elemsize = size_of(DTY(dtype + 1));
     if (elems > 0 && elems <= 16) {
       for (i = 0; i < elems; i++) {

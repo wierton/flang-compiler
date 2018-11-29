@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, NVIDIA CORPORATION.  All rights reserved.
+ * Copyright (c) 1994-2018, NVIDIA CORPORATION.  All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -59,6 +59,7 @@ static int classify_dec(void);
 static int classify_pragma(void);
 static int classify_pgi_pragma(void);
 static int classify_ac_type(void);
+static int classify_pgi_dir(void);
 static int classify_kernel_pragma(void);
 static void alpha(void);
 static int get_id_name(char *, int);
@@ -101,14 +102,13 @@ extern LOGICAL fpp_;
      - maximum number of lines per statement (number of continuations + 1)
      - maximum number of columns allowed in a card
      - maximum include nesting depth
-     - longest line allowed (characters after 72 or 132 are ignored,
-       regardless of the value of this macro)
+     - longest free form line allowed (fixed form is usually 72 or 132)
      - maximum length allowed for include file pathname
 */
 
 /* for KANJI, the 2 following limits are effectively halved */
-#define MAX_COLS 264
-#define CARDB_SIZE 270
+#define MAX_COLS 1000
+#define CARDB_SIZE (MAX_COLS + 6)
 
 #define INIT_LPS 21
 #define MAX_IDEPTH 20
@@ -151,6 +151,7 @@ extern LOGICAL fpp_;
 #define CT_PPRAGMA 14
 #define CT_ACC 15
 #define CT_KERNEL 16
+#define CT_PGI 17
 
 /*   define sentinel types returned by read_card: */
 
@@ -159,7 +160,8 @@ extern LOGICAL fpp_;
 #define SL_OMP 2
 #define SL_SGI 3
 #define SL_MEM 4
-#define SL_KERNEL 6
+#define SL_PGI 6
+#define SL_KERNEL 7
 
 /* BIND keyword allowed in function declaration: use these states
    to allow for this
@@ -179,7 +181,7 @@ static FILE *curr_fd; /* file descriptor for current input file */
 static int incl_level;   /* current include level. starts at 0.  */
 static int incl_stacksz; /* current size of include stack */
 
-typedef struct {/* include-stack contents: */
+typedef struct { /* include-stack contents: */
   FILE *fd;
   int lineno;
   int findex;
@@ -199,7 +201,7 @@ static ISTACK *incl_stack = NULL;
 static int hdr_level;   /* current include level. starts at 0.  */
 static int hdr_stacksz; /* current size of include stack */
 
-typedef struct {/* include-stack contents: */
+typedef struct { /* include-stack contents: */
   int lineno;
   int findex;
   char *fname;
@@ -235,6 +237,8 @@ static int max_card;   /* maximum number of cards read in for any
                         * Fortran stmt */
 static char *currc;    /* pointer into stmtb to current position */
 static char *eos;      /* pointer into stmtb of last character */
+static int leadCount;  /* number of leading spaces in current statement */
+static int currCol;    /* If > 0, represents source column of current token */
 
 static char *tkbuf = NULL; /* buffer used when tokens are read from file
                             * during _read_token(). */
@@ -262,7 +266,11 @@ static LOGICAL is_sgi;     /* current statement is an sgi SMP directive
 static LOGICAL is_dec;     /* current statement is a DEC directive */
 static LOGICAL is_mem;     /* current statement is a mem directive */
 static LOGICAL is_ppragma; /* current statement is a parsed pragma/directive */
+static LOGICAL is_pgi; /* current statement is a pgi directive */
+static bool is_doconcurrent; /* current statement is a do concurrent stmt */
 static LOGICAL is_kernel; /* current statement is a parsed kernel directive */
+static LOGICAL long_pragma_candidate; /* current statement may be a
+                                       * long directive/pragma */
 static int scmode;        /* scan mode - used to interpret alpha tokens
                            * Possible states and values are: */
 #define SCM_FIRST 1
@@ -276,33 +284,23 @@ static int scmode;        /* scan mode - used to interpret alpha tokens
 #define SCM_DOLAB 9
 #define SCM_GOTO 10
 #define SCM_DONEXT 11
-#define SCM_ALLOC 12
-/* 13 available */
-/* 14 available */
-#define SCM_ID_ATTR 15
-/* 16 available */
-/* 17 available */
-#define SCM_NEXTIDENT 18 /* next exposed id is as if it begins a statement */
-#define SCM_INTERFACE 19
-/* 20 available */
-/* 21 avaialble */
-/* 22 available */
-/* 23 available */
-/* 24 available */
-#define SCM_OPERATOR                                     \
-  25 /* next id (presumably enclosed in '.'s) is a user- \
-      * efined operator or a named intrinsic operator */
-#define SCM_LOOKFOR_OPERATOR 26 /* next id may be word 'operator' */
-#define SCM_PAR 27
-/* 28 available */
-#define SCM_ACCEL 29
-#define SCM_BIND 30 /* next id is keyword bind */
-#define SCM_PROCEDURE 31
-#define SCM_KERNEL 32
-#define SCM_GENERIC 33
-#define SCM_TYPEIS 34
-#define SCM_DEFINED_IO 35
-#define SCM_CHEVRON 36
+#define SCM_LOCALITY 12
+#define SCM_ALLOC 13
+#define SCM_ID_ATTR 14
+#define SCM_NEXTIDENT 15 /* next exposed id is as if it begins a statement */
+#define SCM_INTERFACE 16
+#define SCM_OPERATOR 17 /* next id (presumably enclosed in '.'s) is a
+                         * user-defined or named intrinsic operator */
+#define SCM_LOOKFOR_OPERATOR 18 /* next id may be word 'operator' */
+#define SCM_PAR 19
+#define SCM_ACCEL 20
+#define SCM_BIND 21 /* next id is keyword bind */
+#define SCM_PROCEDURE 22
+#define SCM_KERNEL 23
+#define SCM_GENERIC 24
+#define SCM_TYPEIS 25
+#define SCM_DEFINED_IO 26
+#define SCM_CHEVRON 27
 
 static int par_depth;            /* current parentheses nesting depth */
 static LOGICAL past_equal;       /* set if past the equal sign */
@@ -394,6 +392,7 @@ scan_init(FILE *fd)
   init_ktable(&pragma_kw);
   init_ktable(&ppragma_kw);
   init_ktable(&kernel_kw);
+  init_ktable(&pgi_kw);
 
   if (XBIT(49, 0x1040000)) {
     /* T3D/T3E or C90 Cray targets */
@@ -420,14 +419,14 @@ scan_init(FILE *fd)
    * More space is created as needed in get_stmt.
    */
   max_card = INIT_LPS;
-  stmtbefore = sccalloc((UINT)(max_card * (MAX_COLS - 1) + 1));
+  stmtbefore = sccalloc((BIGUINT64)(max_card * (MAX_COLS - 1) + 1));
   if (stmtbefore == NULL)
     error(7, 4, 0, CNULL, CNULL);
-  stmtbafter = sccalloc((UINT)(max_card * (MAX_COLS - 1) + 1));
+  stmtbafter = sccalloc((BIGUINT64)(max_card * (MAX_COLS - 1) + 1));
   if (stmtbafter == NULL)
     error(7, 4, 0, CNULL, CNULL);
   stmtb = stmtbefore;
-  last_char = (short *)sccalloc((UINT)(max_card * sizeof(short)));
+  last_char = (short *)sccalloc((BIGUINT64)(max_card * sizeof(short)));
   if (last_char == NULL)
     error(7, 4, 0, CNULL, CNULL);
 
@@ -441,6 +440,8 @@ scan_init(FILE *fd)
   /* trigger get_stmt call first time get_token is called: */
 
   currc = NULL;
+  leadCount = 0;
+  currCol = 0;
 
 #if DEBUG
   if (DBGBIT(4, 1024)) {
@@ -477,6 +478,8 @@ void
 scan_reset(void)
 {
   currc = NULL;
+  leadCount = 0;
+  currCol = 0;
   scn.end_program_unit = FALSE;
 }
 
@@ -526,6 +529,7 @@ get_token(INT *tknv)
 {
   return p_get_token[sem.which_pass](tknv);
 }
+
 
 /*
  * Extracts next token and returns it to Parser.  Reads in new
@@ -588,6 +592,13 @@ retry:
       }
       if (is_ppragma) {
         if (classify_pgi_pragma() == 0) {
+          currc = NULL;
+          goto retry;
+        }
+        goto ret_token;
+      }
+      if (is_pgi) {
+        if (classify_pgi_dir() == 0) {
           currc = NULL;
           goto retry;
         }
@@ -785,6 +796,8 @@ again:
         scmode = SCM_FIRST;
       else if (follow_attr)
         scmode = SCM_LOOKFOR_OPERATOR;
+      else if (is_doconcurrent)
+        scmode = SCM_LOCALITY;
     }
     tkntyp = TK_RPAREN;
     if (bind_state == B_FUNC_FOUND) {
@@ -861,30 +874,36 @@ again:
     goto ret_token;
 
   case ':': /* return colon or coloncolon token: */
-    if (acb_depth > 0 && *currc == ':' && exp_ac && !lparen) {
-      currc++;
-      tkntyp = TK_COLONCOLON;
-      ionly = FALSE;
-      exp_ac = 0;
-    } else if (par_depth == 0 && exp_attr && *currc == ':') {
-      currc++;
-      exp_attr = FALSE;
-      if (scmode != SCM_GENERIC)
-        scmode = SCM_LOOKFOR_OPERATOR;
-      tkntyp = TK_COLONCOLON;
-      follow_attr = TRUE;
-    } else if (par1_attr && par_depth == 1 && scmode == SCM_ALLOC &&
-               *currc == ':') {
-      currc++;
-      par1_attr = FALSE;
-      tkntyp = TK_COLONCOLON;
-      ionly = FALSE;
-    } else {
-      tkntyp = TK_COLON;
-      if (scn.stmtyp == TK_USE) {
-        scmode = SCM_LOOKFOR_OPERATOR;
-        follow_attr = TRUE;
+    if (*currc == ':') {
+      if (acb_depth > 0 && exp_ac && !lparen) {
+        currc++;
+        tkntyp = TK_COLONCOLON;
+        exp_ac = 0;
+        ionly = false;
+        goto ret_token;
       }
+      if (par_depth == 0 && exp_attr) {
+        currc++;
+        tkntyp = TK_COLONCOLON;
+        exp_attr = false;
+        follow_attr = true;
+        if (scmode != SCM_GENERIC)
+          scmode = SCM_LOOKFOR_OPERATOR;
+        goto ret_token;
+      }
+      if (par1_attr && par_depth == 1 &&
+          (scmode == SCM_ALLOC || is_doconcurrent || scn.stmtyp == TK_FORALL)) {
+        currc++;
+        tkntyp = TK_COLONCOLON;
+        ionly = false;
+        par1_attr = false;
+        goto ret_token;
+      }
+    }
+    tkntyp = TK_COLON;
+    if (scn.stmtyp == TK_USE) {
+      scmode = SCM_LOOKFOR_OPERATOR;
+      follow_attr = true;
     }
     goto ret_token;
 
@@ -1073,6 +1092,8 @@ get_stmt(void)
   is_mem = FALSE;
   is_ppragma = FALSE;
   is_kernel = FALSE;
+  is_doconcurrent = false;
+  is_pgi = FALSE;
 
   do {
   again:
@@ -1088,6 +1109,9 @@ get_stmt(void)
       goto initial_card;
     case CT_PPRAGMA:
       is_ppragma = TRUE;
+      goto initial_card;
+    case CT_PGI:
+      is_pgi = TRUE;
       goto initial_card;
     case CT_KERNEL:
       is_kernel = TRUE;
@@ -1149,7 +1173,7 @@ get_stmt(void)
         if (scn.labno == 0)
           error(18, 2, curr_line, "0", "- label field ignored");
         else {
-          int lab_sptr = getsymf(".L%05ld", (long) scn.labno);
+          int lab_sptr = getsymf(".L%05ld", (long)scn.labno);
           scn.currlab = declref(lab_sptr, ST_LABEL, 'd');
           if (DEFDG(scn.currlab))
             errlabel(97, 3, curr_line, SYMNAME(lab_sptr), CNULL);
@@ -1358,7 +1382,6 @@ get_stmt(void)
     put_astfil(FR_LABEL, NULL, FALSE);
     put_astfil(scn.labno, NULL, FALSE);
   }
-
 }
 
 void
@@ -1532,8 +1555,9 @@ _readln(int mx_len, LOGICAL len_err)
 {
   int c;
   int i;
-  char *p;
+  char *p, *q;
 
+  long_pragma_candidate = FALSE;
   if ((c = getc(curr_fd)) == EOF) {
     if (incl_level == 0) {
       gbl.eof_flag = TRUE;
@@ -1547,8 +1571,16 @@ _readln(int mx_len, LOGICAL len_err)
   while (c != '\n') {
     i++;
     if (i > mx_len) {
-      if (len_err)
-        error(285, 3, curr_line, CNULL, CNULL);
+      if (len_err) {
+        for (q = cardb; isblank(*q) && q < p; ++q)
+          ;
+        if (flg.standard || *q != '!')
+          /* Flag non-comments; flag any statement under -Mstandard. */
+          error(285, 3, curr_line, CNULL, CNULL);
+        else
+          /* Comments might be pragmas; set up to check those later. */
+          long_pragma_candidate = TRUE;
+      }
       /* skip to the end-of-line */
       while (1) {
         c = getc(curr_fd);
@@ -1690,6 +1722,15 @@ read_card(void)
       strncpy(cardb, "     ", 5);
       ct_init = CT_MEM; /* change initial card type */
       sentinel = SL_MEM;
+      goto bl_firstchar;
+    }
+    if (XBIT(163, 1) && /* c$pgi - alternate pgi accelerator directive sentinel */
+        cardb[1] == '$' && (cardb[2] == 'P' || cardb[2] == 'p') &&
+        (cardb[3] == 'G' || cardb[3] == 'g') &&
+        (cardb[4] == 'I' || cardb[4] == 'i')) {
+      strncpy(cardb, "     ", 5);
+      ct_init = CT_PGI; /* change initial card type */
+      sentinel = SL_PGI;
       goto bl_firstchar;
     }
     if (XBIT(137, 1) && /* c$cuf - cuda kernel directive sentinel */
@@ -2670,6 +2711,20 @@ classify_smp(void)
         }
         break;
       case 't':
+        if (k == 8 && strncmp(cp, "taskloop", 8) == 0) {
+          cp += 8;
+          if ((*cp == ' ' && is_ident(cp + 1) &&
+               strncmp(cp + 1, "simd", 4) == 0) ||
+               (is_ident(cp) && strncmp(cp, "simd", 4) == 0)) {
+            if (*cp == ' ')
+              ++cp;
+            cp += 4;
+            scn.stmtyp = tkntyp = TK_MP_ENDTASKLOOPSIMD;
+            goto end_shared_nowait;
+          }
+          scn.stmtyp = tkntyp = TK_MP_ENDTASKLOOP;
+          goto end_shared_nowait;
+        }
         if (k == 4 && strncmp(cp, "task", 4) == 0) {
           cp += 4;
           scn.stmtyp = tkntyp = TK_MP_ENDTASK;
@@ -3445,7 +3500,7 @@ classify_smp(void)
   case TK_MP_SECTIONS:
   case TK_MP_SINGLE:
   case TK_MP_WORKSHARE:
-  case TK_MP_TASK:
+  case TK_MP_TASKLOOPSIMD:
   case TK_MP_ATOMIC:
   case TK_MP_DOSIMD:
   case TK_MP_SIMD:
@@ -3461,6 +3516,28 @@ classify_smp(void)
   case TK_MP_DISTPARDOSIMD:
   case TK_MP_DISTSIMD:
   case TK_MP_CANCEL:
+    scmode = SCM_PAR;
+    break;
+  case TK_MP_TASK:
+    if (is_ident(cp) && strncmp(cp, "loop", 4) == 0) {
+      cp += 4;
+      goto taskloop;
+    } else {
+      scn.stmtyp = tkntyp = TK_MP_TASK;
+      scmode = SCM_PAR;
+      break;
+    }
+  case TK_MP_TASKLOOP:
+taskloop:
+    if ((*cp == ' ' && (is_ident(cp + 1)) &&
+         strncmp(cp + 1, "simd", 4) == 0) ||
+        (is_ident(cp) && strncmp(cp, "simd", 4) == 0)) {
+      if (*cp == ' ')
+        ++cp;
+      cp += 4;
+      scn.stmtyp = tkntyp = TK_MP_TASKLOOPSIMD;
+    }
+    scn.stmtyp = tkntyp = TK_MP_TASKLOOP;
     scmode = SCM_PAR;
     break;
 
@@ -3882,9 +3959,12 @@ classify_smp(void)
   case TK_MP_TASKWAIT:
   case TK_MP_TASKGROUP:
     break;
+
   case TK_MP_ORDERED:
+    scn.stmtyp = tkntyp = TK_MP_ORDERED;
     scmode = SCM_PAR;
     break;
+
 
   case TKF_TARGETENTER:
     if (is_freeform && *cp == ' ' && (k = is_ident(cp + 1)) == 4 &&
@@ -4115,6 +4195,59 @@ no_identifier:
   return 0;
 }
 
+static int
+classify_pgi_dir(void)
+{
+  char *cp;
+  int idlen; /* number of characters in id string; becomes
+              * the length of a keyword. */
+  int c, savec;
+  char *ip;
+  int k;
+
+  /* skip any leading white space */
+  cp = currc;
+  c = *cp;
+  while (iswhite(c)) {
+    if (c == '\n')
+      goto no_identifier;
+    c = *++cp;
+  }
+
+  /* extract maximal potential id string: */
+
+  idlen = is_ident(cp);
+  if (idlen == 0)
+    goto no_identifier;
+
+  scmode = SCM_IDENT;
+  scn.stmtyp = 0;
+  tkntyp = keyword(cp, &pgi_kw, &idlen, TRUE);
+  ip = cp;
+  cp += idlen;
+  
+  scmode = SCM_ACCEL;
+
+  if (tkntyp == 0)
+    goto ill_dir;
+  scn.stmtyp = tkntyp;
+
+ret:
+  currc = cp;
+  return tkntyp;
+
+ill_dir:
+  savec = *cp;
+  *cp = 0;
+  error(287, 2, gbl.lineno, "pgi", ip);
+  *cp = savec;
+  return 0;
+
+no_identifier:
+  error(288, 2, gbl.lineno, "pgi", CNULL);
+  return 0;
+}
+
 /*
  * ensure that the first identifier after a misc. sentinel is
  * parsed cuda kernel directive keyword.
@@ -4260,19 +4393,23 @@ alpha(void)
 
   /* step 1: extract maximal potential id string: */
 
-  ip = id - 1; /* point 1 before id[] */
+  ip = id;
   cp = --currc;
   count = MAXIDLEN * 4;
   do {
     c = *cp++;
     if (--count >= 0)
-      *++ip = c;
+      *ip++ = c;
   } while (isident(c));
+  if (ip != id)
+    --ip;
   *ip = '\0';
   --cp; /* point to first char after identifier
          * string */
   o_idlen = idlen = cp - currc;
+
   /* step 2 - check scan mode to determine further processing */
+
   switch (scmode) {
   case SCM_FIRST: /* first token of a statement is to be
                    * processed */
@@ -4439,6 +4576,28 @@ alpha(void)
           goto alpha_exit;
         break;
       case TK_TYPE:
+        /* check for TYPE or CLASS */
+
+        /* "type (...)" or  class (...)"  */
+        if (o_idlen == idlen)
+          goto alpha_exit;
+
+        /* Possible type(...) or class(...) */
+        if (idlen == 4 && strncmp(id, "type", 4) == 0) {
+          if (id[4] != '(') {
+            idlen = is_ident(id);
+            if (idlen == o_idlen) { 
+              goto return_identifier;
+            }
+          }
+        } else if (idlen == 5 && strncmp(id, "class", 5) == 0) {
+          if (id[5] != '(') {
+            idlen = is_ident(id);
+            if (idlen == o_idlen) {
+              goto return_identifier;
+            }
+          }
+        }
         goto alpha_exit;
       case TKF_DOUBLE:
         tkntyp = double_type(&currc[idlen], &idlen);
@@ -4542,17 +4701,33 @@ alpha(void)
                     */
     tkntyp = keyword(id, &normalkw, &idlen, sig_blanks);
     if (tkntyp == TK_WHILE || tkntyp == TK_CONCURRENT) {
+      is_doconcurrent = tkntyp == TK_CONCURRENT;
       scmode = SCM_IDENT;
       goto alpha_exit;
     }
     /*
-     * Could give an error message indicating that the WHILE/ONCURRENT keyword
-     * is expected.
+     * Could give an error message indicating that the WHILE/CONCURRENT
+     * keyword is expected.
      */
     goto return_identifier;
 
+  case SCM_LOCALITY:
+    tkntyp = keyword(id, &normalkw, &idlen, sig_blanks);
+    switch (tkntyp) {
+    case TK_LOCAL:
+    case TK_LOCAL_INIT:
+    case TK_SHARED:
+    case TK_NONE:
+      scmode = SCM_IDENT;
+      goto alpha_exit;
+    case TK_DEFAULT:
+      /* Remain in SCM_LOCALITY mode to look for NONE. */
+      goto alpha_exit;
+    }
+    break;
+
   case SCM_TYPEIS:
-    /* FS#19094 - in the context of "type is", check to see if these
+    /* In the context of "type is", check to see if these
      * are a part of an identifier, or if they really are intrinsic
      * type tokens.
      */
@@ -5291,6 +5466,7 @@ get_keyword:
       scmode = SCM_FIRST;
     break;
   case TK_ATTRIBUTES:
+  case TK_LAUNCH_BOUNDS:
     scmode = SCM_NEXTIDENT;
     break;
   case TK_SEQUENCE:
@@ -5353,9 +5529,9 @@ get_keyword:
     break;
 
   case TK_MODULE:
-    scmode = sem.pgphase == PHASE_INIT &&
-             sem.mod_cnt == 0 &&
-             !sem.interface ? SCM_IDENT : SCM_FIRST;
+    scmode =
+        sem.pgphase == PHASE_INIT && sem.mod_cnt == 0 && !sem.interface ? SCM_IDENT
+                                                                        : SCM_FIRST;
     break;
 
   case TK_SUBMODULE:
@@ -5583,6 +5759,12 @@ get_keyword:
 /* step 4 - enter identifier into symtab and return it: */
 
 return_identifier:
+  if (par1_attr == 1 && par_depth == 1 &&
+      (is_doconcurrent || scn.stmtyp == TK_FORALL)) {
+    tkntyp = keyword(id, &normalkw, &idlen, sig_blanks);
+    if (tkntyp == TK_INTEGER && o_idlen == idlen)
+      goto alpha_exit;
+  }
   if (exp_ac) {
     if (*cp == ' ')
       cp++;
@@ -5668,7 +5850,8 @@ init_ktable(KTABLE *ktable)
 #if DEBUG
     /* ensure keywords begin with a lowercase letter */
     if ((ch + 'a') < 'a' || (ch + 'a') > 'z') {
-      interrf(ERR_Fatal, "Illegal keyword, %s, for init_ktable", base[i].keytext);
+      interrf(ERR_Fatal, "Illegal keyword, %s, for init_ktable",
+              base[i].keytext);
     }
 #endif
     if (ktable->first[ch] == 0)
@@ -6163,7 +6346,6 @@ char_to_text(int ch)
     sprintf(b, "\\%03o", c);
     fmt_putstr(b);
   }
-
 }
 
 /*  extract integer, real, or double precision constant token
@@ -7189,7 +7371,6 @@ scan_include(char *str)
 not_found:
   /* file not found, nesting depth exceeded, unable to open: */
   error(17, 3, gbl.lineno, str, CNULL);
-
 }
 
 /* Define structures and macros for OPTIONS processing: */
@@ -7237,7 +7418,7 @@ static struct c swtchtab[] = {
 };
 #define NSWDS (sizeof(swtchtab) / sizeof(struct c))
 
-static struct {/* flg values which can appear after OPTIONS */
+static struct { /* flg values which can appear after OPTIONS */
   int extend_source;
   LOGICAL i4;
   LOGICAL standard;
@@ -7520,7 +7701,14 @@ ff_get_stmt(void)
   is_dec = FALSE;
   is_mem = FALSE;
   is_ppragma = FALSE;
+  is_pgi = FALSE;
   is_kernel = FALSE;
+  is_doconcurrent = false;
+
+  for (p = printbuff + 8; *p != '\0' && (isblank(*p));) {
+    ++p;
+  }
+  leadCount = p - (printbuff + 8);
 
   do {
   again:
@@ -7655,6 +7843,9 @@ ff_get_stmt(void)
     case CT_PPRAGMA:
       is_ppragma = TRUE;
       goto initial_card;
+    case CT_PGI:
+      is_pgi = TRUE;
+      goto initial_card;
     case CT_KERNEL:
       is_kernel = TRUE;
       goto initial_card;
@@ -7713,7 +7904,6 @@ ff_get_stmt(void)
   } while (ff_state.cavail == stmtb || card_type == CT_CONTINUATION ||
            card_type == CT_COMMENT || card_type == CT_LINE /* tpr 533 */
            );
-
 }
 
 /*  read one input line into cardb, and determine its type
@@ -7757,7 +7947,7 @@ ff_read_card(void)
   first_char = firstp = p; /* first non-blank character in stmt */
   c = *p;
   if (c == '\n')
-    return (CT_COMMENT);
+    return CT_COMMENT;
   ct = CT_INITIAL;
   if (c == '!') {
 /* possible compiler directive. these directives begin with (upper
@@ -7787,7 +7977,9 @@ ff_read_card(void)
        */
       first_char = firstp + 5;
       strncpy(first_char, "sun", 3);
-      return (CT_PRAGMA);
+      if (long_pragma_candidate)
+        error(285, 3, curr_line, CNULL, CNULL);
+      return CT_PRAGMA;
     }
 
     if (OPENMP && /* c$smp, c$omp - smp directive sentinel */
@@ -7811,6 +8003,8 @@ ff_read_card(void)
         (p[9] == 'S' || p[9] == 's')) {
       sentinel = SL_SGI;
       first_char = &p[2];
+      if (long_pragma_candidate)
+        error(285, 3, curr_line, CNULL, CNULL);
       return CT_SMP;
     }
     /* OpenMP conditional compilation sentinels */
@@ -7831,7 +8025,9 @@ ff_read_card(void)
         return CT_COMMENT;
       sentinel = SL_SGI;
       first_char = firstp + 3; /* first character after '&' */
-      return (CT_CONTINUATION);
+      if (long_pragma_candidate)
+        error(285, 3, curr_line, CNULL, CNULL);
+      return CT_CONTINUATION;
     }
     /* Miscellaneous directives which are parsed */
     if (XBIT(59, 0x4) && /* c$mem - mem directive sentinel */
@@ -7844,6 +8040,18 @@ ff_read_card(void)
       c = *firstp;
       ct = CT_MEM; /* change initial card type */
       sentinel = SL_MEM;
+      goto bl_firstchar;
+    }
+    if (XBIT(163, 1) && /* c$pgi - alternate pgi accelerator directive sentinel */
+        p[1] == '$' && (p[2] == 'P' || p[2] == 'p') &&
+        (p[3] == 'G' || p[3] == 'g') && (p[4] == 'I' || p[4] == 'i')) {
+      firstp += 5;
+      for (; isblank(*firstp); firstp++)
+        ;
+      first_char = firstp; /* first non-blank character in stmt */
+      c = *firstp;
+      ct = CT_PGI; /* change initial card type */
+      sentinel = SL_PGI;
       goto bl_firstchar;
     }
     if (XBIT(137, 1) && /* c$cuf - cuda kernel directive sentinel */
@@ -7890,6 +8098,8 @@ ff_read_card(void)
          * '$'.
          */
         first_char = &firstp[i + 1];
+        if (long_pragma_candidate)
+          error(285, 3, curr_line, CNULL, CNULL);
         return check_pgi_pragma(first_char);
       }
       if (strncmp(b, "dir$", 4) == 0) {
@@ -7904,6 +8114,8 @@ ff_read_card(void)
         if (i == CT_PPRAGMA) {
           strncpy(firstp, "     ", 5);
         }
+        if (long_pragma_candidate)
+          error(285, 3, curr_line, CNULL, CNULL);
         return i;
       }
       if (XBIT(124, 0x100) && strncmp(b, "exe$", 4) == 0) {
@@ -7929,15 +8141,17 @@ ff_read_card(void)
       }
 #endif
     }
-    return (CT_COMMENT);
+    return CT_COMMENT;
   }
 bl_firstchar:
+  if (long_pragma_candidate)
+    error(285, 3, curr_line, CNULL, CNULL);
   if (c == '&') {
     first_char = firstp + 1;
-    return (CT_CONTINUATION);
+    return CT_CONTINUATION;
   }
 
-  return (ct);
+  return ct;
 }
 
 /*  Prepare one Fortran stmt for crunching.  Copy the current card to
@@ -8179,7 +8393,6 @@ exit_ff_prescan:
   *++ff_state.outptr = '\n'; /* mark end of stmtb contents */
   ff_state.cavail = ff_state.outptr;
   last_char[card_count - 1] = ff_state.cavail - stmtb - 1;
-
 }
 
 /* pointer to character after '!' */
@@ -8250,6 +8463,7 @@ ff_get_noncomment(char *inptr)
   switch (card_type) {
   case CT_SMP:
   case CT_MEM:
+  case CT_PGI:
   case CT_KERNEL:
   case CT_DIRECTIVE:
     /* In free source form, OpenMP, 'mem', %, and $ don't require the
@@ -8289,7 +8503,6 @@ ff_get_noncomment(char *inptr)
 
   /* error */
   card_type = CT_NONE;
-
 }
 
 static int
@@ -8326,7 +8539,7 @@ ff_get_label(char *inp)
     else if (scn.labno > 99999)
       error(18, 3, gbl.lineno, "- length exceeds 5 digits", CNULL);
     else {
-      int lab_sptr = getsymf(".L%05ld", (long) scn.labno);
+      int lab_sptr = getsymf(".L%05ld", (long)scn.labno);
       if (!iswhite(c))
         errlabel(18, 3, curr_line, SYMNAME(lab_sptr),
                  "- must be followed by one or more blanks");
@@ -8435,55 +8648,66 @@ _write_token(int tk, INT ctkv)
     error(10, 4, 0, "(AST file)", CNULL);
   fprintf(astb.astfil, "%d", tk);
   fprintf(astb.astfil, " %d", ctkv); /* default token value */
+
+  currCol = ((int)(currc - stmtb)) + leadCount;
+
   switch (tk) {
   case TK_IDENT:
   case TK_NAMED_CONSTRUCT:
     p = scn.id.name + ctkv;
+    len = strlen(p);
+    currCol = (currCol - len) + 1;
+    fprintf(astb.astfil, " %d %d %s", currCol, len, p);
     fprintf(astb.astfil, " %d %s", (int)strlen(p), p);
     break;
   case TK_DEFINED_OP:
-    fprintf(astb.astfil, " %d %s", (int)strlen(SYMNAME(ctkv)), SYMNAME(ctkv));
+    p = SYMNAME(ctkv);
+    len = strlen(SYMNAME(ctkv));
+    fprintf(astb.astfil, " %d %d %s", currCol, len, p);
     break;
   case TK_ICON:
   case TK_RCON:
   case TK_NONDEC:
   case TK_LOGCONST:
-    fprintf(astb.astfil, " %x", ctkv);
+    fprintf(astb.astfil, " %d %x", currCol, ctkv);
     break;
   case TK_DCON:
   case TK_CCON:
   case TK_NONDDEC:
-    fprintf(astb.astfil, " %x %x", CONVAL1G(ctkv), CONVAL2G(ctkv));
+    fprintf(astb.astfil, " %d %x %x", currCol, CONVAL1G(ctkv), CONVAL2G(ctkv));
     break;
   case TK_K_ICON:
   case TK_K_LOGCONST:
-    fprintf(astb.astfil, " %x %x %d", CONVAL1G(ctkv), CONVAL2G(ctkv),
-            DTYPEG(ctkv));
+    fprintf(astb.astfil, " %d %x %x %d", currCol, CONVAL1G(ctkv),
+            CONVAL2G(ctkv), DTYPEG(ctkv));
     break;
   case TK_QCON:
-    fprintf(astb.astfil, " %x %x %x %x", CONVAL1G(ctkv), CONVAL2G(ctkv),
-            CONVAL3G(ctkv), CONVAL4G(ctkv));
+    fprintf(astb.astfil, " %d %x %x %x %x", currCol, CONVAL1G(ctkv),
+            CONVAL2G(ctkv), CONVAL3G(ctkv), CONVAL4G(ctkv));
     break;
   case TK_DCCON:
     s1 = CONVAL1G(ctkv);
     s2 = CONVAL2G(ctkv);
-    fprintf(astb.astfil, " %x %x %x %x", CONVAL1G(s1), CONVAL2G(s1),
+    fprintf(astb.astfil, " %d %x %x %x %x", currCol, CONVAL1G(s1), CONVAL2G(s1),
             CONVAL1G(s2), CONVAL2G(s2));
     break;
   case TK_QCCON:
     s1 = CONVAL1G(ctkv);
     s2 = CONVAL2G(ctkv);
-    fprintf(astb.astfil, " %x %x %x %x %x %x %x %x", CONVAL1G(s1), CONVAL2G(s1),
-            CONVAL3G(s1), CONVAL4G(s1), CONVAL1G(s2), CONVAL2G(s2),
-            CONVAL3G(s2), CONVAL4G(s2));
+    fprintf(astb.astfil, " %d %x %x %x %x %x %x %x %x", currCol, CONVAL1G(s1),
+            CONVAL2G(s1), CONVAL3G(s1), CONVAL4G(s1), CONVAL1G(s2),
+            CONVAL2G(s2), CONVAL3G(s2), CONVAL4G(s2));
     break;
   case TK_HOLLERITH:
-    fprintf(astb.astfil, " %d", CONVAL2G(ctkv)); /* kind of hollerith */
-    ctkv = CONVAL1G(ctkv);                       /* auxiliary char constant */
-                                                 /* fall thru */
+    fprintf(astb.astfil, " %d %d", currCol,
+            CONVAL2G(ctkv)); /* kind of hollerith */
+    ctkv = CONVAL1G(ctkv);   /* auxiliary char constant */
+    goto common_str;         /* fall thru */
   case TK_FMTSTR:
   case TK_STRING:
   case TK_KSTRING:
+    fprintf(astb.astfil, " %d", currCol);
+  common_str:
     len = string_length(DTYPEG(ctkv));
     fprintf(astb.astfil, " %d ", len);
     p = stb.n_base + CONVAL1G(ctkv);
@@ -8491,11 +8715,13 @@ _write_token(int tk, INT ctkv)
       fprintf(astb.astfil, "%02x", (*p++) & 0xff);
     break;
   case TK_DIRECTIVE:
-    fprintf(astb.astfil, " %d", (int)strlen(scn.directive));
+    len = (int)strlen(scn.directive);
+    fprintf(astb.astfil, " %d %d", currCol, len);
     fprintf(astb.astfil, " %s", scn.directive);
     break;
   case TK_OPTIONS:
-    fprintf(astb.astfil, " %d", (int)strlen(scn.options));
+    len = (int)strlen(scn.options);
+    fprintf(astb.astfil, " %d %d", currCol, (int)strlen(scn.options));
     fprintf(astb.astfil, " %s", scn.options);
     break;
   case TK_ENDSTMT:
@@ -8507,9 +8733,13 @@ _write_token(int tk, INT ctkv)
   case TK_ENDMODULE:
   case TK_ENDSUBMODULE:
   case TK_CONTAINS:
-    fprintf(astb.astfil, " %d", gbl.eof_flag);
+    fprintf(astb.astfil, " %d %d", currCol, gbl.eof_flag);
     break;
+  case TK_EOL:
+    currCol = 0;
+  /* fall through to default case */
   default:
+    fprintf(astb.astfil, " %d", currCol);
     break;
   }
   fprintf(astb.astfil, " %s", tokname[tk]);
@@ -8517,10 +8747,215 @@ _write_token(int tk, INT ctkv)
 }
 
 static char *tkp;
-static void _rd_tkline(void);
+static void _rd_tkline(char **tkbuf, int *tkbuf_sz);
 static int _rd_token(INT *);
 static INT get_num(int);
 static void get_string(char *);
+
+/** \brief trim white space of source line that has continuations and return
+ * the index of the last character in the source line.
+ *
+ * This function is called by contIndex().
+ *
+ * \param line is the source line we are processing.
+ *
+ * \return the index (an integer) of the last character in the source line.
+ */
+static int
+trimContIdx(char *line)
+{
+  int len;
+  char *p;
+
+  if (line == NULL)
+    return 0;
+
+  len = strlen(line);
+  if (len == 0)
+    return 0;
+
+  for (p = (line + len) - 1; p > line && isspace(*p); --p)
+    ;
+
+  return (int)(p - line);
+}
+
+static int
+numLeadingSpaces(char *line)
+{
+  int i;
+
+  if (line == NULL)
+    return 0;
+
+  for (i = 0; *line != '\0'; ++line, ++i) {
+    if (!isspace(*line) && *line != '&')
+      break;
+  }
+
+  return i;
+}
+
+/** \brief Parse a source line with comments/continuations/string literals
+ *  and return the index of the last non-white space character of the
+ *  source line.
+ *
+ * \param line is the source line that we are processing.
+ *
+ * \return the index (an integer) of the last character in source line.
+ */
+static int
+contIndex(char *line)
+{
+  int i;
+  bool seenText = false;
+  int seenQuote = 0;
+  bool seenFin = false;
+  int len;
+
+  if (line == NULL)
+    return 0;
+
+  len = strlen(line);
+
+  for (i = 0; i < len; ++i) {
+    if (!seenText && !isspace(line[i]) && line[i] != '&') {
+      seenText = TRUE;
+    }
+    if (!seenText) {
+      continue;
+    }
+    if (seenFin) {
+      return i;
+    }
+    if (seenQuote == 0 && (line[i] == '\'' || line[i] == '"')) {
+      seenQuote = line[i];
+    } else if (seenQuote != 0 && line[i] == seenQuote) {
+      seenQuote = 0;
+    } else if (seenQuote == 0 && (line[i] == '!' || line[i] == '&')) {
+      seenFin = true;
+      return i + 1;
+    }
+  }
+
+  return trimContIdx(line);
+}
+
+/** \brief get the post-processed source line in the current source file.
+  *
+  * \param line is the desired source line number.
+  *
+  * \param src_file is used to store a copy of the source filename that the
+  * line number is associated with. It could be different from gbl.curr_file.
+  * If src_file is NULL, then this parameter is ignored. Caller is responsible
+  * to free the memory that src_file points to.
+  *
+  * \param col is the column number associated with the token in the source
+  * line. It is usually needed if line has continuators.
+  *
+  * \param srcCol is the adjusted column number for the current source line. It
+  * may be different than col when the column is associated with a continued
+  * source line. This parameter is ignored if it is 0.
+  *
+  * \param contNo is greater than zero when source line is a continuation of
+  * the source line specified in line.
+  *
+  * \return the source line associated with line. Result is NULL if line not
+  * found in source file. Caller is responsible to free the memory allocated
+  * for the result.
+  */
+char *
+get_src_line(int line, char **src_file, int col, int *srcCol, int *contNo)
+{
+  int fr_type, i, scratch_sz = 0, line_sz = 0, srcfile_sz = 0;
+  char *scratch_buf = NULL;
+  char *line_buf = NULL;
+  char *srcfile_buf = NULL;
+  long offset;
+  int curr_line = 0, len;
+  int line_len = 0;
+  int adjCol = 0;
+  int is_cont = 0;
+  int adjSrcLine = 0;
+  int saveCol = currCol;
+
+  offset = ftell(astb.astfil);
+  rewind(astb.astfil);
+  while (TRUE) {
+    i = fread((char *)&fr_type, sizeof(int), 1, astb.astfil);
+    if (feof(astb.astfil) || i != 1) {
+      /* EOF */
+      break;
+    }
+    switch (fr_type) {
+    case FR_LINENO:
+      _rd_tkline(&scratch_buf, &scratch_sz);
+      sscanf(scratch_buf, "%d", &curr_line);
+      break;
+    case FR_SRC:
+      _rd_tkline(&srcfile_buf, &srcfile_sz);
+      if (src_file) {
+        *src_file = srcfile_buf;
+      }
+      break;
+    case FR_STMT:
+      i = fread((char *)&curr_line, sizeof(int), 1, astb.astfil);
+      if (feof(astb.astfil) || i != 1) {
+        interr("get_src_line: truncated ast file", 0, 4);
+        break;
+      }
+    next_stmt:
+      _rd_tkline(&line_buf, &line_sz);
+      if (curr_line == line) {
+
+        adjCol = line_len;
+
+        i = contIndex(line_buf);
+        line_len += (i > 0) ? i : strlen(line_buf);
+        line_len -= (is_cont) ? numLeadingSpaces(line_buf) : 0;
+
+        if (col < line_len) {
+          if (is_cont) {
+            col = ((col + numLeadingSpaces(line_buf)) - adjCol) + is_cont;
+          }
+          goto fin;
+        } else {
+          ++is_cont;
+          continue;
+        }
+      } else if (line_buf) {
+        i = sizeof(int);
+        len = (line_sz > i) ? i : line_sz;
+        for (i = 0; i < len; ++i)
+          line_buf[i] = '\0';
+        line_len = 0;
+        is_cont = 0;
+      }
+      if (curr_line > line) {
+        goto fin;
+      }
+      break;
+    default:
+      if (fr_type > 0 && is_cont > 0) {
+        /* got a line continuation */
+        adjSrcLine++;
+        goto next_stmt;
+      }
+      _rd_tkline(&scratch_buf, &scratch_sz);
+    }
+  }
+fin:
+  currCol = saveCol;
+  fseek(astb.astfil, offset, SEEK_SET);
+  FREE(scratch_buf);
+  if (srcCol) {
+    *srcCol = col;
+  }
+  if (contNo) {
+    *contNo = adjSrcLine;
+  }
+  return line_buf;
+}
 
 static int
 _read_token(INT *tknv)
@@ -8597,7 +9032,7 @@ _read_token(INT *tknv)
       goto read_line;
     case FR_LABEL:
       (void)fread((char *)&fr_type, sizeof(int), 1, astb.astfil);
-      lab_sptr = getsymf(".L%05ld", (long) fr_type);
+      lab_sptr = getsymf(".L%05ld", (long)fr_type);
 #if DEBUG
       if (DBGBIT(4, 1024))
         fprintf(gbl.dbgfil, "Label %d\n", fr_type);
@@ -8617,7 +9052,7 @@ _read_token(INT *tknv)
       }
       break;
     case FR_LINENO:
-      _rd_tkline();
+      _rd_tkline(&tkbuf, &tkbuf_sz);
 #if DEBUG
       if (DBGBIT(4, 1024))
         fprintf(gbl.dbgfil, "  Lineno: %s", tkp);
@@ -8625,7 +9060,7 @@ _read_token(INT *tknv)
       gbl.lineno = get_num(10);
       break;
     case FR_PRAGMA:
-      _rd_tkline();
+      _rd_tkline(&tkbuf, &tkbuf_sz);
 #if DEBUG
       if (DBGBIT(4, 1024))
         fprintf(gbl.dbgfil, "  Pragma: %s", tkp);
@@ -8635,7 +9070,7 @@ _read_token(INT *tknv)
     default:
       lineno = fr_type;
     read_line:
-      _rd_tkline();
+      _rd_tkline(&tkbuf, &tkbuf_sz);
       switch (fr_type) {
       case FR_SRC:
 #if DEBUG
@@ -8670,7 +9105,7 @@ _read_token(INT *tknv)
 }
 
 static void
-_rd_tkline(void)
+_rd_tkline(char **tkbuf, int *tkbuf_sz)
 {
   int i;
   int ch;
@@ -8679,17 +9114,16 @@ _rd_tkline(void)
   i = 0;
   while (TRUE) {
     ch = getc(astb.astfil);
-    if (i + 1 >= tkbuf_sz) {
-      tkbuf_sz += CARDB_SIZE << 3;
-      tkbuf = sccrelal(tkbuf, tkbuf_sz);
+    if (i + 1 >= *tkbuf_sz) {
+      *tkbuf_sz += CARDB_SIZE << 3;
+      *tkbuf = sccrelal(*tkbuf, *tkbuf_sz);
     }
-    tkbuf[i++] = ch;
+    (*tkbuf)[i++] = ch;
     if (ch == '\n')
       break;
   }
-  tkbuf[i] = '\0';
-  p = tkp = tkbuf;
-
+  (*tkbuf)[i] = '\0';
+  p = tkp = *tkbuf;
   /* Process #include files */
   if (*p == '#') {
     ++p;
@@ -8717,6 +9151,12 @@ _rd_tkline(void)
   }
 }
 
+int
+getCurrColumn(void)
+{
+  return currCol;
+}
+
 static int
 _rd_token(INT *tknv)
 {
@@ -8726,14 +9166,16 @@ _rd_token(INT *tknv)
   char *p, *q;
   int kind;
   int dtype;
+  int col;
 
-  _rd_tkline();
+  _rd_tkline(&tkbuf, &tkbuf_sz);
 #if DEBUG
   if (DBGBIT(4, 1024))
     fprintf(gbl.dbgfil, "  TOKEN: %s", tkbuf);
 #endif
   tkntyp = get_num(10);
-  tknval = get_num(10); /* default token value */
+  tknval = get_num(10);  /* default token value */
+  currCol = get_num(10); /* get column number */
 
   switch (tkntyp) {
   case TK_IDENT:
@@ -8907,7 +9349,7 @@ get_named_stmtyp(void)
 
   /* : */
   i = fread((char *)&fr_type, sizeof(int), 1, astb.astfil);
-  _rd_tkline();
+  _rd_tkline(&tkbuf, &tkbuf_sz);
 #if DEBUG
   assert(i >= 1, "get_named_stmtyp:bad read 1", i, 4);
   assert(fr_type == FR_TOKEN, "get_named_stmtyp:expected FR_TOKEN 1, got",
@@ -8918,7 +9360,7 @@ get_named_stmtyp(void)
 
   /* <token> */
   i = fread((char *)&fr_type, sizeof(int), 1, astb.astfil);
-  _rd_tkline();
+  _rd_tkline(&tkbuf, &tkbuf_sz);
 #if DEBUG
   assert(i >= 1, "get_named_stmtyp:bad read 2", i, 4);
   assert(fr_type == FR_TOKEN, "get_named_stmtyp:expected FR_TOKEN 2, got",
@@ -8973,10 +9415,10 @@ realloc_stmtb(void)
   if (stmtb == stmtbefore)
     which = 1;
   max_card += 20;
-  stmtbefore = sccrelal(stmtbefore, (UINT)(max_card * (MAX_COLS - 1) + 1));
+  stmtbefore = sccrelal(stmtbefore, (BIGUINT64)(max_card * (MAX_COLS - 1) + 1));
   if (stmtbefore == NULL)
     error(7, 4, 0, CNULL, CNULL);
-  stmtbafter = sccrelal(stmtbafter, (UINT)(max_card * (MAX_COLS - 1) + 1));
+  stmtbafter = sccrelal(stmtbafter, (BIGUINT64)(max_card * (MAX_COLS - 1) + 1));
   if (stmtbafter == NULL)
     error(7, 4, 0, CNULL, CNULL);
   if (which)
@@ -8984,7 +9426,7 @@ realloc_stmtb(void)
   else
     stmtb = stmtbafter;
   last_char =
-      (short *)sccrelal((char *)last_char, (UINT)(max_card * sizeof(short)));
+      (short *)sccrelal((char *)last_char, (BIGUINT64)(max_card * sizeof(short)));
   if (last_char == NULL)
     error(7, 4, 0, CNULL, CNULL);
 }
@@ -9024,12 +9466,16 @@ check_continuation(int lineno)
     if (!is_mem)
       goto cont_error;
     break;
+  case SL_PGI:
+    if (!is_pgi)
+      goto cont_error;
+    break;
   case SL_KERNEL:
     if (!is_kernel)
       goto cont_error;
     break;
   default:
-    if (scn.is_hpf || is_smp || is_sgi || is_mem || is_ppragma || is_kernel
+    if (scn.is_hpf || is_smp || is_sgi || is_mem || is_ppragma || is_kernel || is_pgi
         )
       goto cont_error;
     break;

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, NVIDIA CORPORATION.  All rights reserved.
+ * Copyright (c) 1994-2018, NVIDIA CORPORATION.  All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -198,7 +198,7 @@ _cr_nme(int ast, int *dummy)
     for (s = sym; SCG(s) == SC_BASED;) {
       int n, a;
       s = MIDNUMG(s);
-      if (ST_ISVAR(STYPEG(s))) {
+      if (s > NOSYM && ST_ISVAR(STYPEG(s))) {
         n = add_arrnme(NT_VAR, s, 0, (INT)0, 0, FALSE);
         a = mk_id(s);
         A_NMEP(a, n);
@@ -502,7 +502,7 @@ localflow(void)
 #if DEBUG
   {
     int ii;
-    for (ii = 1; ii < astb.avl; ii++)
+    for (ii = 1; ii < astb.stg_avail; ii++)
       if (A_VISITG(ii)) {
         interr("local_flow: ast visited", ii, 3);
         A_VISITP(ii, 0);
@@ -1045,18 +1045,26 @@ bld_ud(int ast, int *dummy)
     case PR_ACCENDPARCONSTRUCT:
     case PR_ACCKERNELS:
     case PR_ACCENDKERNELS:
+    case PR_ACCSERIAL:
+    case PR_ACCENDSERIAL:
     case PR_ACCCREATE:
     case PR_ACCPRESENT:
     case PR_ACCPCOPY:
     case PR_ACCPCOPYIN:
     case PR_ACCPCOPYOUT:
     case PR_ACCPCREATE:
+    case PR_ACCATTACH:
+    case PR_ACCDETACH:
     case PR_ACCASYNC:
     case PR_KERNEL_STREAM:
     case PR_KERNEL_DEVICE:
     case PR_ACCWAITDIR:
     case PR_ACCKLOOP:
+    case PR_ACCTKLOOP:
     case PR_ACCPLOOP:
+    case PR_ACCTPLOOP:
+    case PR_ACCSLOOP:
+    case PR_ACCTSLOOP:
     case PR_ACCGANG:
     case PR_ACCGANGDIM:
     case PR_ACCGANGCHUNK:
@@ -1076,6 +1084,7 @@ bld_ud(int ast, int *dummy)
     case PR_ACCHOSTDATA:
     case PR_ACCENDHOSTDATA:
     case PR_ACCUSEDEVICE:
+    case PR_ACCUSEDEVICEIFP:
     case PR_ACCCOLLAPSE:
     case PR_ACCFORCECOLLAPSE:
     case PR_ACCDEVICERES:
@@ -1116,7 +1125,7 @@ again:
     for (s = sym; SCG(s) == SC_BASED;) {
       int n, a;
       s = MIDNUMG(s);
-      if (ST_ISVAR(STYPEG(s))) {
+      if (s > NOSYM && ST_ISVAR(STYPEG(s))) {
         a = mk_id(s);
         n = A_NMEG(a);
         u = add_use(n, a, a, TRUE);
@@ -1164,7 +1173,11 @@ again:
  * the parent's nme is the one which is actually recorded
  * in the USE and DEF structures.
  */
+#ifdef PTRSTOREP
       ptrstore_of(nme);
+#else
+      loc_of(nme);
+#endif
     }
     goto again;
   case A_SUBSCR:
@@ -1238,7 +1251,7 @@ again:
     for (s = sym; SCG(s) == SC_BASED;) {
       int n, a;
       s = MIDNUMG(s);
-      if (ST_ISVAR(STYPEG(s))) {
+      if (s > NOSYM && ST_ISVAR(STYPEG(s))) {
         a = mk_id(s);
         n = A_NMEG(a);
         i = add_use(n, a, a, TRUE);
@@ -1344,7 +1357,11 @@ again:
  * the parent's nme is the one which is actually recorded
  * in the USE and DEF structures.
  */
+#ifdef PTRSTOREP
       ptrstore_of(nme);
+#else
+      loc_of(nme);
+#endif
     }
     goto again;
   case A_SUBSCR:
@@ -2894,6 +2911,8 @@ copy_const(int use)
     case PR_ACCPCOPYIN:
     case PR_ACCPCOPYOUT:
     case PR_ACCPCREATE:
+    case PR_ACCATTACH:
+    case PR_ACCDETACH:
     case PR_ACCFIRSTPRIVATE:
     case PR_ACCREDUCTION:
     case PR_ACCCACHEDIR:
@@ -2902,6 +2921,7 @@ copy_const(int use)
     case PR_ACCHOSTDATA:
     case PR_ACCENDHOSTDATA:
     case PR_ACCUSEDEVICE:
+    case PR_ACCUSEDEVICEIFP:
     case PR_ACCDEVICERES:
       return 1;
     }
@@ -3129,6 +3149,9 @@ delete_stores(void)
         }
 #endif
       } else {
+        if (flg.smp && PARREFG(sym)) {
+          continue;
+        }
 #if DEBUG
         if (OPTDBG(9, 8192)) {
           fprintf(gbl.dbgfil,

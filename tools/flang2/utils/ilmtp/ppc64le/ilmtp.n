@@ -1,5 +1,5 @@
 .\"/*
-.\" * Copyright (c) 2017, NVIDIA CORPORATION.  All rights reserved.
+.\" * Copyright (c) 2010-2018, NVIDIA CORPORATION.  All rights reserved.
 .\" *
 .\" * Licensed under the Apache License, Version 2.0 (the "License");
 .\" * you may not use this file except in compliance with the License.
@@ -1518,10 +1518,6 @@ Non-cse load.  lnk points to a load ilm.  Used for
 volatile types.  Expands to ILI that forces scheduler to do the load rather
 then optimizing it away.
 .AT spec
-.IL VLD load sym
-Fake vector load ILM for vector expander.  sym is really
-index into vector table.
-.AT spec
 .IL CHST store lnk1 lnk2
 Store signed char, lnk1 = lnk2 (??)
 .AT spec trm
@@ -1696,6 +1692,9 @@ Call integer function.
 .IL IFUNCA proc n stc lnk lnk*
 Call integer function.
 .AT spec
+.IL PIFUNCA proc n stc sym lnk lnk*
+Call integer function through procedure pointer
+.AT spec
 .IL IVFUNCA proc n stc sym lnk sym lnk*
 Call integer function.
 .AT spec
@@ -1713,6 +1712,9 @@ Call real function.
 .IL RFUNCA proc n stc lnk lnk*
 Call real function.
 .AT spec
+.IL PRFUNCA proc n stc sym lnk lnk*
+Call real function through procedure pointer
+.AT spec
 .IL RVFUNCA proc n stc sym lnk sym lnk*
 Call real function.
 .AT spec
@@ -1724,6 +1726,9 @@ Call double function
 .AT spec
 .IL DFUNCA proc n stc lnk lnk*
 Call double function
+.AT spec
+.IL PDFUNCA proc n stc sym lnk lnk*
+Call double function through procedure pointer
 .AT spec
 .IL DVFUNCA proc n stc sym lnk sym lnk*
 Call double function
@@ -1769,6 +1774,14 @@ Call external subprogram.
 The links point to the arguments in the same order they appeared
 in the CALL statement.
 .AT spec trm
+.IL PCALLA proc n stc sym lnk lnk*
+Call subprogram through procedure pointer
+\'n' is the number of actual arguments.
+\'sym' is the pointer's descriptor
+\'lnk1' is address of the subprogram
+The links point to the arguments in the same order they appeared
+in the CALL statement.
+.AT spec trm
 .IL VCALLA proc n stc sym lnk sym lnk*
 Call external subprogram.
 \'n' is the number of actual arguments.
@@ -1786,17 +1799,26 @@ in the CALL statement.
 .AT spec
 .IL CFUNCA proc n stc lnk lnk*
 .AT spec
+.IL PCFUNCA proc n stc sym lnk lnk*
+Call complex function through procedure pointer.
+.AT spec
 .IL CVFUNCA proc n stc sym lnk sym lnk*
 .AT spec
 .FL CDFUNC proc n sym lnk*
 .AT spec dcmplx
 .IL CDFUNCA proc n stc lnk lnk*
 .AT spec dcmplx
+.IL PCDFUNCA proc n stc sym lnk lnk*
+Call double complex function through procedure pointer.
+.AT spec dcmplx
 .IL CDVFUNCA proc n stc sym lnk sym lnk*
 .AT spec dcmplx
 .IL LFUNC proc n sym lnk*
 .AT spec
 .IL LFUNCA proc n stc lnk lnk*
+.AT spec
+.IL PLFUNCA proc n stc sym lnk lnk*
+Call logical function through procedure pointer.
 .AT spec
 .IL LVFUNCA proc n stc sym lnk sym lnk*
 .AT spec
@@ -1805,6 +1827,9 @@ Call function which returns a pointer.
 .AT spec
 .IL PFUNCA proc n stc lnk lnk*
 Call function which returns a pointer.
+.AT spec
+.IL PPFUNCA proc n stc sym lnk lnk*
+Call function which returns a pointer through a procedure pointer.
 .AT spec
 .IL PVFUNCA proc n stc sym lnk sym lnk*
 Call function which returns a pointer.
@@ -1832,6 +1857,11 @@ Call function which returns Fortran character.
 The first link is the address (a BASE ilm) of the
 temporary which is used to return the result of the function.
 .AT spec trm
+.IL PCHFUNCA proc n stc sym lnk lnk lnk*
+Call function which returns Fortran character through a procedure pointer.
+The first link is the address (a BASE ilm) of the
+temporary which is used to return the result of the function.
+.AT spec trm
 .IL CHVFUNCA proc n stc sym lnk sym lnk lnk*
 Call function which returns Fortran character.
 The first link is the address (a BASE ilm) of the
@@ -1842,6 +1872,9 @@ Call function which returns ncharacter.
 .AT spec trm
 .IL NCHFUNCA proc n stc lnk lnk lnk*
 Call function which returns ncharacter.
+.AT spec trm
+.IL PNCHFUNCA proc n stc lnk lnk lnk*
+Call function which returns ncharacter through a procedure pointer.
 .AT spec trm
 .IL NCHVFUNCA proc n stc sym lnk sym lnk lnk*
 Call function which returns ncharacter.
@@ -1918,11 +1951,11 @@ alternate return number.
 .AT spec trm
 .IL RETAUTO misc sym
 Return from function after freeing automatic objects.
-'sym' is the symbol of the block containing the return.
+\'sym' is the symbol of the block containing the return.
 .AT spec trm
 .IL RETVAUTO misc lnk sym
 Return value from function after freeing automatic objects.
-'sym' is the symbol of the block containing the return.
+\'sym' is the symbol of the block containing the return.
 .AT spec trm
 .IL NOP misc
 .AT spec trm
@@ -1932,18 +1965,18 @@ ST_STRING representing <string>.
 .AT spec trm
 .IL GASM misc sym lnk lnk lnk
 asm ( <string> : <outputs> : <inputs> : <clobbers> );
-'sym' is the symbol table pointer of the
+\'sym' is the symbol table pointer of the
 ST_STRING representing <string>.
 'lnk1' is GASMLNK of list of outputs
 'lnk2' is GASMLNK of list of inputs
 'lnk3' is GASMLNK of list of clobber descriptors
 .AT spec trm
 .IL GASMLNK misc sym1 lnk lnk sym2 stc3
-'sym1' is the symbol table pointer of the ST_STRING representing the
+\'sym1' is the symbol table pointer of the ST_STRING representing the
 descriptor ('=r' for outputs, 'r' for inputs, 'r2' for clobbers)
 'lnk1' is the link to the output or input expression
 'lnk2' is the link to the next GASMLNK
-'sym2' is the symbol table pointer of the identifier representing the constraint
+\'sym2' is the symbol table pointer of the identifier representing the constraint
 name for an input or output item. It is 0 if no constraint name applies to this
 item.
 'stc3' dtype for expression
@@ -2187,7 +2220,7 @@ stc  - result vector data type of the components
 .AT spec
 .IL VCON cons sym
 .OP VCON r v1
-.OL VLD load lnk stc
+.IL VLD load lnk stc
 Vector load.
 .nf
 lnk  - its address
@@ -2208,21 +2241,30 @@ stc  - its vector data type
 .IL VMUL arth lnk lnk stc
 .OP VMUL r p1 p2 v3
 .IL VDIV arth lnk lnk stc
-.OP VDIV r p1 p2 v3
+.AT spec
 .IL VDIVZ arth lnk lnk stc
 Vector divide where divide by zero does not fault.
-.OP VDIVZ r p1 p2 v3
+.AT spec
 .IL VMOD arth lnk lnk stc
-.OP VMOD r p1 p2 v3
+.AT spec
 .IL VMODZ arth lnk lnk stc
 Vector remainder where divide by zero does not fault.
-.OP VMODZ r p1 p2 v3
+.AT spec
 .IL VCVTV arth lnk stc stc
 Vector convert from vector
 .OP VCVTV r p1 v2 v3
 .IL VCVTS arth lnk stc
 Vector convert from scalar
 .OP VCVTS r p1 v2
+.IL VCVTR arth lnk stc1 stc2
+Reinterpret a vector object as if it were a different vector type (a.k.a. an
+LLVM bitcast instruction).  The two types must have the same total byte size,
+but may have different element types and different numbers of elements.  This
+will always be a no-op at runtime.
+lnk - the vector value to be reinterpreted
+stc1 - the vector dtype to convert to
+stc2 - the vector dtype being converted from, which is the type of lnk
+.OP VCVTR r p1 v2 v3
 .IL VNOT arth lnk stc
 .OP VNOT r p1 v2
 .IL VAND arth lnk lnk stc
@@ -2244,7 +2286,30 @@ Vector << by scalar
 Vector >> by scalar
 .OP VRSHIFTS r p1 p2 v3
 .IL VCMP arth lnk lnk stc
+A generic vector comparison.  The result is a single boolean scalar.
 .AT spec
+.IL VCMPEQ arth lnk lnk stc
+Element-wise vector comparison for equality.  The result is a vector.
+.AT spec
+.IL VCMPNE arth lnk lnk stc
+Element-wise vector comparison for inequality.  The result is a vector.
+.AT spec
+.IL VCMPLT arth lnk lnk stc
+Element-wise vector comparison for less-than.  The result is a vector.
+.AT spec
+.IL VCMPGT arth lnk lnk stc
+Element-wise vector comparison for greater-than.  The result is a vector.
+.AT spec
+.IL VCMPLE arth lnk lnk stc
+Element-wise vector comparison for less-equal.  The result is a vector.
+.AT spec
+.IL VCMPGE arth lnk lnk stc
+Element-wise vector comparison for greater-equal.  The result is a vector.
+.AT spec
+.IL VBLEND arth lnk lnk lnk stc
+Element-wise vector conditional operator.  The result is a vector where for
+each element i, result[i] = a[i] ? b[i] : c[i].
+.OP VBLEND r p1 p2 p3 v4
 .IL VST store lnk lnk stc
 Vector store.
 lnk1 - destination
@@ -2623,6 +2688,9 @@ Load logical value.
 .AT spec trm i8
 .IL KFUNCA proc n stc lnk lnk*
 .AT spec trm i8
+.IL PKFUNCA proc n stc sym lnk lnk*
+Call a function which returns an integer*8 through a procedure pointer.
+.AT spec trm i8
 .IL KVFUNCA proc n stc sym lnk sym lnk*
 .AT spec trm i8
 .CL KFUNC proc n lnk lnk*
@@ -2811,7 +2879,7 @@ Barrier; thread synchronization point.
 .OP QJSR null =e'_mp_barrier2 t1
 .IL PDO SMP sym stc
 Marks the block associated with label as a parallel loop.
-'sym' - symbol table pointer to the label.
+\'sym' - symbol table pointer to the label.
 'stc' - encoded schedule information:
 stc&0xff          (stc>>8)&Oxff
 0 static	  0 chunk not specified
@@ -3074,6 +3142,10 @@ Mark the end of a user's C++ catch region for GSCOPE purposes
 .IL EHREG_ST misc sym sym
 Store catch_clause, caught_object to registers
 .AT spec trm
+.IL EHRESUME misc sym sym
+Resume propagation of an existing in-flight exception whose unwinding was 
+interrupted to run some cleanup code.
+.AT spec trm
 .IL ALLOC arth lnk
 Allocate memory for a C or C++ variable length array.
 .OP ALLOC r p1
@@ -3184,12 +3256,23 @@ sym - upperD
 stc -  dtype of loop bound type
 stc -  schedule type
 .AT spec trm
-.IL MPTASKLOOP SMP sym sym sym stc
+.IL BTASKDUP SMP
+Begin taskdup routine
+.AT spec trm
+.IL ETASKDUP SMP
+End taskdup routine
+.AT spec trm
+.IL MPTASKLOOP SMP sym sym sym sym stc
 Begin taskloop
 sym - lower bound
 sym - upper bound
 sym - stride
+sym - plast
 stc -  dtype of loop bound type
+.AT spec trm
+.IL TASKLASTPRIV SMP sym
+taskloop lastprivate offset on task structure
+sym - offset constant
 .AT spec trm
 .IL MPLOOPFINI SMP stc stc
 Begin parallel do/loop
@@ -3246,11 +3329,6 @@ Task firstprivate
 sym - symbol table pointer to the shared variable.
 sym - symbol table pointer to the private copy.
 .AT spec trm
-.IL TASKLPBND SMP sym sym
-Task firstprivate
-sym - symbol table pointer to the shared variable.
-sym - symbol table pointer to the private copy.
-.AT spec trm
 .IL BTASK SMP sym stc lnk lnk
 Begin task
 Always matches a ETASK ilm
@@ -3266,7 +3344,7 @@ is absent, this field is 'null' (BOS_SIZE)
 lnk2 - link to the logical expression in the final clause; if the clause
 is absent, this field is 'null'
 .AT spec trm
-.IL BTASKLOOP SMP sym stc lnk lnk
+.IL BTASKLOOP SMP sym stc lnk lnk lnk lnk
 Begin task
 Always matches a ETASK ilm
 .nf
@@ -3276,10 +3354,17 @@ table pointer to the flags variable that should already be initialized.
 stc - bit vector:
 0x01 - untied clause is present
 0x02 - if clause is present
+0x20 - if final is present
+0x80 - if mergeable is present
+0x1000 - nogroup clause is present
+0x2000 - grainsize clause is present
+0x4000 - num_tasks clause is present
 lnk1 - link to the logical expression in the if clause; if the clause
 is absent, this field is 'null' (BOS_SIZE)
 lnk2 - link to the logical expression in the final clause; if the clause
 is absent, this field is 'null'
+lnk3 - link to priority expression, if clause is absent, this file is 0
+lnk4 - link to grainsize or num_tasks, if clause is abssent, this field 
 .AT spec trm
 .IL ETASKGROUP SMP
 Begin Task group.
@@ -3380,17 +3465,15 @@ Task register
 .IL ETASKLOOPREG SMP
 End of Taskloop register used in llvm target to mark the end of task region.
 .AT spec trm
-.IL TASKLOOPREG SMP stc sym sym sym sym
+.IL TASKLOOPVARS SMP
+Begin set up taskloop variables
+.AT spec trm
+.IL TASKLOOPREG SMP lnk lnk lnk
 Begin taskloop register
 .nf
-stc - bit vector
-0x1000 - set if nogroup
-0x2000 - set if grainsize is present
-0x4000 - set if num_tasks is present
-sym1 -  num_tasks or grainsize symbol
-sym2 -  lowerbound
-sym3 -  upperbound
-sym4 -  stride
+lnk1 -  lowerbound
+lnk2 -  upperbound
+lnk3 -  stride
 .AT spec trm
 .IL ETASK SMP sym
 End task
@@ -3554,3 +3637,11 @@ Call function returning float128 complex.
 
 .so ilmtp_longdouble.n
 .so ilmtp_atomic.n
+
+.IL PRAGMADPSELIST misc n stc stc lnk stc lnk*
+Handles a pragma with a link to a symbol and a number of expression arguments.
+n is number of subscripts defined by this pragma
+First stc is the pragma identifier, 2nd stc is the scope, 3rd stc is the policy id.
+First link is the symbol link.
+Links point to the arguments.
+.AT spec trm

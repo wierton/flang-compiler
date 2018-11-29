@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, NVIDIA CORPORATION.  All rights reserved.
+ * Copyright (c) 1993-2018, NVIDIA CORPORATION.  All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,22 +19,26 @@
  * \brief optimizer submodule to find loops in a flow graph. Used by the
  * optimizer and vectorizer.
  */
-#include "gbldefs.h"
-#include "global.h"
-#include "error.h"
-#include "symtab.h"
 
+#include "findloop.h"
+#include "gbldefs.h"
+#ifndef FE90
+#include "fgraph.h"
+#include "ili.h"
+#include "regutil.h"
+#include "machreg.h"
+#else
+#include "error.h"
+#include "global.h"
+#include "symtab.h"
 #include "ast.h"
 #include "nme.h"
+#endif
 
 #include "optimize.h"
-
-/*****  external functions  *****/
-
-/*****  variables local to this module  *****/
-
-static int current_lp, current_lp_tail, lp_topsort = 0;
-static int naturalloop;
+#ifndef FE90
+#include "apt.h"
+#endif
 
 static void top_sort(void);
 static void build_loop(int);
@@ -44,8 +48,11 @@ static void unvisit(int, int);
 static void malformed(int, int);
 static void add_to_malf(int);
 static void convert_loop(int);
-extern LOGICAL is_post_dominator(int, int);
-extern LOGICAL is_tail_aexe(int);
+
+static int current_lp;
+static int current_lp_tail;
+static int lp_topsort;
+static int naturalloop;
 
 /*********************************************************************/
 
@@ -58,9 +65,12 @@ findloop(int hlopt_bv)
   LP *p;
   int exit;
   int pt;
-  LOGICAL precedes;
+  bool precedes;
   PSI_P q;
-  LOGICAL any_malformed;
+#ifndef FE90
+  int save_rgset0, *save_rtemps0;
+#endif
+  bool any_malformed;
 
   if (OPTDBG(9, 8))
     fprintf(gbl.dbgfil, "\n---------- findloop trace for function \"%s\"\n",
@@ -75,9 +85,20 @@ findloop(int hlopt_bv)
   opt.lpb.stg_avail = 1;
 /* Optimizer sets two fields in opt.lpb.stg_avail[0] before findloop is called.
  * Save and restore those */
+#ifndef FE90
+  save_rgset0 = LP_RGSET(0);
+  save_rtemps0 = LP_RTEMPS(0);
+#endif
   STG_CLEAR(opt.lpb, 0);
+#ifndef FE90
+  LP_RGSET(0) = save_rgset0;
+  LP_RTEMPS(0) = save_rtemps0;
+  LP_HEAD(0) = BIH_TO_FG(gbl.entbih);
+  LP_TAIL(0) = BIH_TO_FG(opt.exitbih);
+#else
   LP_HEAD(0) = BIH_TO_FG(gbl.entbih);
   LP_TAIL(0) = opt.exitfg;
+#endif
   LP_CNCALL(0) = 1;
   LP_TAIL_AEXE(0) = 1;
 
@@ -125,7 +146,7 @@ findloop(int hlopt_bv)
        * this edge. Single edges and the first edge of the multiple
        * case are checked in the final scan of the edges.
        */
-      precedes = FALSE;
+      precedes = false;
       if (head == EDGE_SUCC(i)) {
         if (OPTDBG(9, 8))
           fprintf(gbl.dbgfil, "    add tail %d to edge\n", EDGE_PRED(i));
@@ -134,7 +155,7 @@ findloop(int hlopt_bv)
             fprintf(gbl.dbgfil,
                     "    mult.edge %d (%d %d), tail precedes head\n", i,
                     EDGE_PRED(i), EDGE_SUCC(i));
-          precedes = TRUE;
+          precedes = true;
         }
         EDGE_NEXT(i) = EDGE_NEXT(edge);
         EDGE_NEXT(edge) = i;
@@ -162,7 +183,7 @@ findloop(int hlopt_bv)
    * Go through the back edges and create an entry in the loop table;
    * don't allow those whose tail lexically precedes the head.
    */
-  any_malformed = FALSE;
+  any_malformed = false;
   max_level = 0;
   for (edge = 0; edge < NUM_RTE; edge++) {
     head = EDGE_SUCC(edge);
@@ -183,10 +204,20 @@ findloop(int hlopt_bv)
                                     * proven otherwise */
       p->edge = edge;
 
+#ifndef FE90
+      /*
+       * allocate an area for the loop's register used information and
+       * the rtemps information - zero them out.
+       */
+      p->rused = (RUSED *)getitem(RUSED_AREA, MR_NUMGLB * sizeof(RUSED));
+      BZERO(p->rused, RUSED, MR_NUMGLB);
+      p->rtemps = (int *)getitem(RUSED_AREA, RTEMPS * sizeof(int));
+      BZERO(p->rtemps, int, RTEMPS);
+#endif
 #if DEBUG
       if (OPTDBG(9, 8)) {
         assert(tail == head || !is_dominator(tail, head), "bad dominator rel",
-               head, 1);
+               head, ERR_Informational);
         fprintf(gbl.dbgfil, "---LOOPS--- %d is (%d, %d)\n", opt.nloops, tail,
                 head);
       }
@@ -195,7 +226,7 @@ findloop(int hlopt_bv)
       if (OPTDBG(9, 8))
         fprintf(gbl.dbgfil, "edge %d (%d %d), tail precedes.0 head\n", edge,
                 tail, head);
-      any_malformed = TRUE;
+      any_malformed = true;
     }
     /*next_edge: ;*/
   }
@@ -382,6 +413,23 @@ build_region0:
       p->fg = head;
     }
   }
+#ifndef FE90
+  LP_RUSED(0) = (RUSED *)getitem(RUSED_AREA, MR_NUMGLB * sizeof(RUSED));
+  BZERO(LP_RUSED(0), RUSED, MR_NUMGLB);
+  /*
+   * NOTE:  LP_RTEMPS(0) has already been allocated by function_init
+   *        in optimize.c
+   */
+
+  /*
+   * Now that loops have  been found, we can compute post_dominance
+   * and build the control dependence data structures. Necessary
+   * to find loops first since we identify infinite loops to
+   * insert pseudo edges to the exit node. We need a path from exit
+   * to every node in order to compute the post_dominator tree.
+   */
+  build_apt(0); /* 1 = dominance frontiers, 0 = control dependence */
+#endif
 }
 
 /** \brief findlooptopsort builds loops and adds the FG nodes to the loop in
@@ -476,7 +524,7 @@ top_sort(void)
       if (OPTDBG(9, 8))
         fprintf(gbl.dbgfil, "            innermost loop %d\n", k);
     }
-  assert(r != n, "top_sort: wrong qlink", r, 3);
+  assert(r != n, "top_sort: wrong qlink", r, ERR_Severe);
 
   /*
    * Go through the relations and create the order - this continues until
@@ -493,7 +541,7 @@ top_sort(void)
       if (--COUNT(SUCC(p)) == 0)
         r = QLINK(r) = SUCC(p);
   }
-  assert(n == 1, "wrong top_sort", n, 3);
+  assert(n == 1, "wrong top_sort", n, ERR_Severe);
 
   /* free up the top array and the area used for the successors  */
 
@@ -507,46 +555,46 @@ top_sort(void)
  *
  * \param v first node
  * \param w second node
- * \return TRUE if 'v' dominates 'w'
+ * \return true if 'v' dominates 'w'
  *
- * Walk up dominator tree from 'w', stop at 'v' (return TRUE) or when we reach
+ * Walk up dominator tree from 'w', stop at 'v' (return true) or when we reach
  * a node above 'v' in the spanning tree.
  */
-LOGICAL
+bool
 is_dominator(int v, int w)
 {
   int vv, vw;
   vv = FG_DFN(v);
   if (v == 0)
-    return TRUE;
+    return true;
   while (w != 0) {
     if (v == w)
-      return TRUE;
+      return true;
     /* this test is so complicated because either v or w
      * may have been added after the depth-first tree was built
      * and nodes were numbered; if they are both numbered, then
      * we can stop when we reach a 'w' above 'v' in the spanning tree. */
     if (vv > 0 && (vw = FG_DFN(w)) > 0 && vw < vv)
-      return FALSE;
+      return false;
     w = FG_DOM(w);
   }
-  return FALSE;
+  return false;
 } /* is_dominator */
 
 #if defined(FG_PDOM)
 /*
- * return TRUE if 'v' postdominates 'w'
+ * return true if 'v' postdominates 'w'
  *  walk up postdominator tree from 'w'
  */
-LOGICAL
+bool
 is_post_dominator(int v, int w)
 {
   int vv;
   for (vv = w; vv > 0; vv = FG_PDOM(vv)) {
     if (vv == v)
-      return TRUE;
+      return true;
   }
-  return FALSE;
+  return false;
 } /* is_post_dominator */
 #endif
 
@@ -555,31 +603,31 @@ is_post_dominator(int v, int w)
 /*
  * Determine if the tail of a loop always executed:
  */
-LOGICAL
+bool
 is_tail_aexe(int lp)
 {
   int fg;
   int cnt;
   PSI_P p;
   if (LP_MEXITS(lp))
-    return FALSE;
+    return false;
   fg = LP_TAIL(lp);
   if (LP_HEAD(lp) == fg)
-    return TRUE;
+    return true;
   if (!BIH_FT(FG_TO_BIH(fg)))
     /*
      * the multi-block loop exits from another point in the loop;
      * therefore, the tail is not always executed.
      */
-    return FALSE;
+    return false;
   cnt = 0;
   for (p = FG_PRED(LP_HEAD(lp)); p != PSI_P_NULL; p = PSI_NEXT(p)) {
     if (FG_LOOP(PSI_NODE(p)) == lp)
       cnt++;
     if (cnt > 1)
-      return FALSE;
+      return false;
   }
-  return TRUE;
+  return true;
 }
 
 /** \brief Build the natural loop and loop region given the head and tail flow
@@ -721,11 +769,11 @@ static void
 add_lpexit(int lpx, int exit)
 {
   PSI_P p;
-  LOGICAL mult;
+  bool mult;
 
-  mult = FALSE;
+  mult = false;
   for (p = LP_EXITS(lpx); p != PSI_P_NULL; p = PSI_NEXT(p)) {
-    mult = TRUE;
+    mult = true;
     if (PSI_NODE(p) == exit)
       goto set_mexits;
   }
@@ -817,6 +865,340 @@ add_to_malf(int v)
   }
 }
 
+#ifndef FE90
+/** \brief A routine to find loops whose control flow follows the pattern of a
+ * "while" loop.
+ *
+ * A "while _cond_" loop is changed to "if _cond_ do ... while !_cond_".  A
+ * "for" loop is a form of a "while" loop.
+ */
+static void
+convert_loop(int loop)
+{
+  int head, tail;
+  int headbih, tailbih, iltx, newhead, exit;
+  SPTR label, tmpsptr;
+  int tmp, bihx, lastheadbih, fgx;
+  int oldheadbih;
+  int i, br_ilt;
+  PSI_P p, q;
+  int new_tree;
+
+  if (XBIT(6, 0x80000000))
+    return;
+  head = LP_HEAD(loop);
+  headbih = FG_TO_BIH(head);
+  /*
+   * if expander has marked a Doloop as zerotrip or if a previous call
+   * to findloop on this function (i.e., by the vectorizer) has converted
+   * a loop, pass along this info and return.
+   */
+  if (BIH_ZTRP(headbih) == 1) {
+    LP_ZEROTRIP(loop) = 1;
+    return;
+  }
+
+  /* check if head contains <= ILT_THRESH ILTs;
+   * do nothing if the loop only has one block  */
+  if (head == (tail = LP_TAIL(loop)))
+    return;
+
+  /* label of head does not exist or it is used more than once  */
+
+  if ((label = BIH_LABEL(headbih)) == 0 || RFCNTG(label) != 1) {
+    if (OPTDBG(9, 8))
+      fprintf(gbl.dbgfil, "---convert_loop(%d): bih%d wrong label %d\n", loop,
+              headbih, label);
+    return;
+  }
+/* check if head contains <= ILT_THRESH ILTs  */
+/* note that the 'head' may be more than one block in some cases */
+
+#define ILT_THRESH 4
+
+  i = 0;
+  for (bihx = headbih; 1; bihx = BIH_NEXT(bihx)) {
+    lastheadbih = bihx;
+    fgx = BIH_TO_FG(bihx);
+    if (FG_LOOP(fgx) != loop)
+      return;
+    iltx = BIH_ILTFIRST(bihx);
+    if (ILT_DBGLINE(iltx))
+      iltx = ILT_NEXT(iltx);
+    for (tmp = iltx; tmp; tmp = ILT_NEXT(tmp))
+      ++i;
+
+    if (i > ILT_THRESH) {
+      if (OPTDBG(9, 8))
+        fprintf(gbl.dbgfil, "---convert_loop(%d): bih%d > %d ILT\n", loop, bihx,
+                ILT_THRESH);
+      return;
+    }
+    br_ilt = BIH_ILTLAST(bihx);
+    /* if there are two successors of bihx, this is the branch.
+     * if there is one successor of bihx and it is a fall-through,
+     * go around this loop again. */
+    p = FG_SUCC(fgx);
+    if (PSI_NEXT(p) == PSI_P_NULL) {
+      /* only one successor */
+      int target;
+      target = PSI_NODE(p);
+      if (FG_LOOP(target) != loop || FG_TO_BIH(target) != BIH_NEXT(bihx) ||
+          (br_ilt && IL_TYPE(ILI_OPC(ILT_ILIP(br_ilt))) == ILTY_BRANCH)) {
+        if (OPTDBG(9, 8))
+          fprintf(gbl.dbgfil, "---convert_loop(%d): bih%d single target with "
+                              "jump or not fall through\n",
+                  loop, bihx);
+        return;
+      }
+    } else {
+      /* Branch at br_ilt needs to be a conditional to avoid crashing
+       * below when its condition code is reversed.
+       */
+      if (br_ilt <= 0 ||
+          !(is_integer_comparison_opcode(ILI_OPC(ILT_ILIP(br_ilt))) ||
+            is_floating_comparison_opcode(ILI_OPC(ILT_ILIP(br_ilt))))) {
+        if (OPTDBG(9, 8))
+          fprintf(gbl.dbgfil,
+                  "---convert_loop(%d): bih%d missing conditional jump\n", loop,
+                  bihx);
+        return;
+      }
+      /*
+       * there can only be two successors of head -- the first one is the one
+       * which the head falls through to and the second is the one which the
+       * head exits to.
+       */
+      newhead = PSI_NODE(p);
+      if (FG_LOOP(newhead) != loop) {
+        if (OPTDBG(9, 8))
+          fprintf(gbl.dbgfil,
+                  "---convert_loop(%d): first succ, %d, not in loop\n", loop,
+                  newhead);
+        return;
+      }
+      p = PSI_NEXT(p);
+      exit = PSI_NODE(p);
+      if (FG_LOOP(exit) == loop) {
+        if (OPTDBG(9, 8))
+          fprintf(
+              gbl.dbgfil,
+              "---convert_loop(%d) succ node, %d, of head, %d, is in loop\n",
+              loop, exit, fgx);
+        return;
+      }
+      if (PSI_NEXT(p) != PSI_P_NULL) {
+        if (OPTDBG(9, 8))
+          fprintf(gbl.dbgfil, "---convert loop(%d): >2 succ(h) of head ,%d\n",
+                  loop, fgx);
+        return;
+      }
+      break; /* found the loop exit branch */
+    }
+  }
+
+  /*
+   * the next physical block of the tail must be the block which the head
+   * exits to
+   */
+  tailbih = FG_TO_BIH(tail);
+  if (BIH_NEXT(tailbih) != FG_TO_BIH(exit)) {
+    return;
+  }
+  /* the number of successors of tail is 1  */
+
+  if (PSI_NEXT(FG_SUCC(tail)) != PSI_P_NULL) {
+    if (OPTDBG(9, 8))
+      fprintf(gbl.dbgfil,
+              "---convert_loop(%d) more than one success of tail %d\n", loop,
+              tail);
+    return;
+  }
+  assert(ILI_OPC(ILT_ILIP(BIH_ILTLAST(tailbih))) == IL_JMP,
+         "convert_loop: tail not IL_JMP", loop, ERR_Severe);
+
+  if (BIH_PAR(FG_TO_BIH(newhead)) != BIH_PAR(tailbih)) {
+    if (OPTDBG(9, 8))
+      fprintf(gbl.dbgfil,
+              "---convert_loop(%d): BIH_PAR of %d and %d do not match\n", loop,
+              FG_TO_BIH(newhead), tailbih);
+    return;
+  }
+  if (BIH_TASK(FG_TO_BIH(newhead)) != BIH_TASK(tailbih)) {
+    if (OPTDBG(9, 8))
+      fprintf(gbl.dbgfil,
+              "---convert_loop(%d): BIH_TASK of %d and %d do not match\n", loop,
+              FG_TO_BIH(newhead), tailbih);
+    return;
+  }
+
+  /*****  loop can be converted  *****/
+
+  if (OPTDBG(9, 8))
+    fprintf(gbl.dbgfil, "---convert_loop(%d), newhead:%d, tail:%d, exit:%d\n",
+            loop, newhead, tail, exit);
+
+  BIH_LABEL(headbih) = SPTR_NULL; /* old head no longer has a label  */
+
+  /*
+   * check if the new head (the block following old head) already has a
+   * label.  If so, use it.
+   */
+  oldheadbih = headbih;
+  headbih = FG_TO_BIH(newhead);
+  tmpsptr = BIH_LABEL(headbih);
+  if (tmpsptr != SPTR_NULL) {
+    RFCNTD(label);
+    RFCNTI(tmpsptr);
+    label = tmpsptr;
+  } else {
+    BIH_LABEL(headbih) = label;
+    ILIBLKP(label, headbih);
+  }
+
+  /*
+   * get the tail block and add the ilts from the old head block (except
+   * for the last ilt) to the tail after the ilt which precedes its branch
+   */
+  rdilts(tailbih); /* sets bihb.callfg           */
+
+  tmp = ILT_PREV(BIH_ILTLAST(tailbih)); /* where to begin adding ilts */
+
+  /*
+   * go through and add the ilts from head blocks which occur before the branch
+   * to
+   * just before the last ilt in the tail.  iltx is the first ilt which has
+   * to be added.
+   * NOTE: can't simply reuse the ili for the ilt;  problem
+   * occurs if a jsr appears in the tree -- by definition,
+   * jsr's aren't shared unless an explicit cse situation
+   * occurs.  To ensure jsr's are rewritten, use the rewrite
+   * ili mechanism using the IL_NULL as the 'old' & 'new'
+   * arguments.
+   */
+  for (bihx = oldheadbih; 1; bihx = BIH_NEXT(bihx)) {
+    iltx = BIH_ILTFIRST(bihx);
+    if (ILT_DBGLINE(iltx))
+      iltx = ILT_NEXT(iltx);
+    for (; iltx && iltx != br_ilt; iltx = ILT_NEXT(iltx)) {
+      int ilix = ILT_ILIP(iltx);
+
+      /* we don't want IL_LABEL that marks beggining of a scope to be moved to
+       * last block of loop
+       */
+      if (ilix && ILI_OPC(ilix) == IL_LABEL && BEGINSCOPEG(ILI_OPND(ilix, 1)))
+        continue;
+      new_tree = rewr_ili(ilix, 1, 1);
+      tmp = addilt(tmp, new_tree); /* updates bihb.callfg  */
+      if (OPTDBG(9, 8))
+        fprintf(gbl.dbgfil, "---convert_loop(%d), oldtree:%d, newtree:%d\n",
+                loop, ILT_ILIP(iltx), new_tree);
+    }
+    BIH_QJSR(tailbih) |= BIH_QJSR(bihx);
+    bihb.callfg |= BIH_EX(bihx);
+    if (bihx == lastheadbih)
+      break;
+  }
+
+  /*
+   * Since the last ilt is one which branches back to the old head, change
+   * that branch to the complement of the one which is in the old head. The
+   * label referenced is the one which labels the new head
+   */
+  tmp = ILT_NEXT(tmp);
+  assert(tmp == BIH_ILTLAST(tailbih), "convert_loop: wrong last ilt", tmp, ERR_Severe);
+  new_tree = rewr_ili((int)ILT_ILIP(br_ilt), 1, 1);
+  ILT_ILIP(tmp) = compl_br((int)new_tree, label);
+  if (OPTDBG(9, 8))
+    fprintf(gbl.dbgfil, "---convert_loop(%d), oldbrtree:%d, newbrtree:%d\n",
+            loop, ILT_ILIP(br_ilt), ILT_ILIP(tmp));
+  ILT_EX(tmp) = ILT_EX(br_ilt);
+  BIH_EX(tailbih) = bihb.callfg | ILT_EX(tmp);
+  wrilts(tailbih);
+  rewr_cln_ili();
+
+  /*
+   * remove old head nodes from the current loop and define the new head of the
+   * loop
+   */
+
+  for (bihx = oldheadbih; 1; bihx = BIH_NEXT(bihx)) {
+    fgx = BIH_TO_FG(bihx);
+    rm_node_from_loop(fgx);
+    FG_LOOP(fgx) = 0;
+    FG_NEXT(fgx) = 0;
+    if (bihx == lastheadbih)
+      break;
+  }
+
+  LP_HEAD(loop) = newhead; /* already in the region  */
+  FG_NEXT(head) = 0;       /* note: head is the last block in the  */
+  FG_NEXT(tail) = 0;       /* region and tail is the next to last */
+
+  /* replace head in the successor list of tail with exit */
+
+  for (p = FG_SUCC(tail); p != PSI_P_NULL; p = PSI_NEXT(p)) {
+    if (PSI_NODE(p) == head) {
+      PSI_NODE(p) = exit;
+      PSI_FT(p) = 1; /* tail now falls thru */
+      break;
+    }
+  }
+  assert(p != PSI_P_NULL, "convert_loop: head not succ of tail", tail, ERR_Severe);
+
+  /*
+   * remove tail from the predecessor list of head and add tail to the
+   * predecessor list of exit
+   */
+  q = PSI_P_NULL;
+  for (p = FG_PRED(head); p != PSI_P_NULL; p = PSI_NEXT(p)) {
+    if (PSI_NODE(p) == tail) { /* item is for the node tail */
+      if (q == PSI_P_NULL)
+        FG_PRED(head) = PSI_NEXT(p);
+      else
+        PSI_NEXT(q) = PSI_NEXT(p);
+      PSI_NEXT(p) = FG_PRED(exit); /* add the item to pred(exit) */
+      FG_PRED(exit) = p;
+      break;
+    }
+    q = p;
+  }
+  assert(p != PSI_P_NULL, "convert_loop: tail not pred of head", head, ERR_Severe);
+  BIH_FT(tailbih) = 1;
+
+  /*
+   * add newhead to the successor list of tail and add tail to the
+   * precessor list of newhead
+   */
+  (void)add_succ(tail, newhead);
+  (void)add_pred(newhead, tail);
+
+  /*
+   * mark this loop as one which has been converted -- the flag is zerotrip
+   * meaning that there exists a test prior to the loop which may prevent
+   * the loop from being executed. This flag may be used by induction.
+   */
+  LP_ZEROTRIP(loop) = 1;
+  BIH_ZTRP(headbih) = 1;
+  /*
+   * the line number of the new loop head should be the line number of the
+   * the old loop head instead of the new head's current line number.
+   * necessary to maintain consistency with loop-scoped pragmas/directives.
+   */
+  BIH_LINENO(headbih) = BIH_LINENO(FG_TO_BIH(head));
+
+#if DEBUG
+  if (DBGBIT(10, 2)) {
+    fprintf(gbl.dbgfil, "after convert loop, bihs: head %d, tail %d\n", headbih,
+            tailbih);
+    dmpilt(headbih);
+    if (headbih != tailbih)
+      dmpilt(tailbih);
+  }
+#endif
+
+}
+#else
 /** \brief Routine to find loops whose control flow follows the pattern of a
  * "while" loop.
  *
@@ -827,6 +1209,9 @@ static void
 convert_loop(int loop)
 {
 }
+#endif
+
+#ifdef FE90
 
 /** \brief Reorder the loops in the LP_LOOP order.
  *
@@ -859,10 +1244,12 @@ reorder_dfn_loops()
   }
 #if DEBUG
   if (n != opt.nloops) {
-    interr("reorder_dfn_loops: wrong number of loops", n, 3);
+    interr("reorder_dfn_loops: wrong number of loops", n, ERR_Severe);
   }
 #endif
 } /* reorder_dfn_loops */
+
+#endif
 
 /*******************************************************************/
 /*
@@ -893,7 +1280,7 @@ reorderloops()
   }
 #if DEBUG
   if (n != opt.nloops) {
-    interr("reorderloops: wrong number of loops", n, 3);
+    interr("reorderloops: wrong number of loops", n, ERR_Severe);
   }
 #endif
 } /* reorderloops */
@@ -954,50 +1341,49 @@ sortloops()
 
 /* Query whether lp1 is a child loop of lp2 */
 
-LOGICAL
+bool
 is_childloop(int lp1, int lp2)
 {
   int lp_sib;
 
   for (lp_sib = LP_CHILD(lp2); lp_sib; lp_sib = LP_SIBLING(lp_sib)) {
     if ((lp1 == lp_sib) || is_childloop(lp1, lp_sib))
-      return TRUE;
+      return true;
   }
 
-  return FALSE;
+  return false;
 }
 
 /*
- * return TRUE if loop lp1 contains loop lp2
+ * return true if loop lp1 contains loop lp2
  * by convention, loop zero contains all loops, and a loop contains itself
  */
-LOGICAL
+bool
 contains_loop(int lp1, int lp2)
 {
   if (lp1 == 0 || lp1 == lp2)
-    return TRUE;
+    return true;
   if (lp2 == 0)
-    return FALSE;
+    return false;
   while (LP_LEVEL(lp2) > LP_LEVEL(lp1))
     lp2 = LP_PARENT(lp2);
   if (lp2 == lp1)
-    return TRUE;
-  return FALSE;
+    return true;
+  return false;
 } /* contains_loop */
 
 /*
- * Return TRUE if the loops lp1 and lp2 are overlapping.
+ * Return true if the loops lp1 and lp2 are overlapping.
  * By convention, loop zero overlaps all loops.
  */
-LOGICAL
+bool
 overlapping_loops(int lp1, int lp2)
 {
   if (lp1 == 0 || lp2 == 0)
-    return TRUE;
+    return true;
   if (LP_LEVEL(lp1) < LP_LEVEL(lp2))
     return contains_loop(lp1, lp2);
-  else
-    return contains_loop(lp2, lp1);
+  return contains_loop(lp2, lp1);
 }
 
 /*******************************************************************/
@@ -1083,8 +1469,10 @@ __dump_loop(FILE *ff, int lp)
           LP_CNCALL(i) ? "<cncall>" : "", LP_TASK(i) ? "<task>" : "",
           LP_TAIL_AEXE(i) ? "<tailaexe>" : "", LP_VOLLAB(i) ? "<vollab>" : "");
   if (i) {
+#ifdef FE90
     fprintf(ff, "       %s%s", LP_FORALL(i) ? "<forall>" : "",
             LP_MASTER(i) ? "<master>" : "");
+#endif
     fprintf(ff, "\n");
     fprintf(ff, "       exits:");
     for (p = LP_EXITS(i); p != PSI_P_NULL; p = PSI_NEXT(p))

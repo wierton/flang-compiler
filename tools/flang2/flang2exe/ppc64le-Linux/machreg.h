@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, NVIDIA CORPORATION.  All rights reserved.
+ * Copyright (c) 2016-2018, NVIDIA CORPORATION.  All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,6 +14,11 @@
  * limitations under the License.
  *
  */
+
+#ifndef MACHREG_H_
+#define MACHREG_H_
+
+#include "gbldefs.h"
 
 extern const int scratch_regs[];
 
@@ -301,7 +306,7 @@ typedef struct {
   char nused;              /* number of global registers assigned */
   const char mapbase;      /* offset in register bit vector where
                               this class of MACH_REGS begins. */
-  const char class;        /* class or type of register.  code generator needs
+  const char Class;        /* class or type of register.  code generator needs
                               to know what kind of registers these represent.
                               'i' (integer), 'f' (float stk), 'x' (float xmm) */
 } MACH_REG;
@@ -350,12 +355,14 @@ extern RGSETB rgsetb;
 
 /*****  External Function Declarations  *****/
 
-extern int mr_getnext(int rtype);
-extern int mr_getreg(int rtype);
-extern int mr_get_rgset();
-extern int mr_gindex(int rtype, int regno);
-extern void mr_end();
-extern void mr_init();
-extern void mr_reset_frglobals();
-extern void mr_reset(int rtype);
-extern void mr_reset_numglobals(int);
+ int mr_getnext(int rtype);
+ int mr_getreg(int rtype);
+ int mr_get_rgset();
+ int mr_gindex(int rtype, int regno);
+ void mr_end();
+ void mr_init();
+ void mr_reset_frglobals();
+ void mr_reset(int rtype);
+ void mr_reset_numglobals(int);
+
+#endif

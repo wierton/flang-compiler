@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, NVIDIA CORPORATION.  All rights reserved.
+ * Copyright (c) 2016-2018, NVIDIA CORPORATION.  All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -32,8 +32,6 @@
 /*
  *  Use the C compiler's native __int128 type when its available.
  */
-
-typedef unsigned __int128 uint128_t;
 
 static const int128_t zero = 0;
 static const int128_t one = 1;
@@ -85,11 +83,11 @@ int
 int128_count_leading_zeros(const int128_t *x)
 {
   int128_t v = *x;
+  int128_t mask = 1;
+  mask <<= 127;
   int j;
-  if (v == 0)
-    return 128;
-  for (j = 0; v > 0; ++j) {
-    v += v;
+  for(j = 0; j < 128 && 0 == (mask & v); j++) {
+    mask >>= 1;
   }
   return j;
 }
@@ -142,8 +140,10 @@ int128_shift_right_logical(int128_t *result, const int128_t *x, int count)
 bool
 int128_unsigned_add(int128_t *result, const int128_t *x, const int128_t *y)
 {
-  *result = *x + *y;
-  return *result < *x || *result < *y;
+  const uint128_t *ux = x, *uy = y;
+  uint128_t *uresult = result;
+  *uresult = *uy + *ux;
+  return *uresult < *ux || *uresult < *uy;
 }
 
 bool

@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2017, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 1994-2018, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -85,7 +85,11 @@
 	     ELEMENTAL |
 	     ATTRIBUTES ( <id name list> ) |
              IMPURE |
-             MODULE
+             MODULE |
+             LAUNCHBOUNDS ( <launchbound> ) |
+             LAUNCHBOUNDS ( <launchbound> , <launchbound> )
+
+<launchbound> ::= <integer>
 
 <id name list> ::= <id name list> , <id name> |
                    <id name>
@@ -179,7 +183,90 @@
  <nis> <accel decl begin> ROUTINE ( <routine id list> ) <accel routine list> |
 		  <seq> <pgm> |
 		  <nis> <mp decl begin> <mp decl> |
-		  <nis> VALUE <opt attr> <pgm> <ident list>
+		  <nis> VALUE <opt attr> <pgm> <ident list> |
+		  <accel begin> <accel dp stmts>
+
+<accel dp stmts> ::= <accel shape declstmt> |
+                     <accel policy declstmt>
+
+<accel shape declstmt> ::= ACCSHAPE <accel shape dir>
+
+<accel shape dir> ::= ( <accel dpvarlist> ) |
+                      ( <accel dpvarlist> ) <accel shape attrs> |
+                      '<' <ident> '>' ( <accel dpvarlist> ) |
+                      '<' <ident> '>' ( <accel dpvarlist> ) <accel shape attrs>
+
+<accel shape attrs> ::= <accel shape attrs> <accel shape attr> |
+                        <accel shape attr>
+
+<accel shape attr> ::= <accel dpdefault attr> |
+                       <accel dpinit_needed attr> |
+                       <accel dptype attr>
+
+<accel dpdefault attr> ::= DEFAULT ( <ident> ) 
+
+<accel dpinit_needed attr> ::= INIT_NEEDED ( <accel dpinitvar list> )
+
+<accel dpinitvar list> ::= <accel dpinitvar list> , <ident> |
+                           <ident>
+
+<accel dptype attr> ::= TYPE ( <ident> )
+
+<accel policy declstmt> ::= ACCPOLICY <accel policy name> <accel policy dir>
+
+<accel policy name> ::= '<' <ident> '>' |
+			'<' <ident> : <ident> '>'
+
+<accel policy dir> ::= <accel policy attr list>
+
+<accel policy attr list> ::= <accel policy attr list> <accel policy attr> |
+                             <accel policy attr>
+
+<accel policy attr> ::= CREATE ( <accel dpvarlist> ) |
+                        NO_CREATE ( <accel dpvarlist> ) |
+                        COPYIN ( <accel dpvarlist> ) |
+                        COPYOUT ( <accel dpvarlist> ) |
+                        COPY ( <accel dpvarlist> ) |
+                        UPDATE ( <accel dpvarlist> ) |
+                        DEVICEPTR ( <accel dpvarlist> ) |
+                        <accel dpdefault attr> |
+                        <accel dptype attr>
+
+<accel dpvarlist> ::= <accel dpvarlist> , <accel dpvar> |
+                      <accel dpvar>
+
+<accel dpvar> ::= <ident> |
+                  <ident> '<' <ident> '>' |
+                  <ident> ( <accel dpvar bnds> ) |
+                  <ident> '<' <ident> '>' ( <accel dpvar bnds> )
+
+<accel dpvar bnds> ::= <accel dpvar bnds> , <accel dpvar bnd> |
+                       <accel dpvar bnd>
+
+<accel dpvar bnd> ::= <accel dp bnd> : <accel dp bnd> |
+                      <accel dp bnd>
+
+<accel dp bnd> ::= <accel dp sbnd> |
+                   <accel dp bndexp> |
+                   <accel dp bndexp1>
+
+<accel dp bndexp> ::= <accel dp addexp> |
+                      <accel dp mulexp>
+
+<accel dp addexp> ::= <accel dp sbnd> <accel add opr> <accel dp sbnd>
+
+<accel dp mulexp> ::= <accel dp sbnd> <accel mul opr> <accel dp sbnd>
+
+<accel add opr> ::= + |
+                    -
+
+<accel mul opr> ::= * |
+                    /
+
+<accel dp bndexp1> ::= <accel dp mulexp> <accel add opr> <accel dp sbnd>
+
+<accel dp sbnd> ::= <constant> |
+                   <ident> 
 
 <routine id list> ::= <ident> |
                   <routine id list> , <ident>
@@ -192,8 +279,8 @@
 <data type> ::=  <base type> <opt len spec> |
 		 <base type> ( <len kind> ) |
 		 TYPE ( <id> <opt derived type spec> ) |
-		 CLASS ( <id> <opt derived type spec> ) |
-		 CLASS ( * )
+		 CLASS <pgm> ( <id> <opt derived type spec> ) |
+		 CLASS <pgm> ( * )
 
 <type spec> ::=  <intrinsic type> |
 		 <ident>
@@ -539,9 +626,11 @@
 <end interface> ::= ENDINTERFACE |
                     ENDINTERFACE <generic spec>
 
-<module procedure stmt> ::= MODULE PROCEDURE <ident list>
+<module procedure stmt> ::= MODULE PROCEDURE <ident list> |
+                            MODULE PROCEDURE :: <ident list>
 
-<procedure stmt> ::= PROCEDURE <ident list>
+<procedure stmt> ::= PROCEDURE <ident list> |
+                     PROCEDURE :: <ident list>
 
 <use> ::= <get module> |
 	  <get module> , <rename list> |
@@ -735,7 +824,8 @@
 		<accel routine list> <opt comma> BIND ( <ident> ) |
 		<accel routine list> <opt comma> BIND ( <quoted string> ) |
 		<accel routine list> <opt comma> DEVICE_TYPE ( <devtype list> ) |
-		<accel routine list> <opt comma> GANG ( <ident> : <expression> )
+		<accel routine list> <opt comma> GANG ( <ident> : <expression> ) |
+		<accel routine list> <opt comma> EXCLUDE
 
 <devtype list> ::= <devtype list> , <devtype attr> |
 		<devtype attr>
@@ -1026,6 +1116,7 @@
 <concatenation> ::= <char expr> '//' <arith expr>
 
 <defined binary> ::= <expression> <defined op> <log expr>
+
 .B
 <simple stmt> ::= <assignment> |
                   <assigned GOTO> |
@@ -1090,6 +1181,7 @@
 <chevron> ::= '<<<' <expression list> '>>>'
 
 <expression list> ::= <expression list> , <expression> |
+		      * |
 		      <expression>
 
 <arg list> ::= <arg list> , <arg> |
@@ -1198,11 +1290,40 @@
 
 <loop control> ::= <opt comma> <var ref> = <etmp exp> , <etmp exp> <etmp e3> |
 		   <dowhile> <etmp lp> <expression> ) |
-		   <doconcurrent> <forall header>
+		   <doconcurrent> <concurrent header> <concurrent locality>
 
 <dowhile> ::= <opt comma> WHILE
 
 <doconcurrent> ::= <opt comma> CONCURRENT
+
+<concurrent header> ::= ( <concurrent type> <concurrent list> <opt mask expr> )
+
+<concurrent type> ::= |
+                      <intrinsic type> ::
+
+<concurrent list> ::= <concurrent list> , <concurrent control> |
+                      <concurrent control>
+
+<concurrent control> ::= <var ref> = <expression> : <expression> <opt stride>
+
+<opt mask expr> ::=  |
+		    , <mask expr>
+
+<concurrent locality> ::= |
+                          <locality spec list>
+
+<locality spec list> ::= <locality spec list> <locality spec> |
+                         <locality spec>
+
+<locality spec> ::= <locality kind> ( <locality name list> ) |
+                    DEFAULT ( NONE )
+
+<locality kind> ::= LOCAL |
+                    LOCAL_INIT |
+                    SHARED
+
+<locality name list> ::= <locality name list> , <ident> |
+                         <ident>
 
 <elsewhere clause> ::= ELSEWHERE <construct name> |
                        ELSEWHERE ( <mask expr> ) <construct name>
@@ -1244,22 +1365,12 @@
 		      , MOLD = <expression> |
 		      , ALIGN = <expression>
 
-<forall clause> ::= <forall begin> <forall header>
+<forall clause> ::= <forall begin> <concurrent header>
 
 <forall begin> ::= <forall construct>
 
 <forall construct> ::= FORALL |
 	               <check construct> : FORALL
-
-<forall header> ::= ( <forall list> <opt mask expr> )
-
-<forall list> ::= <forall list> , <forall triplet> |
-		  <forall triplet>
-
-<forall triplet> ::= <var ref> = <expression> : <expression> <opt stride>
-
-<opt mask expr> ::=  |
-		    , <mask expr>
 
 <null stmt> ::=
 
@@ -1300,6 +1411,7 @@
 <pragma stmt> ::= PREFETCH <var ref list> |
 		  DISTRIBUTEPOINT |
 		  DISTRIBUTE
+
 .B
 <null>    ::=
 
@@ -1506,8 +1618,10 @@
 	  <char literal> <dlp> <dt vlist> ) |
 	  <dlp> <dt vlist> )
 
-<dt vlist> ::= <dt vlist> , <integer> |
-		<integer>
+<dt vlist> ::= <dt vlist> , <addop> <integer> |
+               <dt vlist> , <integer> |
+	       <addop> <integer> |
+	       <integer>
 
 <F3 item> ::= T <ffield>  |
               TL <ffield> |
@@ -1689,7 +1803,7 @@
                <firstprivate> |
                <lastprivate> |
                <schedule> |
-               <mp ordered> |
+               ORDERED <opt expression> |
                REDUCTION ( <reduction> ) |
                <par ifclause> |
                COPYIN ( <cmn ident list> ) |
@@ -1720,6 +1834,9 @@
                NUM_TEAMS ( <expression> ) |
                THREAD_LIMIT ( <expression> ) |
 	       NOGROUP
+
+<opt expression> ::= |
+	             ( <expression> )
 
 <opt ordered list> ::= |
 	               <ordered list>
@@ -1772,10 +1889,15 @@
 <opt par ifclause> ::= |
                        <opt comma> <par ifclause>
 
-<linear clause> ::= LINEAR ( <linear> )
+<linear clause> ::= LINEAR ( <linear expr> )
 
-<linear> ::= <pflsr list> |
-             <pflsr list> : <expression>
+<linear expr> ::= <linear modifier> <linear opt step> 
+
+<linear modifier> ::= <pflsr list> |
+                      <id name> ( <pflsr list> )
+
+<linear opt step> ::= |
+	              : <expression>
 
 <aligned clause> ::= ALIGNED ( <aligned> )
 
@@ -1925,9 +2047,17 @@
                  <accel begin> ACCINIT <opt accel init list> |
                  <accel begin> ACCSHUTDOWN <opt accel shutdown list> |
                  <accel begin> <accel setdev dir> |
-                 <accel begin> CACHE ( <ident> : <accel sdata list> )
+                 <accel begin> CACHE ( <ident> : <accel sdata list> ) |
+                 <accel begin> ACCSERIAL <opt accel list>  |
+		 <accel begin> ACCENDSERIAL |
+                 <accel begin> ACCSERIALLOOP <opt accel list>  |
+                 <accel begin> ACCENDSERIALLOOP |
+     <accel begin> <accel compare dir> |
+     <pgi begin> <pgi compare dir>
 
 <accel begin> ::=
+
+<pgi begin> ::=
 
 <opt accel list> ::= |
                      <opt comma> <accel list>
@@ -1996,7 +2126,12 @@
 		 DEFAULT ( <ident> ) |
 		 PNOT ( <accel data list> ) |
 	         COLLAPSE ( <ident> : <expression> ) |
-	         ACCFINALIZE
+	         ACCFINALIZE |
+	         ACCIFPRESENT |
+                 ACCATTACH ( <accel data list> ) |
+                 ACCDETACH ( <accel data list> ) |
+		 NO_CREATE ( <accel data list> ) | 
+     COMPARE ( <accel data list> )
 
 <acc gang args> ::= <acc gang arg> |
 			<acc gang args> , <acc gang arg>
@@ -2033,7 +2168,9 @@
 <accel data> ::= <accel data name> ( <accel sub list> ) |
                  <accel data name> |
                  <constant> |
-		 <common>
+		 <common> |
+                 <accel data name> '<' <ident> '>' ( <accel sub list> ) |
+                 <accel data name> '<' <ident> '>'
 
 <accel mdata list> ::= <accel mdata list> , <accel mdata> |
                       <accel mdata>
@@ -2160,3 +2297,7 @@
 
 <acc shutdown attr> ::= DEVICE_NUM ( <expression> ) |
 		DEVICE_TYPE ( <devtype list> )
+    
+<accel compare dir> ::= COMPARE ( <accel data list> )
+
+<pgi compare dir> ::= PGICOMPARE ( <accel data list> )

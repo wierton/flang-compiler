@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, NVIDIA CORPORATION.  All rights reserved.
+ * Copyright (c) 1997-2018, NVIDIA CORPORATION.  All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -41,7 +41,6 @@
 
 #include "dpm_out.h"
 
-#define MOD_CMN_IDX(a, c) (((a) << 1) | (c))
 #define COMPILER_OWNED_MODULE XBIT(58,0x100000)
 
 /* ------------------------------------------------------------------ */
@@ -263,12 +262,12 @@ static void export(FILE *export_fd, char *export_name, int cleanup)
   NEW(symbol_flag, char, symbol_flag_size);
   BZERO(symbol_flag, char, stb.stg_avail + 1);
 
-  dtype_flag_size = stb.dt_avail + 1;
+  dtype_flag_size = stb.dt.stg_avail + 1;
   NEW(dtype_flag, char, dtype_flag_size);
   BZERO(dtype_flag, char, dtype_flag_size);
 
-  ast_flag_size = astb.avl + 1;
-  ast_flag_lowest_const = astb.avl;
+  ast_flag_size = astb.stg_avail + 1;
+  ast_flag_lowest_const = astb.stg_avail;
   NEW(ast_flag, char, ast_flag_size);
   BZERO(ast_flag, char, ast_flag_size);
 
@@ -462,13 +461,13 @@ static void export(FILE *export_fd, char *export_name, int cleanup)
       export_symbol(sptr);
   }
 
-  for (ast = astb.firstuast; ast < astb.avl; ++ast) {
+  for (ast = astb.firstuast; ast < astb.stg_avail; ++ast) {
     if (ast >= ast_flag_size || ast_flag[ast])
       export_one_ast(ast);
   }
   {
     exportb.hmark.ast = astb.firstuast;
-    exportb.hmark.maxast = astb.avl - 1;
+    exportb.hmark.maxast = astb.stg_avail - 1;
     if (!for_module)
       all_stds(export_one_std);
     export_equivs();
@@ -658,12 +657,12 @@ export_some_init()
   NEW(symbol_flag, char, symbol_flag_size);
   BZERO(symbol_flag, char, stb.stg_avail + 1);
 
-  dtype_flag_size = stb.dt_avail + 1;
+  dtype_flag_size = stb.dt.stg_avail + 1;
   NEW(dtype_flag, char, dtype_flag_size);
   BZERO(dtype_flag, char, dtype_flag_size);
 
-  ast_flag_size = astb.avl + 1;
-  ast_flag_lowest_const = astb.avl;
+  ast_flag_size = astb.stg_avail + 1;
+  ast_flag_lowest_const = astb.stg_avail;
   NEW(ast_flag, char, ast_flag_size);
   BZERO(ast_flag, char, ast_flag_size);
 
@@ -731,7 +730,7 @@ export_some_fini(int limitsptr, int limitast)
       export_one_ast(ast);
     }
   }
-  for (ast = limitast; ast < astb.avl; ++ast) {
+  for (ast = limitast; ast < astb.stg_avail; ++ast) {
     if (ast >= ast_flag_size || ast_flag[ast])
       export_one_ast(ast);
   }
@@ -781,6 +780,15 @@ fixup_host_symbol_dtype(int sptr)
       }
       CVLENP(sptr, clen);
     }
+  } else if (DTY(dtype) == TY_ARRAY && ADJARRG(sptr)) {
+    /* similar to above condition if the bound is host symbol 
+     * symbol will not be exported.
+     */
+    if (DTY(dtype + 2) > 0) {
+      ast_visit(1,1);
+      mark_dtype_ast_idstr(dtype);
+      ast_unvisit();
+    }
   }
 }
 
@@ -789,7 +797,6 @@ export_host_subprogram(FILE *host_file, int host_sym, int limitsptr,
                        int limitast, int limitdtype)
 {
   ITEMX *p;
-
   Trace(("write host subprogram %d %s", host_sym, SYMNAME(host_sym)));
   if (host_file == NULL) {
     interr("no file to which to export contained subprogram", 0, 3);
@@ -806,12 +813,12 @@ export_host_subprogram(FILE *host_file, int host_sym, int limitsptr,
     export_some_procedure(p->val);
     INTERNALP(p->val, 1);
   }
-  ast_visit(1, 1);
   for (p = host_append_list; p != NULL; p = p->next) {
     fixup_host_symbol_dtype(p->val);
+    ast_visit(1, 1);
     queue_symbol(p->val);
+    ast_unvisit();
   }
-  ast_unvisit();
 
   outlz = export_header(host_file, "host file", 0);
 
@@ -846,7 +853,6 @@ export_module_subprogram(FILE *subprog_file, int subprog_sym, int limitsptr,
 {
   ITEMX *p;
   int sptr;
-
   Trace(("write module subprogram %d %s", subprog_sym, SYMNAME(subprog_sym)));
   if (subprog_file == NULL) {
     interr("no file to which to export contained subprogram", 0, 3);
@@ -1036,7 +1042,7 @@ export_ict_asts(ACL *ict, ast_visit_fn astproc, int queuesym, int queuedtype,
       } else {
         if (queuedtype)
           queue_dtype(ict->dtype);
-        if (ict->u1.ast > 0 && ict->u1.ast <= astb.avl)
+        if (ict->u1.ast > 0 && ict->u1.ast <= astb.stg_avail)
           ast_traverse(ict->u1.ast, NULL, astproc, NULL);
       }
       if (ict->repeatc) {
@@ -1139,7 +1145,7 @@ export_component_init_asts(ast_visit_fn astproc, int queuesym, int queuedtype)
 {
   int dtype;
 
-  for (dtype = DT_MAX + 1; dtype < stb.dt_avail;) {
+  for (dtype = DT_MAX + 1; dtype < stb.dt.stg_avail;) {
     if (DTY(dtype) == TY_DERIVED) {
       ACL *ict = (ACL *)get_getitem_p(DTY(dtype + 5));
       if (ict) {
@@ -1307,7 +1313,7 @@ export_component_init(int cleanup)
   if (cleanup)
     flag = 1;
 
-  for (dtype = DT_MAX + 1; dtype < stb.dt_avail;) {
+  for (dtype = DT_MAX + 1; dtype < stb.dt.stg_avail;) {
     if (DTY(dtype) == TY_DERIVED) {
       ACL *ict = (ACL *)get_getitem_p(DTY(dtype + 5));
       if (ict && (ict->ci_exprt & flag) == 0) {
@@ -1468,14 +1474,28 @@ rqueue_ast(int ast, int *unused)
     break;
   case A_MP_TASK:
     queue_ast(A_IFPARG(ast));
+    queue_ast(A_FINALPARG(ast));
+    queue_ast(A_PRIORITYG(ast));
     queue_ast(A_LOPG(ast));
     queue_ast(A_ENDLABG(ast));
+    break;
+  case A_MP_TASKLOOP:
+    queue_ast(A_IFPARG(ast));
+    queue_ast(A_FINALPARG(ast));
+    queue_ast(A_PRIORITYG(ast));
+    queue_ast(A_LOPG(ast));
+    break;
+  case A_MP_TASKLOOPREG:
+    queue_ast(A_M1G(ast));
+    queue_ast(A_M2G(ast));
+    queue_ast(A_M3G(ast));
     break;
   case A_MP_TASKFIRSTPRIV:
     queue_ast(A_LOPG(ast));
     queue_ast(A_ROPG(ast));
     break;
   case A_MP_TASKREG:
+  case A_MP_TASKDUP:
   case A_MP_ENDPARALLEL:
   case A_MP_MASTER:
   case A_MP_ENDMASTER:
@@ -1487,6 +1507,7 @@ rqueue_ast(int ast, int *unused)
   case A_MP_WORKSHARE:
   case A_MP_ENDWORKSHARE:
   case A_MP_ENDTASK:
+  case A_MP_ETASKLOOP:
     queue_ast(A_LOPG(ast));
     break;
   case A_MP_ATOMIC:
@@ -1498,7 +1519,8 @@ rqueue_ast(int ast, int *unused)
   case A_MP_BCOPYPRIVATE:
   case A_MP_ECOPYPRIVATE:
   case A_MP_BPDO:
-  case A_MP_ETASKREG:
+  case A_MP_ETASKDUP:
+  case A_MP_ETASKLOOPREG:
   case A_MP_TASKWAIT:
   case A_MP_TASKYIELD:
   case A_MP_EMPSCOPE:
@@ -1790,6 +1812,9 @@ queue_symbol(int sptr)
 
   case ST_ENTRY:
   case ST_PROC:
+    if (STYPEG(sptr) == ST_PROC && IS_PROC_DUMMYG(sptr) && SDSCG(sptr)){
+      queue_symbol(SDSCG(sptr));
+    }
     if (FVALG(sptr)) {
       queue_symbol(FVALG(sptr));
     }
@@ -1798,7 +1823,6 @@ queue_symbol(int sptr)
     }
     if (GSAMEG(sptr))
       queue_symbol((int)GSAMEG(sptr));
-    {
       dscptr = DPDSCG(sptr);
       for (i = PARAMCTG(sptr); i > 0; i--) {
         int arg;
@@ -1808,7 +1832,6 @@ queue_symbol(int sptr)
         }
         dscptr++;
       }
-    }
     if (CLASSG(sptr) && TBPLNKG(sptr)) {
       queue_dtype(TBPLNKG(sptr));
     }
@@ -2121,7 +2144,7 @@ export_dtypes(int start, int ignore)
   if (start < DT_MAX + 1)
     start = DT_MAX + 1;
 
-  for (dtype = DT_MAX + 1; dtype < stb.dt_avail;) {
+  for (dtype = DT_MAX + 1; dtype < stb.dt.stg_avail;) {
     if ((dtype >= dtype_flag_size || dtype_flag[dtype]) &&
         (dtype >= start || DTY(dtype) == TY_CHAR)) {
       if (ignore) {
@@ -2206,9 +2229,6 @@ export_symbol(int sptr)
   int dscptr;
   int nml, scope, stype, flags, bit;
 
-  LINENOP(sptr,
-          0); /* don't write out lineno until we decide how to handle it */
-
   scope = SCOPEG(sptr);
   stype = STYPEG(sptr);
   if (!exportmode && stype == ST_UNKNOWN && sptr == gbl.sym_nproc) {
@@ -2242,7 +2262,7 @@ export_symbol(int sptr)
       /* export symbols from this subprogram as normal */
     } else if (sptr == gbl.currsub) {
     } else if ((scope >= stb.firstosym && scope != sym_module &&
-                STYPEG(scope) == ST_MODULE)) {
+                STYPEG(scope) == ST_MODULE && !ISSUBMODULEG(sptr))) {
       /* this symbol is from a USEd module */
       if (stype != ST_MODULE && stype != ST_UNKNOWN) {
         int dscptr, dsccnt;
@@ -2301,6 +2321,11 @@ export_symbol(int sptr)
     if (stype == ST_MODULE && sptr != sym_module && !for_inliner)
       return;
   }
+
+
+  if ((STYPEG(sptr) == ST_ALIAS || STYPEG(sptr) == ST_PROC ||
+      STYPEG(sptr) == ST_ENTRY) && ISSUBMODULEG(sptr))
+    INMODULEP(sptr, TRUE);
 
   /* BYTE-ORDER INDEPENDENT */
   wp = stb.stg_base + sptr;
@@ -2713,7 +2738,7 @@ export_one_ast(int ast)
   flags = 0;
   bit = 1;
 #define ADDBIT(fl)       \
-  if (astb.base[ast].fl) \
+  if (astb.stg_base[ast].fl) \
     flags |= bit;        \
   bit <<= 1;
   ADDBIT(f1);
@@ -2726,18 +2751,18 @@ export_one_ast(int ast)
   ADDBIT(f8);
 #undef ADDBIT
   lzprintf(outlz, " %x", flags);
-  lzprintf(outlz, " %d", astb.base[ast].shape);
-  lzprintf(outlz, " %d %d %d %d", astb.base[ast].hshlk, astb.base[ast].w3,
-           astb.base[ast].w4, astb.base[ast].w5);
-  lzprintf(outlz, " %d %d %d %d", astb.base[ast].w6, astb.base[ast].w7,
-           astb.base[ast].w8, astb.base[ast].w9);
-  lzprintf(outlz, " %d %d %d %d", astb.base[ast].w10, astb.base[ast].hw21,
-           astb.base[ast].hw22, astb.base[ast].w12);
-  lzprintf(outlz, " %d %d %d %d", astb.base[ast].opt1, astb.base[ast].opt2,
-           astb.base[ast].repl, astb.base[ast].visit);
+  lzprintf(outlz, " %d", astb.stg_base[ast].shape);
+  lzprintf(outlz, " %d %d %d %d", astb.stg_base[ast].hshlk, astb.stg_base[ast].w3,
+           astb.stg_base[ast].w4, astb.stg_base[ast].w5);
+  lzprintf(outlz, " %d %d %d %d", astb.stg_base[ast].w6, astb.stg_base[ast].w7,
+           astb.stg_base[ast].w8, astb.stg_base[ast].w9);
+  lzprintf(outlz, " %d %d %d %d", astb.stg_base[ast].w10, astb.stg_base[ast].hw21,
+           astb.stg_base[ast].hw22, astb.stg_base[ast].w12);
+  lzprintf(outlz, " %d %d %d %d", astb.stg_base[ast].opt1, astb.stg_base[ast].opt2,
+           astb.stg_base[ast].repl, astb.stg_base[ast].visit);
   /* IVSN 30 */
-  lzprintf(outlz, " %d", astb.base[ast].w18);
-  lzprintf(outlz, " %d", astb.base[ast].w19);
+  lzprintf(outlz, " %d", astb.stg_base[ast].w18);
+  lzprintf(outlz, " %d", astb.stg_base[ast].w19);
 
   if (A_TYPEG(ast) == A_ID && A_IDSTRG(ast)) {
     lzprintf(outlz, " %s", SYMNAME(A_SPTRG(ast)));
@@ -2811,7 +2836,7 @@ export_one_std(int std)
   flags = 0;
   bit = 1;
 #define ADDBIT(f)                      \
-  if (astb.std.base[std].flags.bits.f) \
+  if (astb.std.stg_base[std].flags.bits.f) \
     flags |= bit;                      \
   bit <<= 1;
   ADDBIT(ex);

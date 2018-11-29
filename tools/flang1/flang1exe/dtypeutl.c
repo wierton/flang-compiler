@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, NVIDIA CORPORATION.  All rights reserved.
+ * Copyright (c) 1994-2018, NVIDIA CORPORATION.  All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -410,6 +410,7 @@ test_sym_components_only(int sptr, stm_predicate_t predicate)
 LOGICAL
 is_empty_typedef(DTYPE dtype)
 {
+  SPTR sptr;
   if (dtype) {
     if (is_array_dtype(dtype))
       dtype = array_element_dtype(dtype);
@@ -417,40 +418,80 @@ is_empty_typedef(DTYPE dtype)
     case TY_DERIVED:
     case TY_UNION:
     case TY_STRUCT:
-      return (int)(DTY(dtype + 1)) <= NOSYM;
+      for (sptr = DTY(dtype + 1); sptr > NOSYM;
+           sptr = SYMLKG(sptr)) {
+        /* Type parameters are not data components. Skip type parameters. */
+        if (SETKINDG(sptr) || LENPARMG(sptr)) {
+          continue;
+        }
+        return FALSE;
+      }
+      return TRUE;
     }
   }
   return FALSE;
 }
 
-/* N.B., no_data_components() will only ever be true for data types that
- * are containers, so types like INTEGER will map to FALSE.
+static LOGICAL
+is_recursive_dtype(int sptr, struct visit_list **visited)
+{
+  return sptr > NOSYM &&
+         search_type_members(sptr, is_recursive_dtype, visited);
+}
+
+/* N.B., no_data_components_recursive() will only ever be true for
+ * data types that are containers, so types like INTEGER will map to FALSE.
  */
-LOGICAL
-no_data_components(DTYPE dtype)
+static bool
+no_data_components_recursive(DTYPE dtype, stm_predicate_t predicate, struct visit_list **visited)
 {
   /* For the derived type in dtype: Returns true if dtype is empty or
    * if it does not contain any data components (i.e., a derived type with
    * type bound procedures returns false). Otherwise, returns false.
-   * This was added for FS#17747.
    */
   int mem_sptr;
+  struct visit_list *active;
   if (is_array_dtype(dtype))
     dtype = array_element_dtype(dtype);
+  active = visit_list_scan(*visited, dtype);
   if (is_empty_typedef(dtype))
     return TRUE;
   if (!is_container_dtype(dtype))
     return FALSE;
+  if (active) {
+    /* This dtype has already been scanned or is in process.
+     * Cut off the scan, and return FALSE unless the search
+     * is for recursive types and we've just found one.
+     */
+    return predicate == is_recursive_dtype && active->is_active;
+  }
+
+  visit_list_push(visited, dtype);
+  active = *visited;
+
   for (mem_sptr = DTY(dtype + 1); mem_sptr > NOSYM;
        mem_sptr = SYMLKG(mem_sptr)) {
     if (DTYG(DTYPEG(mem_sptr)) == TY_DERIVED) {
-      if (!no_data_components(DTYPEG(mem_sptr)))
+      if (!no_data_components_recursive(DTYPEG(mem_sptr), is_recursive_dtype, visited)) {
+        active->is_active = FALSE;
         return FALSE;
+      }
     } else if (!CLASSG(mem_sptr) || !BINDG(mem_sptr) || !VTABLEG(mem_sptr)) {
+      active->is_active = FALSE;
       return FALSE;
     }
   }
   return TRUE;
+}
+
+/* Wrapper to no_data_components_recursive() to detect cycles. */
+LOGICAL
+no_data_components(DTYPE dtype)
+{
+  struct visit_list *visited = NULL;
+  LOGICAL result = no_data_components_recursive(dtype, is_recursive_dtype, &visited);
+  visit_list_free(&visited);
+  return result;
 }
 
 /** \brief Return the size of this variable, taking into account
@@ -654,6 +695,8 @@ size_ast_of(int ast, DTYPE dtype)
         ast = A_LOPG(ast);
       if (A_TYPEG(ast) == A_SUBSCR)
         ast = A_LOPG(ast);
+      if (A_TYPEG(ast) == A_FUNC)
+        ast = A_LOPG(ast);
       if (A_TYPEG(ast) == A_CNST) {
         sptr = A_SPTRG(ast);
       } else if (A_TYPEG(ast) == A_ID) {
@@ -751,7 +794,8 @@ size_ast_of(int ast, DTYPE dtype)
   case TY_DERIVED:
     if (!sptr)
       sptr = DTY(dtype + 1);
-    if (DTY(dtype + 2) <= 0 && (!CLASSG(sptr) || !DTY(dtype + 1))) {
+    if (DTY(dtype + 2) <= 0 && !UNLPOLYG(DTY(dtype+3)) && 
+        (!CLASSG(sptr) || !DTY(dtype + 1))) {
       errsev(151);
       return mk_isz_cval(4, astb.bnd.dtype);
     } else {
@@ -844,6 +888,8 @@ string_expr_length(int ast)
       return ast_intr(I_LEN_TRIM, astb.bnd.dtype, 1, ARGT_ARG(A_ARGSG(ast), 0));
     case I_RESHAPE:
       return ast_intr(I_LEN, astb.bnd.dtype, 1, ARGT_ARG(A_ARGSG(ast), 0));
+    case I_ACHAR:
+      return ast_intr(I_INT, astb.bnd.dtype, 1, ARGT_ARG(A_ARGSG(ast), 0));
     }
   /* else fall thru */
   default:
@@ -1310,13 +1356,13 @@ DTYPE
 get_type(int n, TY_KIND v1, int v2)
 {
   int i, j;
-  DTYPE dtype = stb.dt_avail;
+  DTYPE dtype = 0;
   LOGICAL is_nchar = FALSE;
   is_nchar = (v1 == TY_NCHAR);
 
   /* For a string try to find a matching type first */
   if (v1 == TY_CHAR || is_nchar) {
-    if (v2 < 0 || v2 >= astb.avl) {
+    if (v2 < 0 || v2 >= astb.stg_avail) {
       interr("char string length is wrong.", v2, 2);
       v2 = astb.i1;
     }
@@ -1339,19 +1385,19 @@ get_type(int n, TY_KIND v1, int v2)
         dtype = DT_NCHAR;
       }
     }
-    /* not found */
-    NEED(chartabavail + n, chartabbase, struct chartab, chartabsize,
-         chartabsize + CHARTABSIZE);
-    chartabbase[chartabavail].dtype = dtype;
-    chartabbase[chartabavail].next = chartab[i];
-    chartab[i] = chartabavail++;
   }
-  if (dtype >= DT_MAX) {
-    NEED(stb.dt_avail + n + 1, stb.dt_base, ISZ_T, stb.dt_size,
-         stb.dt_size + 1000);
-    stb.dt_base[dtype] = v1;
-    stb.dt_base[dtype + 1] = v2;
-    stb.dt_avail += n;
+  if (dtype == 0) {
+    dtype = STG_NEXT_SIZE(stb.dt, n);
+    DTY(dtype) = v1;
+    DTY(dtype + 1) = v2;
+    if (v1 == TY_CHAR || is_nchar) {
+      /* not found */
+      NEED(chartabavail + n, chartabbase, struct chartab, chartabsize,
+           chartabsize + CHARTABSIZE);
+      chartabbase[chartabavail].dtype = dtype;
+      chartabbase[chartabavail].next = chartab[i];
+      chartab[i] = chartabavail++;
+    }
   }
 found:
   return dtype;
@@ -1733,6 +1779,21 @@ LOGICAL
 has_finalized_component(SPTR sptr)
 {
   return test_sym_components_only(sptr, is_finalized);
+}
+
+static LOGICAL
+is_impure_finalizer(int sptr, struct visit_list **visited)
+{
+  return sptr > NOSYM &&
+         ((STYPEG(sptr) == ST_MEMBER &&
+           FINALG(sptr) && is_impure(VTABLEG(sptr))) ||
+           search_type_members(DTYPEG(sptr), is_impure_finalizer, visited));
+}
+
+LOGICAL
+has_impure_finalizer(SPTR sptr)
+{
+  return test_sym_and_components(sptr, is_impure_finalizer);
 }
 
 static LOGICAL
@@ -2341,7 +2402,7 @@ getdtype(DTYPE dtype, char *ptr)
   p = ptr;
   *p = 0;
   for (; dtype != 0 && p - ptr <= 150; dtype = DTY(dtype + 1)) {
-    if (dtype <= 0 || dtype >= stb.dt_avail) {
+    if (dtype <= 0 || dtype >= stb.dt.stg_avail) {
       sprintf(p, "bad dtype(%d)", dtype);
       break;
     }
@@ -2483,10 +2544,10 @@ dmp_dtype(void)
 
   fprintf(gbl.dbgfil, "\n------------------------\nDTYPE DUMP:\n");
   fprintf(gbl.dbgfil, "\ndt_base: %lx   dt_size: %d   dt_avail: %d\n\n",
-          (long)(stb.dt_base), stb.dt_size, stb.dt_avail);
+          (long)(stb.dt.stg_base), stb.dt.stg_size, stb.dt.stg_avail);
   i = 1;
   fprintf(gbl.dbgfil, "index   dtype\n");
-  while (i < stb.dt_avail) {
+  while (i < stb.dt.stg_avail) {
     i += dmp_dent(i);
   }
   fprintf(gbl.dbgfil, "\n------------------------\n");
@@ -2559,7 +2620,7 @@ _dmp_dent(DTYPE dtypeind, FILE *outfile)
   if (outfile == NULL)
     outfile = stderr;
 
-  if (dtypeind < 1 || dtypeind >= stb.dt_avail) {
+  if (dtypeind < 1 || dtypeind >= stb.dt.stg_avail) {
     fprintf(outfile, "dtype index (%d) out of range in dmp_dent\n", dtypeind);
     return 1;
   }
@@ -2688,7 +2749,7 @@ pr_dent(DTYPE dt, FILE *f)
   int ss;
   if (f == NULL)
     f = stderr;
-  if (dt < 1 || dt >= stb.dt_avail) {
+  if (dt < 1 || dt >= stb.dt.stg_avail) {
     fprintf(f, "dtype index (%d) out of range in pr_dent\n", dt);
     return;
   }
@@ -2817,7 +2878,7 @@ fval_of(DTYPE dtype)
 static TY_KIND
 get_ty_kind(DTYPE dtype)
 {
-  assert(dtype > 0 && dtype < stb.dt_avail, "bad dtype", dtype, ERR_Severe);
+  assert(dtype > 0 && dtype < stb.dt.stg_avail, "bad dtype", dtype, ERR_Severe);
   return DTY(dtype);
 }
 
@@ -3439,8 +3500,9 @@ rw_dtype_state(int (*p_rw)(void *, size_t, size_t, FILE *), FILE *fd)
 {
   int nw;
 
-  RW_FD(&stb.dt_avail, stb.dt_avail, 1);
-  RW_FD(stb.dt_base, ISZ_T, stb.dt_avail);
+  RW_FD(&stb.dt.stg_avail, stb.dt.stg_avail, 1);
+  RW_FD(&stb.dt.stg_cleared, stb.dt.stg_cleared, 1);
+  RW_FD(stb.dt.stg_base, ISZ_T, stb.dt.stg_avail);
   RW_FD(chartab, chartab, 1);
   RW_FD(&chartabavail, chartabavail, 1);
   RW_FD(chartabbase, struct chartab, chartabavail);
@@ -3625,7 +3687,13 @@ chkstruct(DTYPE dtype)
       offset = ALIGN(offset, a);
       oldoffset = offset;
       ADDRESSP(m, offset);
-      offset += size_of_var(m);
+      if (DTY(DTYPEG(m)) == TY_ARRAY
+          && !MIDNUMG(m) && !ADJARRG(m) && !POINTERG(m)
+          && !RUNTIMEG(m)) {
+        if (extent_of(DTYPEG(m)) != 0)
+          offset += size_of_var(m);
+      } else
+        offset += size_of_var(m);
 /* if this is a pointer member, and the next member
  * is the actual pointer, let the pointer/offset/descriptor
  * overlap */
@@ -3811,12 +3879,12 @@ get_iso_ptrtype(char *name)
       continue;
     check_mod = DTY(DTYPEG(sptr) + 3); /* tag */
     if ((check_mod <= 0) || (ENCLFUNCG(check_mod) <= 0))
-      return 0;
+      continue;
     if (ENCLFUNCG(check_mod) == mod) {
       return DTYPEG(sptr);
     }
   }
-  return 0;
+  return DT_NONE;
 }
 
 DTYPE

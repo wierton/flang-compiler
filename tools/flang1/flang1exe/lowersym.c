@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, NVIDIA CORPORATION.  All rights reserved.
+ * Copyright (c) 1997-2018, NVIDIA CORPORATION.  All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -95,11 +95,32 @@ struct lower_syms lowersym;
 static int first_avail_scalarptr_temp, first_used_scalarptr_temp, first_temp;
 static int first_avail_scalar_temp, first_used_scalar_temp;
 static void lower_put_datatype(int, int);
+static bool has_opt_args(SPTR sptr);
 
 static void lower_fileinfo_llvm();
 static LOGICAL llvm_iface_flag = FALSE;
 static void stb_lower_sym_header();
 
+/** \brief Returns true if the procedure (sptr) has optional arguments. 
+ */
+static bool
+has_opt_args(SPTR sptr)
+{
+ int i, psptr, nargs, dpdsc; 
+ 
+  if (STYPEG(sptr) != ST_ENTRY && STYPEG(sptr) != ST_PROC) {
+    return false;
+  }
+  nargs = PARAMCTG(sptr);
+  dpdsc = DPDSCG(sptr);
+  for (i = 0; i < nargs; ++i) {
+    psptr = *(aux.dpdsc_base + dpdsc + i);
+    if (OPTARGG(psptr)) {
+       return true;
+    }
+  }
+  return false;
+}
 /** \brief Set 'EXTRA' bit for arrays, descriptors, array members
     that have IPA no conflict information, or that are compiler temps,
     or that can't conflict because they aren't targets and aren't pointers
@@ -216,7 +237,7 @@ static void
 lower_make_all_descriptors(void)
 {
   int sptr;
-  int stp;
+  int stp = 0;
   for (sptr = stb.firstusym; sptr < stb.stg_avail; ++sptr) {
     switch (STYPEG(sptr)) {
     case ST_ARRAY:
@@ -234,7 +255,8 @@ lower_make_all_descriptors(void)
         /* module symbols */
         if (!POINTERG(sptr) && SDSCG(sptr) != 0 &&
             STYPEG(SDSCG(sptr)) != ST_PARAM) {
-          if (!ASSUMSHPG(sptr) || !XBIT(54, 2)) {
+          if (!ASSUMSHPG(sptr) ||
+              (!XBIT(54, 2) && !(XBIT(58, 0x400000) && TARGETG(sptr)))) {
             /* set SDSCS1 for sdsc */
             SDSCS1P(SDSCG(sptr), 1);
           }
@@ -267,7 +289,10 @@ lower_make_all_descriptors(void)
                 SCP(stp, SC_PRIVATE);
             }
             if (SCG(sptr) == SC_DUMMY) {
+              if (!stp)
+                stp = sym_get_ptr(sptr);
               SCP(stp, SC_DUMMY);
+              MIDNUMP(sptr, stp); 
             }
           }
           if (!POINTERG(sptr)) {
@@ -536,7 +561,7 @@ fill_fixed_array_dtype(int dtype)
   if (mlpyr > 0) {
     ADD_NUMELM(dtype) = mk_cnst(lower_getiszcon(mlpyr));
   } else {
-    ADD_NUMELM(dtype) = 0;
+    ADD_NUMELM(dtype) = astb.bnd.zero;
   }
 } /* fill_fixed_array_dtype */
 
@@ -696,7 +721,8 @@ fill_adjustable_array_dtype(int dtype, int assumedshape, int stride1,
     lw = ADD_LWAST(dtype, i);
     if (lw != 0 && A_ALIASG(lw))
       lw = A_ALIASG(lw);
-    if (lw == 0 && assumedshape && !XBIT(54, 2)) {
+    if (lw == 0 && assumedshape && !XBIT(54, 2) &&
+        !(XBIT(58, 0x400000) && TARGETG(sptr))) {
       ADD_LWAST(dtype, i) = astb.bnd.one;
       lwsym = 0;
       lwval = 1;
@@ -857,8 +883,9 @@ lower_prepare_symbols()
                                         saveg, sptr);
           }
         } else if (gbl.internal && ALLOCATTRG(sptr) && !INTERNALG(sptr) &&
-                   MIDNUMG(sptr) && (SCG(MIDNUMG(sptr)) == SC_LOCAL ||
-                                     SCG(MIDNUMG(sptr)) == SC_DUMMY)) {
+                   MIDNUMG(sptr) &&
+                   (SCG(MIDNUMG(sptr)) == SC_LOCAL ||
+                    SCG(MIDNUMG(sptr)) == SC_DUMMY)) {
           /*
            * nothing to do --- Host local allocatables will be
            * descriptor-based in the presence of internal procedures
@@ -883,7 +910,7 @@ lower_prepare_symbols()
           fill_fixed_array_dtype(dtype);
         }
       }
-    /* fall through */
+      /* fall through */
 
     case ST_VAR:
     case ST_IDENT:
@@ -1019,6 +1046,10 @@ lower_prepare_symbols()
         DTYPEP(sptr, dtype);
         lower_use_datatype(dtype, 1);
       }
+
+      if (IGNOREG(sptr))
+        break;
+
       if (DTY(dtype) == TY_ARRAY) {
         if ((POINTERG(sptr) || ALLOCG(sptr)) && SDSCG(sptr) &&
             STYPEG(SDSCG(sptr)) != ST_PARAM) {
@@ -1206,13 +1237,13 @@ lower_init_sym(void)
   lower_make_all_descriptors();
   /* reassign member addresses to account for distributed derived
    * type members, late additions of section descriptors, pointers, etc. */
-  for (dtype = 0; dtype < stb.dt_avail; dtype += dlen(DTY(dtype))) {
+  for (dtype = 0; dtype < stb.dt.stg_avail; dtype += dlen(DTY(dtype))) {
     if (DTY(dtype) == TY_DERIVED) {
       chkstruct(dtype);
     }
   }
   /* allocate the table of datatypes */
-  last_datatype_used = stb.dt_avail;
+  last_datatype_used = stb.dt.stg_avail;
   NEW(datatype_used, char, last_datatype_used);
   BZERO(datatype_used, char, last_datatype_used);
   NEW(datatype_output, char, last_datatype_used);
@@ -1240,8 +1271,7 @@ lower_init_sym(void)
     lowersym.bnd.sub = "KSUB";
     lowersym.bnd.mul = "KMUL";
     lowersym.bnd.div = "KDIV";
-  } else
-  {
+  } else {
     lowersym.bnd.zero = stb.i0;
     lowersym.bnd.one = stb.i1;
     lowersym.bnd.max = lower_getintcon(0x7fffffff);
@@ -1260,7 +1290,7 @@ lower_init_sym(void)
               lowersym.ptr_calloc = lowersym.auto_alloc = lowersym.auto_calloc =
                   lowersym.auto_dealloc = 0;
   if (XBIT(70, 2)) {
-/* add subchk subroutine */
+    /* add subchk subroutine */
     if (XBIT(68, 0x1))
       lowersym.sym_subchk =
           lower_makefunc(mkRteRtnNm(RTE_subchk64), DT_INT, TRUE);
@@ -1636,7 +1666,7 @@ lower_sym_header(void)
     putvline("First", stb.firstusym);
   }
   putvline("Symbols", stb.stg_avail - 1);
-  putvline("Datatypes", stb.dt_avail - 1);
+  putvline("Datatypes", stb.dt.stg_avail - 1);
   bss_addr = get_bss_addr();
   putvline("BSS", bss_addr);
   putvline("GBL", gbl.saddr);
@@ -1767,15 +1797,19 @@ set_common_size(int common)
 void
 lower_common_sizes(void)
 {
-  int sptr, s;
+  int sptr, s, inmod;
   for (sptr = gbl.cmblks; sptr != NOSYM; sptr = SYMLKG(sptr)) {
     /* set 'visit' bit for all commons and all members */
     VISITP(sptr, 1);
     DTYPEP(sptr, 0);
+    inmod = SCOPEG(sptr);
+    if (inmod && STYPEG(inmod) == ST_ALIAS)
+      inmod = SCOPEG(inmod);
+    if (inmod && STYPEG(inmod) == ST_MODULE)
+      lower_visit_symbol(inmod);
     set_common_size(sptr);
-    if (IGNOREG(sptr)) {
+    if (IGNOREG(sptr))
       continue;
-    }
     for (s = CMEMFG(sptr); s != NOSYM; s = SYMLKG(s)) {
       lower_visit_symbol(s);
     }
@@ -1852,15 +1886,14 @@ makefvallocal(int rutype, int fval)
 {
   int dtype;
   /* if this was turned into a subroutine, make the fval a dummy */
-  if (gbl.rutype != RU_FUNC)
+  if (rutype != RU_FUNC)
     return 0;
   /* if the fval is a POINTER variable, make local */
   if (POINTERG(fval))
     return 1;
   dtype = DTYPEG(fval);
   /* if the datatype is a structure, derived type, make a dummy */
-  if ((DTY(dtype) == TY_STRUCT || DTY(dtype) == TY_DERIVED) &&
-      !is_iso_cptr(dtype))
+  if ((DTY(dtype) == TY_STRUCT || DTY(dtype) == TY_DERIVED))
     return 0;
   /* if the datatype is character, make a dummy */
   if (DTY(dtype) == TY_CHAR || DTY(dtype) == TY_NCHAR)
@@ -1887,6 +1920,13 @@ lower_visit_symbol(int sptr)
   }
   if (VISITG(sptr))
     return;
+
+  if ((STYPEG(sptr) == ST_ALIAS || STYPEG(sptr) == ST_PROC ||
+      STYPEG(sptr) == ST_ENTRY) && 
+      SEPARATEMPG(sptr) && 
+      STYPEG(SCOPEG(sptr)) == ST_MODULE)
+    INMODULEP(sptr, 1);
+
   VISITP(sptr, 1);
   dtype = DTYPEG(sptr);
   stype = STYPEG(sptr);
@@ -2013,12 +2053,10 @@ lower_visit_symbol(int sptr)
     break;
   case ST_PROC:
     inmod = SCOPEG(sptr);
-    if (inmod && STYPEG(inmod) == ST_ALIAS) {
+    if (inmod && STYPEG(inmod) == ST_ALIAS)
       inmod = SCOPEG(inmod);
-    }
-    if (inmod && STYPEG(inmod) == ST_MODULE) {
+    if (inmod && STYPEG(inmod) == ST_MODULE)
       lower_visit_symbol(inmod);
-    }
     if (ALTNAMEG(sptr))
       lower_visit_symbol(ALTNAMEG(sptr));
     if (SCG(sptr) == SC_NONE ||
@@ -2124,7 +2162,7 @@ lower_check_generics(void)
   for (sptr = stb.firstosym; sptr < stb.stg_avail; ++sptr) {
     if (STYPEG(sptr) == ST_USERGENERIC) {
       int desc;
-      if ((flg.debug || XBIT(57, 0x20)) && notimplicit(sptr)) {
+      if (XBIT(57, 0x20) && notimplicit(sptr)) {
         VISITP(sptr, 1);
         lower_use_datatype(DTYPEG(sptr), 1);
         for (desc = GNDSCG(sptr); desc; desc = SYMI_NEXT(desc)) {
@@ -2281,18 +2319,17 @@ lower_use_datatype(int dtype, int usage)
     if (DTY(dtype + 3))
       lower_visit_symbol(DTY(dtype + 3));
     break;
-  case TY_PROC:
-    {
-      int restype = DTY(dtype + 1);
-      if (is_array_dtype(restype)) {
-        /* array result types must be lowered later to avoid
-         * lowering errors, but don't neglect the element type
-         */
-        restype = array_element_dtype(restype);
-      }
-      if (restype > 0)
-        lower_use_datatype(restype, 1);
+  case TY_PROC: {
+    int restype = DTY(dtype + 1);
+    if (is_array_dtype(restype)) {
+      /* array result types must be lowered later to avoid
+       * lowering errors, but don't neglect the element type
+       */
+      restype = array_element_dtype(restype);
     }
+    if (restype > 0)
+      lower_use_datatype(restype, 1);
+  }
     if (gbl.stbfil && DTY(dtype + 2)) {
       int iface = DTY(dtype + 2);
       int fval = DTY(dtype + 5);
@@ -2560,7 +2597,7 @@ lower_put_datatype(int dtype, int usage)
         clen = CONVAL2G(clen);
         putval("len", clen);
       } else {
-        putval("len", -2);
+        putval("len", -2 /* which backend maps to DT_ASSCHAR */);
       }
     }
     break;
@@ -2611,14 +2648,13 @@ lower_put_datatype(int dtype, int usage)
     putwhich("any", "a");
     break;
 
-  case TY_PROC:
-    {
-      int restype = DTY(dtype + 1);
-      if (is_array_dtype(restype))
-        restype = array_element_dtype(restype);
-      if (restype > 0)
-        lower_put_datatype(restype, 1); /* result type is a dependency */
-    }
+  case TY_PROC: {
+    int restype = DTY(dtype + 1);
+    if (is_array_dtype(restype))
+      restype = array_element_dtype(restype);
+    if (restype > 0)
+      lower_put_datatype(restype, 1); /* result type is a dependency */
+  }
     putwhich("proc", "p");
     putval("result", DTY(dtype + 1));
     iface = DTY(dtype + 2);
@@ -2891,7 +2927,9 @@ lower_put_datatype(int dtype, int usage)
       }
       if (zbase) {
         zbase = 0;
-        if (usage == 1)
+        /*We need to avoid the case that logic array has been used for
+         * intrinsics*/
+        if (usage == 1 && ndim)
           lerror("array zero-base is not a symbol for datatype %d", dtype);
       }
     }
@@ -2951,7 +2989,7 @@ lower_data_types(void)
 {
   int dtype, sptr;
 
-  for (dtype = 0; dtype < stb.dt_avail; dtype += dlen(DTY(dtype))) {
+  for (dtype = 0; dtype < stb.dt.stg_avail; dtype += dlen(DTY(dtype))) {
     if (dtype >= last_datatype_used || datatype_used[dtype]) {
       lower_put_datatype_stb(dtype);
     }
@@ -3378,7 +3416,7 @@ static char *
 putstype(int stype, int sptr)
 {
 /* TRY TO KEEP THESE UNIQUE IN THE FIRST CHARACTER! */
-#if ST_MAX != 34
+#if ST_MAX != 35
 #error \
     "Need to edit lowersym.c to add new or remove old ST_... symbol types or need to run the symtab utility"
 #endif
@@ -3519,6 +3557,13 @@ lower_symbol(int sptr)
     putival("symbol", sptr);
   stype = STYPEG(sptr);
   sc = SCG(sptr);
+
+  if ((STYPEG(sptr) == ST_ALIAS || STYPEG(sptr) == ST_PROC ||
+      STYPEG(sptr) == ST_ENTRY) && 
+      SEPARATEMPG(sptr) && 
+      STYPEG(SCOPEG(sptr)) == ST_MODULE)
+    INMODULEP(sptr, 1);
+
   dtype = DTYPEG(sptr);
   if (stype == ST_CONST && DTY(dtype) == TY_HOLL)
     dtype = DTYPEG(CONVAL1G(sptr));
@@ -3751,6 +3796,7 @@ lower_symbol(int sptr)
     putbit("allocattr", ALLOCATTRG(sptr));
     putbit("f90pointer", 0); /* F90POINTER will denote the POINTER attribute */
                              /* but first need to remove FE legacy use */
+    putbit("procdescr", IS_PROC_DESCRG(sptr));
     strip = 1;
     break;
 
@@ -3919,6 +3965,7 @@ lower_symbol(int sptr)
       putbit("denorm", 0);
       putbit("aret", 0);
       putbit("vararg", 0);
+      putbit("has_opts", 0);
       strip = 1;
     } else {
       /* put out like a PROC */
@@ -3981,6 +4028,7 @@ lower_symbol(int sptr)
       putbit("fwdref", 0);
       putbit("aret", 0);
       putbit("vararg", VARARGG(sptr));
+      putbit("has_opts", 0);
       putbit("parref", PARREFG(sptr));
       strip = 1;
     }
@@ -4054,7 +4102,7 @@ lower_symbol(int sptr)
         break;
       case TY_DERIVED:
       case TY_STRUCT:
-        if (FVALG(sptr) && !is_iso_cptr(DTYPEG(sptr)))
+        if (FVALG(sptr))
           fvalfirst = 1;
         break;
       default:
@@ -4086,6 +4134,7 @@ lower_symbol(int sptr)
     putbit("denorm", gbl.denorm);
     putbit("aret", ARETG(sptr));
     putbit("vararg", 0);
+    putbit("has_opts", has_opt_args(sptr) ? 1 : 0);
     if (fvalfirst) {
       putsym(NULL, FVALG(sptr));
     }
@@ -4233,6 +4282,7 @@ lower_symbol(int sptr)
     putbit("fwdref", 0);
     putbit("aret", 0);
     putbit("vararg", 0);
+    putbit("has_opts", 0);
     putbit("parref", 0);
     strip = 1;
     break;
@@ -4383,7 +4433,7 @@ lower_symbol(int sptr)
           break;
         case TY_DERIVED:
         case TY_STRUCT:
-          if (FVALG(sptr) && !is_iso_cptr(DTYPEG(sptr)))
+          if (FVALG(sptr))
             fvalfirst = 1;
           break;
         default:
@@ -4428,7 +4478,10 @@ lower_symbol(int sptr)
     putbit("fwdref", (inmod && IGNOREG(sptr)));
     putbit("aret", ARETG(sptr));
     putbit("vararg", 0);
+    putbit("has_opts", has_opt_args(sptr) ? 1 : 0);
     putbit("parref", PARREFG(sptr));
+    if (SCG(sptr) == SC_DUMMY)
+      putval("descriptor", IS_PROC_DUMMYG(sptr) ? SDSCG(sptr) : 0);
     if (gbl.stbfil && DTY(DTYPEG(sptr) + 2)) {
       if (fvalfirst) {
         putsym(NULL, FVALG(sptr));
@@ -4451,12 +4504,22 @@ lower_symbol(int sptr)
     putval("parent", 0);
     putval("descriptor", 0);
     putbit("class", 0);
+    if (all_default_init(DTYPEG(sptr))) {
+      putbit("alldefaultinit", 1);
+    } else {
+      putbit("alldefaultinit", 0);
+    }
     putbit("unlpoly", 0);
     putbit("isocbind", 0);
 #else
     putval("parent", PARENTG(sptr));
     putval("descriptor", SDSCG(sptr));
     putbit("class", CLASSG(sptr));
+    if (all_default_init(DTYPEG(sptr))) {
+      putbit("alldefaultinit", 1);
+    } else {
+      putbit("alldefaultinit", 0);
+    }
     putbit("unlpoly", UNLPOLYG(sptr));
     putbit("isoctype", ISOCTYPEG(sptr));
     putval("typedef_init", TYPDEF_INITG(sptr));
@@ -4513,23 +4576,28 @@ lower_symbol(int sptr)
 #ifdef PARUPLEVELG
     putval("paruplevel", PARUPLEVELG(sptr));
 #endif
-    putval("parsyms", PARSYMSG(sptr));
     if (PARSYMSG(sptr)) {
       LLUplevel *up = llmp_get_uplevel(sptr);
       int count = 0;
-
+      putval("parent", up->parent);
       /* recount parsymsct, don't count ST_ARRDSC */
       for (i = 0; i < up->vals_count; ++i) {
         if (up->vals[i] && STYPEG(up->vals[i]) == ST_ARRDSC)
           count++;
       }
-      putval("parsymsct", (up->vals_count-count));
+      putval("parsymsct", (up->vals_count - count));
       for (i = 0; i < up->vals_count; ++i) {
         if (up->vals[i] && STYPEG(up->vals[i]) == ST_ARRDSC)
           continue;
         putsym(NULL, up->vals[i]);
       }
     } else {
+      LLUplevel *up = llmp_has_uplevel(sptr);
+      if (up) {
+        putval("parent", up->parent);
+      } else {
+        putval("parent", 0);
+      }
       putval("parsymsct", 0);
     }
 
@@ -4661,9 +4729,19 @@ lower_symbols(void)
         }
       }
     } else if (!VISITG(sptr) && CLASSG(sptr) && DESCARRAYG(sptr) &&
-               STYPEG(sptr) == ST_DESCRIPTOR /*&& FINALG(sptr)*/) {
-      if (PARENTG(sptr)) {
-        /* FS#21658: Only perform this if PARENT is set */
+               STYPEG(sptr) == ST_DESCRIPTOR) {
+      SPTR scope = SCOPEG(sptr);
+      bool is_interface =
+          ((STYPEG(scope) == ST_PROC || STYPEG(scope) == ST_ENTRY) &&
+           IS_INTERFACEG(scope));
+      if (PARENTG(sptr) && !is_interface) {
+        /* Only perform this if PARENT is set. Also do not create type
+         * descriptors for derived types defined inside interfaces. When
+         * derived types are defined inside interfaces, type descriptors are
+         * not needed because there is no executable code inside an interface.
+         * Furthermore, if we generate them, we might get multiple definitions
+         * of the same type descriptor.
+         */
         lower_put_datatype_stb(DTYPEG(sptr));
         VISITP(sptr, 1);
         lower_symbol_stb(sptr);
@@ -4774,6 +4852,39 @@ lower_symbols(void)
       lower_symbol_stb(sptr);
     }
     VISIT2P(sptr, 0);
+
+    /* Unfreeze intrinsics for re/use in internal routines.
+     *
+     * This isn't quite right.  It favors declarations in an internal routine 
+     * at the possible expense of cases where a host routine declaration
+     * should be accessible in an internal routine.  It might be useful to
+     * have multiple freeze bits, such as one for a host routine and one
+     * for the current internal routine.  That would allow more accurate
+     * diagnosis of errors in internal routines.
+     *
+     * Unfortunately, multiple bits would require analysis of existing cases
+     * where the bit is set and referenced, and there is a combinatorial
+     * explosion of cases mixing various declarations and uses.  For the LEN
+     * intrinsic, for example, some possible declaration cases are:
+     *
+     *  - INTEGER :: LEN ! (ambiguous) LEN may be a var or an intrinsic
+     *  - INTEGER, INTRINISC :: LEN ! LEN is an intrinsic
+     *  - <no declaration> -- (first) use determines what LEN is
+     *
+     * Some reference possibilities are:
+     *
+     *  - LEN() is an (intrinsic) function call
+     *  - LEN is a (scalar) var reference
+     *
+     * These declarations and references can be present in any combination
+     * in a host routine, in an internal routine, or both.  Many of these
+     * combinations are valid, but not all.  Compilation currently mishandles
+     * some of these variants.  The choice to clear the "freeze" bit here is
+     * a compromise attempt intended to favor correct compilation of valid
+     * programs above diagnosis of error cases.
+     */
+    if (IS_INTRINSIC(STYPEG(sptr)))
+      EXPSTP(sptr, 0);
   }
   if (gbl.internal > 1) {
     for (sptr = gbl.outerentries; sptr > NOSYM; sptr = SYMLKG(sptr)) {
@@ -5159,10 +5270,11 @@ lower_fileinfo_llvm()
     if (fullname == NULL)
       fullname = "";
 
-    fprintf(gbl.stbfil, "fihx:%d tag:%d parent:%d flags:%d lineno:%d "
-                        "srcline:%d level:%d next:%d %" GBL_SIZE_T_FORMAT
-                        ":%s %" GBL_SIZE_T_FORMAT ":%s %" GBL_SIZE_T_FORMAT
-                        ":%s %" GBL_SIZE_T_FORMAT ":%s\n",
+    fprintf(gbl.stbfil,
+            "fihx:%d tag:%d parent:%d flags:%d lineno:%d "
+            "srcline:%d level:%d next:%d %" GBL_SIZE_T_FORMAT
+            ":%s %" GBL_SIZE_T_FORMAT ":%s %" GBL_SIZE_T_FORMAT
+            ":%s %" GBL_SIZE_T_FORMAT ":%s\n",
             fihx, FIH_FUNCTAG(fihx), FIH_PARENT(fihx), FIH_FLAGS(fihx),
             FIH_LINENO(fihx), FIH_SRCLINE(fihx), FIH_LEVEL(fihx),
             FIH_NEXT(fihx), strlen(dirname), dirname, strlen(filename),
@@ -5220,7 +5332,7 @@ stb_lower_sym_header()
     putvline("First", stb.firstusym);
   }
   putvline("Symbols", stb.stg_avail - 1);
-  putvline("Datatypes", stb.dt_avail - 1);
+  putvline("Datatypes", stb.dt.stg_avail - 1);
   bss_addr = get_bss_addr();
   putvline("BSS", bss_addr);
   putvline("GBL", gbl.saddr);
@@ -5248,34 +5360,41 @@ static int save_dpdsc_cnt = 0;
 static void
 llvm_check_retval_inargs(int sptr)
 {
-  if (FVALG(sptr)) {
+  int fval = FVALG(sptr);
+  if (fval) {
     int dtype;
     int ent_dtype = DTYPEG(sptr);
     llvm_fix_args(sptr, dtype != DT_NONE);
-    dtype = DTYPEG(FVALG(sptr));
+    dtype = DTYPEG(fval);
     fix_class_args(sptr);
+    if (DTYPEG(sptr) != DT_NONE && makefvallocal(RU_FUNC, fval)) {
+      SCP(fval, SC_LOCAL);
+      if (is_iso_cptr(DTYPEG(fval))) {
+        DTYPEP(fval, DT_CPTR);
+      }
+    }
     switch (DTY(dtype)) {
     case TY_ARRAY:
-      if (aux.dpdsc_base[DPDSCG(sptr)] != FVALG(sptr)) {
+      if (aux.dpdsc_base[DPDSCG(sptr)] != fval) {
         DPDSCP(sptr, DPDSCG(sptr) - 1);
-        *(aux.dpdsc_base + DPDSCG(sptr)) = FVALG(sptr);
+        *(aux.dpdsc_base + DPDSCG(sptr)) = fval;
         PARAMCTP(sptr, PARAMCTG(sptr) + 1);
         DTYPEP(sptr, DT_NONE);
-        SCP(FVALG(sptr), SC_DUMMY);
+        SCP(fval, SC_DUMMY);
       }
       break;
     case TY_CHAR:
     case TY_NCHAR:
       if (dtype != ent_dtype)
         return;
-      if (!POINTERG(sptr) && ADJLENG(FVALG(sptr)) && DPDSCG(sptr)) {
+      if (!POINTERG(sptr) && ADJLENG(fval) && DPDSCG(sptr)) {
 
-        if (aux.dpdsc_base[DPDSCG(sptr)] != FVALG(sptr)) {
+        if (aux.dpdsc_base[DPDSCG(sptr)] != fval) {
           DPDSCP(sptr, DPDSCG(sptr) - 1);
-          *(aux.dpdsc_base + DPDSCG(sptr)) = FVALG(sptr);
+          *(aux.dpdsc_base + DPDSCG(sptr)) = fval;
           PARAMCTP(sptr, PARAMCTG(sptr) + 1);
           DTYPEP(sptr, DT_NONE);
-          SCP(FVALG(sptr), SC_DUMMY);
+          SCP(fval, SC_DUMMY);
         }
       }
     case TY_DCMPLX:
@@ -5290,18 +5409,17 @@ llvm_check_retval_inargs(int sptr)
         return;
 
     pointer_check:
-      if (aux.dpdsc_base[DPDSCG(sptr)] != FVALG(sptr) &&
-          (POINTERG(sptr) || ALLOCATTRG(FVALG(sptr)) ||
-           (DTY(ent_dtype) == TY_DCMPLX))
+      if (aux.dpdsc_base[DPDSCG(sptr)] != fval &&
+          (POINTERG(sptr) || ALLOCATTRG(fval) || (DTY(ent_dtype) == TY_DCMPLX))
 
-              ) {
+      ) {
         if (DPDSCG(sptr) && DTYPEG(sptr) != DT_NONE) {
 
           DPDSCP(sptr, DPDSCG(sptr) - 1);
-          *(aux.dpdsc_base + DPDSCG(sptr)) = FVALG(sptr);
+          *(aux.dpdsc_base + DPDSCG(sptr)) = fval;
           PARAMCTP(sptr, PARAMCTG(sptr) + 1);
           DTYPEP(sptr, DT_NONE);
-          SCP(FVALG(sptr), SC_DUMMY);
+          SCP(fval, SC_DUMMY);
         }
       }
       break;
@@ -5373,7 +5491,7 @@ stb_fixup_llvmiface()
             (gbl.currsub && gbl.currsub == SCOPEG(sptr) &&
              NEEDMODG(gbl.currsub))))
 
-              ) {
+      ) {
         _stb_fixup_ifacearg(sptr);
       }
     }

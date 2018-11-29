@@ -1,5 +1,5 @@
 .\"/*
-.\" * Copyright (c) 2017, NVIDIA CORPORATION.  All rights reserved.
+.\" * Copyright (c) 1994-2018, NVIDIA CORPORATION.  All rights reserved.
 .\" *
 .\" * Licensed under the Apache License, Version 2.0 (the "License");
 .\" * you may not use this file except in compliance with the License.
@@ -12,7 +12,7 @@
 .\" * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 .\" * See the License for the specific language governing permissions and
 .\" * limitations under the License.
-.\" * 
+.\" *
 .\" */
 .NS 13 "X86-64 ILI Definitions"
 .sh 2 "Key to ILI Template Listing"
@@ -544,7 +544,7 @@ XORing its sign bits with 1.  This ILI is specified as non-commutative
 .AT arth null cd cse
 .CG CGonly "xorpd" sse_avx
 
-.IL SCMPLXCONJG cslnk 
+.IL SCMPLXCONJG cslnk
 Single-precision complex conjugate.
 .AT arth null cs cse
 .CG "xorps" sse_avx asm_special
@@ -747,16 +747,6 @@ Double-precision exponential.
 .AT arth null dp cse
 .CG notCG
 
-.IL SCMPLXEXP cslnk
-Single-precision complex exponential.
-.AT arth null cs cse
-.CG notCG
-
-.IL DCMPLXEXP cdlnk
-Double-precision complex exponential.
-.AT arth null cd cse
-.CG notCG
-
 .IL FACOS splnk
 Single-precision floating-point arccosine.
 .AT arth null sp cse
@@ -908,6 +898,156 @@ Real CEILING.
 Double CEILING.
 .AT arth null dp cse
 .CG "roundsd" sse_avx
+
+.IL SCMPLXEXP cslnk
+Single-precision complex exponential.
+.AT arth null cs cse
+.CG notCG
+
+.IL DCMPLXEXP cdlnk
+Double-precision complex exponential.
+.AT arth null cd cse
+.CG notCG
+
+.IL SCMPLXCOS cslnk
+Single-precision complex cosine.
+.AT arth null cs cse
+.CG notCG
+
+.IL DCMPLXCOS cdlnk
+Double-precision complex cosine.
+.AT arth null cd cse
+.CG notCG
+
+.IL SCMPLXSIN cslnk
+Single-precision complex sine.
+.AT arth null cs cse
+.CG notCG
+
+.IL DCMPLXSIN cdlnk
+Double-precision complex sine.
+.AT arth null cd cse
+.CG notCG
+
+.IL SCMPLXTAN cslnk
+Single-precision complex tangent.
+.AT arth null cs cse
+.CG notCG
+
+.IL DCMPLXTAN cdlnk
+Double-precision complex tangent.
+.AT arth null cd cse
+.CG notCG
+
+.IL SCMPLXACOS cslnk
+Single-precision complex arccosine.
+.AT arth null cs cse
+.CG notCG
+
+.IL DCMPLXACOS cdlnk
+Double-precision complex arccosine.
+.AT arth null cd cse
+.CG notCG
+
+.IL SCMPLXASIN cslnk
+Single-precision complex arcsine.
+.AT arth null cs cse
+.CG notCG
+
+.IL DCMPLXASIN cdlnk
+Double-precision complex arcsine.
+.AT arth null cd cse
+.CG notCG
+
+.IL SCMPLXATAN cslnk
+Single-precision complex arctangent.
+.AT arth null cs cse
+.CG notCG
+
+.IL DCMPLXATAN cdlnk
+Double-precision complex arctangent.
+.AT arth null cd cse
+.CG notCG
+
+.IL SCMPLXCOSH cslnk
+Single-precision complex hyperbolic cos.
+.AT arth null cs cse
+.CG notCG
+
+.IL DCMPLXCOSH cdlnk
+Double-precision complex hyperbolic cos.
+.AT arth null cd cse
+.CG notCG
+
+.IL SCMPLXSINH cslnk
+Single-precision complex hyperbolic sin.
+.AT arth null cs cse
+.CG notCG
+
+.IL DCMPLXSINH cdlnk
+Double-precision complex hyperbolic sin.
+.AT arth null cd cse
+.CG notCG
+
+.IL SCMPLXTANH cslnk
+Single-precision complex hyperbolic tan.
+.AT arth null cs cse
+.CG notCG
+
+.IL DCMPLXTANH cdlnk
+Double-precision complex hyperbolic tan.
+.AT arth null cd cse
+.CG notCG
+
+.IL SCMPLXLOG cslnk
+Single-precision complex natural logarithm.
+.AT arth null cs cse
+.CG notCG
+
+.IL DCMPLXLOG cdlnk
+Double-precision complex natural logarithm.
+.AT arth null cd cse
+.CG notCG
+
+.IL SCMPLXSQRT cslnk
+Single-precision complex square root.
+.AT arth null cs cse
+.CG notCG
+
+.IL DCMPLXSQRT cdlnk
+Double-precision complex square root.
+.AT arth null cd cse
+.CG notCG
+
+.IL SCMPLXPOW cslnk cslnk
+Single-precision complex raised to a single-precision complex power.
+.AT arth null cs cse
+.CG notCG
+
+.IL DCMPLXPOW cdlnk cdlnk
+Double-precision complex raised to a double-precision complex power.
+.AT arth null cd cse
+.CG notCG
+
+.IL SCMPLXPOWI cslnk irlnk
+Single-precision complex raised to an integer power.
+.AT arth null cs cse
+.CG notCG
+
+.IL DCMPLXPOWI cdlnk irlnk
+Double-precision complex raised to an integer power.
+.AT arth null cd cse
+.CG notCG
+
+.IL SCMPLXPOWK cslnk krlnk
+Single-precision complex raised to an integer power.
+.AT arth null cs cse
+.CG notCG
+
+.IL DCMPLXPOWK cdlnk krlnk
+Double-precision complex raised to an integer power.
+.AT arth null cd cse
+.CG notCG
 
 .\"
 .\" Start of type conversion ILIs.
@@ -1312,7 +1452,7 @@ type conversion.
 .CG 'q' sse_avx asm_special
 
 .IL CS2KR cslnk
-Copy a single precision complex from an 'xmm' register to a 'gp' register 
+Copy a single precision complex from an 'xmm' register to a 'gp' register
 without type conversion.
 .AT arth null kr
 .CG 'q' sse_avx asm_special
@@ -2351,12 +2491,12 @@ Double precision register cse.
 
 .IL CSECS cslnk
 Single precision complex register cse.
-.AT arth null cs 
+.AT arth null cs
 .CG notCG
 
 .IL CSECD cdlnk
 Double precision complex register cse.
-.AT arth null cd 
+.AT arth null cd
 .CG notCG
 
 .IL CSEAR arlnk
@@ -2431,14 +2571,14 @@ Emitted immediately before an SMOVE operation.
 General structure copy.
 A structure store (SMOVE ILM) is expanded into the GSMOVE ILI; a phase, such as
 the ACC CG, needs to have the structure assignment presented as a first-class
-ILI operation. 
+ILI operation.
 After the last phase requiring GSMOVE, GSMOVE will then be expanded into
 lower level ILI which will be dependent on target, alignment, small vs large,
 etc.
   \'op1' is the source address.
   \'op2' is the destination address.
   \'nme1' is the names table entry for source struct.
-  \'nme2' is the namse table entry for the destination struct.
+  \'nme2' is the names table entry for the destination struct.
   \'stc' is the dtype of the struct.
 .AT other null trm dom
 .CG notCG
@@ -2452,8 +2592,23 @@ Structure copy.
 .AT other null trm dom
 .CG terminal "movs"
 
+.IL SMOVEJ arlnk arlnk nme nme stc
+Simple structure copy.  (MOVS is x86 parlance.)
+This is used to replace the SMOVEI/SMOVES pair, which was used when
+the ILI operand count was only 4.
+\'op1' is the source address
+\'op2' is the destination address
+\'nme1' is the names table entry for source struct.
+\'nme2' is the names table entry for the destination struct.
+\'op5' is actual number of bytes to copy.
+This gets turned into SMOVE and load/store operations by rm_smove
+.AT other null trm dom
+.CG notCG
+
 .IL SMOVEI arlnk arlnk stc nme
 Simple structure copy.  (MOVS is x86 parlance.)
+\'op1' is arlnk to SMOVES
+\'op2' is the destination address
 \'op3' is actual number of bytes to copy.
 \'nme' is names table entry for destination struct.
 This gets turned into SMOVE and load/store operations by rm_smove
@@ -2462,6 +2617,7 @@ This gets turned into SMOVE and load/store operations by rm_smove
 
 .IL SMOVES arlnk nme
 Simple structure copy source operand (SMOVEI operand 2)
+\'op1' is the source address.
 \'nme' is names table entry for source struct.
 This gets turned into SMOVE and load/store operations by rm_smove
 .AT other null ar dom
@@ -2477,7 +2633,7 @@ Structure copy.
 
 .IL ST irlnk arlnk nme stc
 Store integer value.
-In ILI, the value to be stored must fit without implicit truncation, i.e. immediately 
+In ILI, the value to be stored must fit without implicit truncation, i.e. immediately
 reloading using LD with the same size modifier must reproduce the value that was stored.
 In LILI or AILI, ST may perform implicit truncation.
 \'op1' is a pointer to an ili representing the value being stored.
@@ -2573,9 +2729,9 @@ Replaced by ST opcode in cgoptim1.
 .CG terminal notAILI
 
 .IL STRG1 arlnk stc
-Store address quantity inside of op1 argument register described by stc.  
-Used in g++ style 
-thunks when adjusting the *this* pointer, (the first argument) just 
+Store address quantity inside of op1 argument register described by stc.
+Used in g++ style
+thunks when adjusting the *this* pointer, (the first argument) just
 before jumping through to the function Replaced by ST opcode in cgoptim1.
 .AT store null trm
 .CG terminal notAILI
@@ -2607,7 +2763,7 @@ arguments.
 JSR to routine whose address is pointed to by arlnk.
 lnk points to the list of ARG ILIs which represents the arguments.
 stc1 attribute flag (stdcall in x86)
-stc2 dtype 
+stc2 dtype
 .AT proc null lnk dom
 .CG terminal notAILI
 
@@ -2621,8 +2777,8 @@ Quick (intrinsic) call.
 .IL GJSR sym lnk sym
 Same as JSR, but the argument list is expressed using the general argument
 ILI, i.e., before applying the ABI.
-\'sym2' is the label to jump to if an exception is thrown, 
-0 if the call cannot throw, 
+\'sym2' is the label to jump to if an exception is thrown,
+0 if the call cannot throw,
 or -1 if there is no cleanup.
 .AT proc null lnk dom
 .CG terminal notCG
@@ -3330,8 +3486,8 @@ by op1.
 Enter a "function" which will compute the value of an expression
 used as a variable format field. op1 locates a temporary area
 used to set up the environment of the expression:
-\op1+0 -- contains the fp to use for the expression
-\op1+4 -- where to save the current fp
+\ op1+0 -- contains the fp to use for the expression
+\ op1+4 -- where to save the current fp
 The code for VFENTER performs the following:
 \1.  save current fp in addr(op1)+4
 \2.  load fp from addr(op1)+0
@@ -3823,7 +3979,7 @@ Copy the packed integer*4 or integer*8 values from 'xmm1' to 'xmm2'.
     xmm2(3:0) = [ xmm1(3), xmm1(3), xmm1(1), xmm1(1) ]
 where the subscripts refer to real*4 elements.
 .AT other null trm
-.CG terminal "movshdup" sse_avx 
+.CG terminal "movshdup" sse_avx
 
 .IL MOVSLDUP xmm xmm
 'xmm1' and 'xmm2' contain packed real*4 values.  This sets:
@@ -4931,14 +5087,20 @@ is represented by op1.
 .CG 'l' asm_special
 
 .IL EHREGST sym sym
-Store implicit registers into the syms: catch_clause and caught_object 
-.AT other null trm 
+Store implicit registers into the syms: catch_clause and caught_object
+.AT other null trm
 .CG asm_special terminal
 
 .IL EHREGLD sym sym
 Materialize the syms: catch_clause and caught_object into the two symbols
 from implicit registers
-.AT other null trm 
+.AT other null trm
+.CG asm_special terminal
+
+.IL EHRESUME sym sym
+Resume propagation of an existing in-flight exception whose unwinding was
+interrupted to run some cleanup code.
+.AT other null trm
 .CG asm_special terminal
 
 .IL ACCEL lnk
@@ -4989,66 +5151,100 @@ Link to a list of clauses.
 .AT other null trm
 .CG notCG
 
+.IL ACCSERIAL lnk
+Start a block of code to run as a serial kernel on the accelerator.
+Link to a list of clauses.
+.AT other null trm
+.CG notCG
+
+.IL ACCENDSERIAL
+End a block of code to run as a serial kernel on the accelerator.
+Link to a list of clauses.
+.AT other null trm
+.CG notCG
+
 .IL ACCELLP lnk
 The following loop is to be targeted for the accelerator.
 Link to a list of clauses.
 .AT other null trm
 .CG notCG
 
-.IL ACCKLOOP lnk
+.IL ACCSLOOP lnk stc
+The following loop in a serial region is to be targeted for the accelerator.
+Link to a list of clauses.
+The second operand is one when this loop is tightly nested in the compute construct, and zero otherwise;
+.AT other null trm
+.CG notCG
+
+.IL ACCKLOOP lnk stc
 The following loop in a kernels region is to be targeted for the accelerator.
 Link to a list of clauses.
+The second operand is one when this loop is tightly nested in the compute construct, and zero otherwise;
 .AT other null trm
 .CG notCG
 
-.IL ACCPLOOP lnk
+.IL ACCPLOOP lnk stc
 The following loop in a parallel region is to be targeted for the accelerator.
 Link to a list of clauses.
+The second operand is one when this loop is tightly nested in the compute construct, and zero otherwise;
 .AT other null trm
 .CG notCG
 
-.IL ACCCOPY lnk lnk lnk sym
+.IL ACCATTACH lnk lnk lnk sym
+Attach the pointer/allocatable member in an aggregate structure data variable
+.AT other null lnk
+.CG notCG
+
+.IL ACCDETACH lnk lnk lnk sym
+Detach the pointer/allocatable member in an aggregate structure data variable
+.AT other null lnk
+.CG notCG
+
+.IL ACCCOPY lnk lnk lnk sym stc
 Variable or array will be copied from host to device and back.
 First link is to next clause.
 Second link is to the array bounds.
 Third link is to ACCSYMLNK.
 Fourth argument is the symbol that points to the device copy, if there is such
 a symbol.
+Fifth arg is the policy index
 .AT other null lnk
 .CG notCG
 
-.IL ACCCOPYIN lnk lnk lnk sym
+.IL ACCCOPYIN lnk lnk lnk sym stc
 Variable or array will be copied from host to device.
 First link is to next clause.
 Second link is to the array bounds.
 Third link is to ACCSYMLNK.
 Fourth argument is the symbol that points to the device copy, if there is such
 a symbol.
+Fifth arg is the policy index
 .AT other null lnk
 .CG notCG
 
-.IL ACCCOPYOUT lnk lnk lnk sym
+.IL ACCCOPYOUT lnk lnk lnk sym stc
 Variable or array will be copied from device to host.
 First link is to next clause.
 Second link is to the array bounds.
 Third link is to ACCSYMLNK.
 Fourth argument is the symbol that points to the device copy, if there is such
 a symbol.
+Fifth arg is the policy index
 .AT other null lnk
 .CG notCG
 
-.IL ACCLOCAL lnk lnk lnk sym
+.IL ACCLOCAL lnk lnk lnk sym stc
 Variable or array will be allocated on the device but not copied.
 First link is to next clause.
 Second link is to the array bounds.
 Third link is to ACCSYMLNK.
 Fourth argument is the symbol that points to the device copy, if there is such
 a symbol.
-to or from the host
+Fifth arg is the policy index
 .AT other null lnk
 .CG notCG
 
-.IL ACCCREATE lnk lnk lnk sym
+.IL ACCCREATE lnk lnk lnk sym stc
 Variable or array will be allocated on the device but not copied
 to or from the host.
 First link is to next clause.
@@ -5056,10 +5252,11 @@ Second link is to the array bounds.
 Third link is to ACCSYMLNK.
 Fourth argument is the symbol that points to the device copy, if there is such
 a symbol.
+Fifth arg is the policy index
 .AT other null lnk
 .CG notCG
 
-.IL ACCDELETE lnk lnk lnk sym
+.IL ACCDELETE lnk lnk lnk sym stc
 Variable or array will be deleted from the device but not copied
 to or from the host.
 First link is to next clause.
@@ -5067,10 +5264,11 @@ Second link is to the array bounds.
 Third link is to ACCSYMLNK.
 Fourth argument is the symbol that points to the device copy, if there is such
 a symbol.
+Fifth arg is the policy index
 .AT other null lnk
 .CG notCG
 
-.IL ACCPDELETE lnk lnk lnk sym
+.IL ACCPDELETE lnk lnk lnk sym stc
 Variable or array will be deleted from the device but not copied,
 unless in a data region to or from the host.
 First link is to next clause.
@@ -5078,40 +5276,44 @@ Second link is to the array bounds.
 Third link is to ACCSYMLNK.
 Fourth argument is the symbol that points to the device copy, if there is such
 a symbol.
+Fifth arg is the policy index
 .AT other null lnk
 .CG notCG
 
-.IL ACCPRESENT lnk lnk lnk sym
+.IL ACCPRESENT lnk lnk lnk sym stc
 Variable or array must be present on the device.
 First link is to next clause.
 Second link is to the array bounds.
 Third link is to ACCSYMLNK.
 Fourth argument is the symbol that points to the device copy, if there is such
 a symbol.
+Fifth arg is the policy index
 .AT other null lnk
 .CG notCG
 
-.IL ACCPCOPY lnk lnk lnk sym
+.IL ACCPCOPY lnk lnk lnk sym stc
 Variable or array may be present on the device, but if not will be copied.
 First link is to next clause.
 Second link is to the array bounds.
 Third link is to ACCSYMLNK.
 Fourth argument is the symbol that points to the device copy, if there is such
 a symbol.
+Fifth arg is the policy index
 .AT other null lnk
 .CG notCG
 
-.IL ACCPCOPYIN lnk lnk lnk sym
+.IL ACCPCOPYIN lnk lnk lnk sym stc
 Variable or array may be present on the device, but if not will be copied in.
 First link is to next clause.
 Second link is to the array bounds.
 Third link is to ACCSYMLNK.
 Fourth argument is the symbol that points to the device copy, if there is such
 a symbol.
+Fifth arg is the policy index
 .AT other null lnk
 .CG notCG
 
-.IL ACCPCOPYOUT lnk lnk lnk sym
+.IL ACCPCOPYOUT lnk lnk lnk sym stc
 Variable or array may be present on the device, but if not will be copied out.
 First link is to next clause.
 Second link is to the array bounds.
@@ -5119,9 +5321,10 @@ Third link is to ACCSYMLNK.
 Fourth argument is the symbol that points to the device copy, if there is such
 a symbol.
 .AT other null lnk
+Fifth arg is the policy index
 .CG notCG
 
-.IL ACCPCREATE lnk lnk lnk sym
+.IL ACCPCREATE lnk lnk lnk sym stc
 Variable or array may be present on the device, but if not will be allocated,
 but not copied.
 First link is to next clause.
@@ -5129,10 +5332,11 @@ Second link is to the array bounds.
 Third link is to ACCSYMLNK.
 Fourth argument is the symbol that points to the device copy, if there is such
 a symbol.
+Fifth arg is the policy index
 .AT other null lnk
 .CG notCG
 
-.IL ACCPNOT lnk lnk lnk sym
+.IL ACCPNOT lnk lnk lnk sym stc
 Variable or array may be present on the device, but if not will NOT be allocated
 nor copied.
 First link is to next clause.
@@ -5140,60 +5344,102 @@ Second link is to the array bounds.
 Third link is to ACCSYMLNK.
 Fourth argument is the symbol that points to the device copy, if there is such
 a symbol.
+Fifth arg is the policy index
 .AT other null lnk
 .CG notCG
 
-.IL ACCUPDATEHOST lnk lnk lnk
+.IL ACCNO_CREATE lnk lnk lnk sym stc
+Variable or array may be present on the device, but if not will NOT be allocated
+nor copied.
+First link is to next clause.
+Second link is to the array bounds.
+Third link is to ACCSYMLNK.
+Fourth argument is the symbol that points to the device copy, if there is such
+a symbol.
+Fifth arg is the policy index
+.AT other null lnk
+.CG notCG
+
+.IL ACCUPDATEHOST lnk lnk lnk stc
 Variable or array will be copied from device back to host.
 First link is to next clause.
 Second link is to the array bounds.
 Third link is to ACCSYMLNK.
+Fourth arg is the policy index
 .AT other null lnk
 .CG notCG
 
-.IL ACCUPDATESELF lnk lnk lnk
+.IL ACCUPDATESELF lnk lnk lnk stc
 Variable or array will be copied from device back to the current thread.
 First link is to next clause.
 Second link is to the array bounds.
 Third link is to ACCSYMLNK.
+Fourth arg is the policy index
 .AT other null lnk
 .CG notCG
 
-.IL ACCUPDATEDEV lnk lnk lnk
+.IL ACCUPDATEDEV lnk lnk lnk stc
 Variable or array will be copied from host to device.
 First link is to next clause.
 Second link is to the array bounds.
 Third link is to ACCSYMLNK.
+Fourth arg is the policy index
 .AT other null lnk
 .CG notCG
 
-.IL ACCUPDATEHOSTIFP lnk lnk lnk
+.IL ACCUPDATEHOSTIFP lnk lnk lnk stc
 Variable or array will be copied from device back to host, if present.
 First link is to next clause.
 Second link is to the array bounds.
 Third link is to ACCSYMLNK.
+Fourth arg is the policy index
 .AT other null lnk
 .CG notCG
 
-.IL ACCUPDATESELFIFP lnk lnk lnk
+.IL ACCUPDATESELFIFP lnk lnk lnk stc
 Variable or array will be copied from device back to the current thread, if present.
 First link is to next clause.
 Second link is to the array bounds.
 Third link is to ACCSYMLNK.
+Fourth arg is the policy index
 .AT other null lnk
 .CG notCG
 
-.IL ACCUPDATEDEVIFP lnk lnk lnk
+.IL ACCUPDATEDEVIFP lnk lnk lnk stc
 Variable or array will be copied from host to device, if present.
 First link is to next clause.
 Second link is to the array bounds.
 Third link is to ACCSYMLNK.
+Fourth arg is the policy index
 .AT other null lnk
 .CG notCG
 
 .IL ACCUPDATE lnk
 Head of a list of update clauses.
 .AT other null trm
+.CG notCG
+
+.IL ACCCOMP lnk
+Head of a list of compare clauses.
+.AT other null trm
+.CG notCG
+
+.IL ACCCOMPARE lnk lnk lnk stc
+Variable or array will be copied from device back to host.
+First link is to next clause.
+Second link is to the array bounds.
+Third link is to ACCSYMLNK.
+Fourth arg is the policy index
+.AT other null lnk
+.CG notCG
+
+.IL PGICOMPARE lnk lnk lnk stc
+Variable or array will be copied from device back to host.
+First link is to next clause.
+Second link is to the array bounds.
+Third link is to ACCSYMLNK.
+Fourth arg is the policy index
+.AT other null lnk
 .CG notCG
 
 .IL ACCPRIVATE lnk lnk lnk
@@ -5223,11 +5469,12 @@ Third link is to ACCSYMLNK.
 .AT other null lnk
 .CG notCG
 
-.IL ACCDEVICEPTR lnk lnk lnk sym
+.IL ACCDEVICEPTR lnk lnk lnk sym stc
 Variable or array will be copied from device to host.
 First link is to next clause.
 Second link is to the array bounds.
 Third link is to ACCSYMLNK.
+Fifth arg is the policy index
 .AT other null lnk
 .CG notCG
 
@@ -5704,6 +5951,11 @@ Use the device address of a variable or array.
 .AT other null lnk
 .CG notCG
 
+.IL ACCUSEDEVICEIFP lnk lnk lnk sym
+Use the device address of a variable or array, if present
+.AT other null lnk
+.CG notCG
+
 .IL ACCSYMLNK sym lnk lnk nme
 This is used from a link from many other accelerator ILI to
 recover the original symbol as well as a link to the address tree,
@@ -5760,7 +6012,7 @@ The 'stc' is an ACBLK index of the default jump target.
 .AT other null trm
 .CG notCG
 
-.IL ACCJMPENTRY lnk lnk stc 
+.IL ACCJMPENTRY lnk lnk stc
 Used in the Accelerator CG.
 A jump table entry.
 The first link is to the next entry in a linked list of ACCJMPENTRY ACLILI.
@@ -5773,6 +6025,7 @@ The 'stc' is an ACBLK index of this jump target.
 .AT cons null lnk cse vect
 .CG notCG
 .IL VLD arlnk nme stc
+For all vector ILI except VCON the last operand is the vector dtype
 .AT load null lnk vect
 .CG notCG
 .IL VLDU arlnk nme stc
@@ -5790,17 +6043,18 @@ The 'stc' is an ACBLK index of this jump target.
 .IL VMUL lnk lnk stc
 .AT arth comm lnk cse vect
 .CG notCG
-.IL VDIV lnk lnk stc
+.IL VDIV lnk lnk lnk stc
+Last lnk is a potential mask
 .AT arth null lnk cse vect
 .CG notCG
-.IL VDIVZ lnk lnk stc
+.IL VDIVZ lnk lnk lnk stc
 Vector divide where divide by zero does not fault.
 .AT arth null lnk cse vect
 .CG notCG
-.IL VMOD lnk lnk stc
+.IL VMOD lnk lnk lnk stc
 .AT arth null lnk cse vect
 .CG notCG
-.IL VMODZ lnk lnk stc
+.IL VMODZ lnk lnk lnk stc
 Vector remainder where divide by zero does not fault.
 .AT arth null lnk cse vect
 .CG notCG
@@ -5809,6 +6063,10 @@ Vector remainder where divide by zero does not fault.
 .IL VCVTS lnk stc
 .AT arth null lnk cse vect
 .CG notCG
+.IL VCVTR lnk stc stc
+Reinterpret the bits of a vector as if they were a different vector type.
+This should always be a no-op at runtime.
+.AT arth null lnk cse vect
 .IL VNOT lnk stc
 .AT arth null lnk cse vect
 .CG notCG
@@ -5853,108 +6111,109 @@ Vector maximum
 Vector absolute value
 .AT arth null lnk cse vect
 .CG notCG
-.IL VSQRT lnk stc
+.IL VSQRT lnk lnk stc
 Vector square root
 .AT arth null lnk cse vect
 .CG notCG
-.IL VCOS lnk stc
-Vector cosine
+.IL VCOS lnk lnk stc
+Vector cosine - final link is potential mask as it is
+for all the math intrinsic calls (will be IL_NULL if no mask)
 .AT arth null lnk cse vect
 .CG notCG
-.IL VSIN lnk stc
+.IL VSIN lnk lnk stc
 Vector sine
 .AT arth null lnk cse vect
 .CG notCG
-.IL VSINCOS lnk stc
+.IL VSINCOS lnk lnk stc
 Vector sine-cosine
 .AT arth null lnk cse vect
 .CG notCG
-.IL VASIN lnk stc
+.IL VASIN lnk lnk stc
 Vector arc sine
 .AT arth null lnk cse vect
 .CG notCG
-.IL VACOS lnk stc
+.IL VACOS lnk lnk stc
 Vector arc cosine
 .AT arth null lnk cse vect
 .CG notCG
-.IL VATAN lnk stc
+.IL VATAN lnk lnk stc
 Vector arctangent
 .AT arth null lnk cse vect
 .CG notCG
-.IL VATAN2 lnk lnk stc
+.IL VATAN2 lnk lnk lnk stc
 Vector arctangent2
 .AT arth null lnk cse vect
 .CG notCG
-.IL VTAN lnk stc
+.IL VTAN lnk lnk stc
 Vector tangent
 .AT arth null lnk cse vect
 .CG notCG
-.IL VSINH lnk stc
+.IL VSINH lnk lnk stc
 Vector hyperbolic sine
 .AT arth null lnk cse vect
 .CG notCG
-.IL VCOSH lnk stc
+.IL VCOSH lnk lnk stc
 Vector hyperbolic cosine
 .AT arth null lnk cse vect
 .CG notCG
-.IL VTANH lnk stc
+.IL VTANH lnk lnk stc
 Vector hyperbolic tangent
 .AT arth null lnk cse vect
 .CG notCG
-.IL VEXP lnk stc
+.IL VEXP lnk lnk stc
 Vector natural exponential
 .AT arth null lnk cse vect
 .CG notCG
-.IL VLOG lnk stc
+.IL VLOG lnk lnk stc
 Vector natural logarithm
 .AT arth null lnk cse vect
 .CG notCG
-.IL VLOG10 lnk stc
+.IL VLOG10 lnk lnk stc
 Vector logarithm base 10
 .AT arth null lnk cse vect
 .CG notCG
-.IL VPOW lnk lnk stc
-Vector pow float
+.IL VPOW lnk lnk lnk stc
+Vector pow float lnk
 .AT arth null lnk cse vect
 .CG notCG
-.IL VPOWI lnk lnk stc
+.IL VPOWI lnk lnk lnk stc
 Vector pow float to integer
 .AT arth null lnk cse vect
 .CG notCG
-.IL VPOWK lnk lnk stc
+.IL VPOWK lnk lnk lnk stc
 Vector pow double to integer*8
 .AT arth null lnk cse vect
 .CG notCG
-.IL VPOWIS lnk lnk stc
-Vector pow float to scalar integer 
+.IL VPOWIS lnk lnk lnk stc
+Vector pow float to scalar integer
 .AT arth null lnk cse vect
 .CG notCG
-.IL VPOWKS lnk lnk stc
+.IL VPOWKS lnk lnk lnk stc
 Vector pow double to scalar integer*8
 .AT arth null lnk cse vect
 .CG notCG
-.IL VFPOWK lnk lnk stc
+.IL VFPOWK lnk lnk lnk stc
 Vector pow float to integer*8
 .AT arth null lnk cse vect
 .CG notCG
-.IL VFPOWKS lnk lnk stc
+.IL VFPOWKS lnk lnk lnk stc
 Vector pow float to scalar integer*8
 .AT arth null lnk cse vect
 .CG notCG
-.IL VDPOWI lnk lnk stc
-Vector pow double to integer 
+.IL VDPOWI lnk lnk lnk stc
+Vector pow double to integer
 .AT arth null lnk cse vect
 .CG notCG
-.IL VDPOWIS lnk lnk stc
+.IL VDPOWIS lnk lnk lnk stc
 Vector pow double to scalar integer
 .AT arth null lnk cse vect
 .CG notCG
-.IL VRSQRT lnk stc
+.IL VRSQRT lnk lnk stc
 Vector reciprocal square root
 .AT arth null lnk cse vect
 .CG notCG
-.IL VRCP lnk stc
-Vector reciprocal 
+.IL VRCP lnk lnk stc
+Vector reciprocal
 .AT arth null lnk cse vect
 .CG notCG
 .IL VST lnk arlnk nme stc
@@ -5980,12 +6239,22 @@ Vector FMA for LLVM intrinsic - -lnk1*lnk2-lnk3, with stc the dtype
 .AT arth null lnk cse vect
 .CG notCG
 .IL VPERMUTE lnk lnk lnk stc
-Shuffle contents of vector registers. lnk1 and link2 can be same vector,
-with result in link2. stc4 is the dtype, link3 is a vector constant 
+Shuffle contents of vector registers. lnk1 and lnk2 can be the same vector
+or lnk2 can be null. lnk1 dtype is used as dtype for both lnk1 and lnk2, 
+unless lnk2 is null. stc is the result dtype, lnk3 is a vector constant
 representing a mask where each field represents which L-to-R element of
-concatenated <link1,link2> vector is to be placed in corresponding result
-field.
+concatenated <lnk1,lnk2> vector is to be placed in corresponding result
+field. lnk3 size must match the size of the result vector, but can be 
+different than lnk1 and lnk2's size.
 .AT other null lnk vect
+.CG notCG
+.IL VBLEND lnk lnk lnk stc
+Vector blend/select of lnk2 & lnk3. lnk1 is the mask, stc is the dtype
+.AT other  null lnk cse vect
+.CG notCG
+.IL VCMP stc lnk lnk stc
+Vector compare of lnk1 & lnk2. stc1 is the condition code, stc2 is the dtype
+.AT arth null lnk cse vect
 .CG notCG
 
 .\".so ilitp_longdouble.n
@@ -6058,74 +6327,74 @@ argument to a function call via memory.
 .AT define null lnk
 .CG memarg "fstpt"
 
-.IL X87TOINT x87lnk 
+.IL X87TOINT x87lnk
 Convert an x87 80-bit extended precision value to a signed integer
 Used by LLVM only.
 .AT arth null ir cse
 .CG notCG
 
-.IL X87TOUINT x87lnk 
+.IL X87TOUINT x87lnk
 Convert an x87 80-bit extended precision value to an unsigned integer
 Used by LLVM only.
 .AT arth null ir cse
 .CG notCG
 
-.IL X87TOKINT x87lnk 
+.IL X87TOKINT x87lnk
 Convert an x87 80-bit extended precision value to a long long integer
 Used by LLVM only.
 .AT arth null kr cse
 .CG notCG
 
-.IL X87TOUKINT x87lnk 
+.IL X87TOUKINT x87lnk
 Convert an x87 80-bit extended precision value to an unsigned long long integer
 Used by LLVM only.
 .AT arth null kr cse
 .CG notCG
 
-.IL X87TOSP x87lnk 
+.IL X87TOSP x87lnk
 Convert an x87 80-bit extended precision value single precision
 Used by LLVM only.
 .AT arth null sp cse
 .CG notCG
 
-.IL X87TODP x87lnk 
+.IL X87TODP x87lnk
 Convert an x87 80-bit extended precision value to double precision
 Used by LLVM only.
 .AT arth null dp cse
 .CG notCG
 
-.IL X87FROMINT irlnk 
+.IL X87FROMINT irlnk
 Convert a signed integer to an  x87 80-bit extended precision value
 Used by LLVM only.
 .AT arth null x87 cse
 .CG notCG
 
-.IL X87FROMUINT irlnk 
+.IL X87FROMUINT irlnk
 Convert an unsigned integer to an x87 80-bit extended precision value
 Used by LLVM only.
 .AT arth null x87 cse
 .CG notCG
 
-.IL X87FROMKINT krlnk 
+.IL X87FROMKINT krlnk
 Convert a long long to an  x87 80-bit extended precision value
 Used by LLVM only.
 .AT arth null x87 cse
 .CG notCG
 
-.IL X87FROMUKINT krlnk 
-Convert an unsigned long long to an x87 80-bit extended precision value 
+.IL X87FROMUKINT krlnk
+Convert an unsigned long long to an x87 80-bit extended precision value
 Used by LLVM only.
 .AT arth null x87 cse
 .CG notCG
 
-.IL X87FROMSP splnk 
-Convert a float to an x87 80-bit extended precision value 
+.IL X87FROMSP splnk
+Convert a float to an x87 80-bit extended precision value
 Used by LLVM only.
 .AT arth null x87 cse
 .CG notCG
 
-.IL X87FROMDP dplnk 
-Convert a double to an x87 80-bit extended precision value 
+.IL X87FROMDP dplnk
+Convert a double to an x87 80-bit extended precision value
 Used by LLVM only.
 .AT arth null x87 cse
 .CG notCG
@@ -6170,12 +6439,12 @@ Duplicates an entry on the x87 floating-point register stack.
 
 .IL BCONCUR sym lnk
 Start auto parallel region of an outlined function sym.
-.AT other null trm 
+.AT other null trm
 .CG notCG
 
-.IL ECONCUR sym 
+.IL ECONCUR sym
 End auto parallel region of an outlined function sym.
-.AT other null trm 
+.AT other null trm
 .CG notCG
 
 .so ilitp_atomic.n
@@ -6187,7 +6456,7 @@ x86 MFENCE instruction.
 
 .IL X86XCHG
 x86 XCHG instruction. Used only in AILI, and only with memory operand as destination.
-Always immediately followed by a DEF instruction that defines 
+Always immediately followed by a DEF instruction that defines
 the same register as the source operand of the XCHG.
 .AT other null ir
 .CG CGonly "xchg"
@@ -6199,7 +6468,7 @@ x86 XADD instruction. Use and constraints are same as for XCHG.
 
 .IL X86CMPXCHG
 x86 CMPXCHG instruction. Used only in AILI, and only with memory operand as destination.
-Always immediately followed by a DEF instruction that defines 
+Always immediately followed by a DEF instruction that defines
 the same register as the second source operand (comparand),
 which must be one of AL, AX, EAX, RAX.
 .AT other null ir

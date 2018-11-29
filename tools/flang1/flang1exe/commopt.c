@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, NVIDIA CORPORATION.  All rights reserved.
+ * Copyright (c) 1994-2018, NVIDIA CORPORATION.  All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -39,6 +39,8 @@
 #include "rte.h"
 #include "hlvect.h"
 
+extern int rewrite_opfields;
+
 static void commopt(void);
 static void shmem_opt1(void);
 static void shmem_opt2(void);
@@ -50,7 +52,7 @@ static LOGICAL is_fusable(int, int, int);
 static LOGICAL smp_conflict(int, int);
 static LOGICAL is_in_block(int, int);
 static LOGICAL is_different_scalar_mask(int, int);
-static LOGICAL conflict(int, int, int, LOGICAL, int, int);
+static LOGICAL Conflict(int, int, int, LOGICAL, int, int);
 static LOGICAL is_branch_between(int, int);
 static LOGICAL is_contains_ast_between(int, int, int);
 static LOGICAL is_same_align_shape(int, int, int, int);
@@ -67,7 +69,7 @@ static void eliminate_start(int, int, int, int);
 static void eliminate_get_scalar(void);
 static void fuse_forall(int);
 static LOGICAL is_same_descr_for_bnds(int, int);
-static LOGICAL _conflict(int);
+static LOGICAL Conflict_(int);
 static LOGICAL is_same_idx(int, int);
 static LOGICAL is_dominator_fg(int, int);
 static LOGICAL must_follow(int, int, int, int);
@@ -155,7 +157,6 @@ selection_sort(void)
 void
 comm_optimize_post(void)
 {
-  extern int rewrite_opfields;
   alloc2ast();
   comm_optimize_init();
   flowgraph(); /* build the flowgraph for the function */
@@ -254,18 +255,13 @@ forall_init(void)
         set_descriptor_sc(SC_LOCAL);
       }
       break;
-    case A_MP_TASKREG:
+    case A_MP_TASK:
+    case A_MP_TASKLOOP:
+      ++task_depth;
       set_descriptor_sc(SC_PRIVATE);
       break;
-    case A_MP_ETASKREG:
-      if (parallel_depth == 0 && task_depth <= 1) {
-        set_descriptor_sc(SC_LOCAL);
-      }
-      break;
-    case A_MP_TASK:
-      ++task_depth;
-      break;
     case A_MP_ENDTASK:
+    case A_MP_ETASKLOOP:
       --task_depth;
       if (parallel_depth == 0 && task_depth == 0) {
         set_descriptor_sc(SC_LOCAL);
@@ -704,10 +700,10 @@ static struct {
 } conf;
 
 /* Return TRUE if there is conflict for loop fusion.
- * order is just for swap for src and sink at _conflict.
+ * order is just for swap for src and sink at Conflict_.
  * forcomm is that there is Isno_comm TRUE, no need to test iff forcomm set. */
 static LOGICAL
-conflict(int list, int src, int sink, int after, int order, int forcomm)
+Conflict(int list, int src, int sink, int after, int order, int forcomm)
 {
   LOGICAL result = FALSE;
 
@@ -717,14 +713,14 @@ conflict(int list, int src, int sink, int after, int order, int forcomm)
   conf.after = after;
   conf.order = order;
   conf.forcomm = forcomm;
-  return _conflict(sink);
+  return Conflict_(sink);
 }
 
 /* This routine will return TRUE iff,
  * lhs array appears at sink and their subscripts are different.
  */
 static LOGICAL
-_conflict(int sink)
+Conflict_(int sink)
 {
   LOGICAL l, r;
   int argt;
@@ -743,7 +739,7 @@ _conflict(int sink)
   case A_SUBSTR:
     return FALSE;
   case A_MEM:
-    if (_conflict(A_PARENTG(sink))) {
+    if (Conflict_(A_PARENTG(sink))) {
       /* see if this 'member' appears in the 'conf.src' tree */
       int a, p, member;
       a = conf.src;
@@ -767,7 +763,7 @@ _conflict(int sink)
           a = p;
           break;
         default:
-          interr("_conflict: unexpected AST in member tree", a, 3);
+          interr("Conflict_: unexpected AST in member tree", a, 3);
           return FALSE;
         }
       }
@@ -779,20 +775,20 @@ _conflict(int sink)
     else
       return FALSE;
   case A_BINOP:
-    l = _conflict(A_LOPG(sink));
+    l = Conflict_(A_LOPG(sink));
     if (l)
       return TRUE;
-    r = _conflict(A_ROPG(sink));
+    r = Conflict_(A_ROPG(sink));
     if (r)
       return TRUE;
     return FALSE;
   case A_UNOP:
-    return _conflict(A_LOPG(sink));
+    return Conflict_(A_LOPG(sink));
   case A_PAREN:
   case A_CONV:
-    return _conflict(A_LOPG(sink));
+    return Conflict_(A_LOPG(sink));
   case A_SUBSCR:
-    if (_conflict(A_LOPG(sink))) {
+    if (Conflict_(A_LOPG(sink))) {
       if (conf.order)
         result = dd_array_conflict(conf.list, sink, conf.src, conf.after);
       else
@@ -801,13 +797,13 @@ _conflict(int sink)
     }
     return FALSE;
   case A_TRIPLE:
-    l = _conflict(A_LBDG(sink));
+    l = Conflict_(A_LBDG(sink));
     if (l)
       return TRUE;
-    r = _conflict(A_UPBDG(sink));
+    r = Conflict_(A_UPBDG(sink));
     if (r)
       return TRUE;
-    return _conflict(A_STRIDEG(sink));
+    return Conflict_(A_STRIDEG(sink));
   case A_INTR:
   case A_FUNC:
     nargs = A_ARGCNTG(sink);
@@ -824,14 +820,14 @@ _conflict(int sink)
         return TRUE;
     }
     for (i = 0; i < nargs; ++i) {
-      l = _conflict(ARGT_ARG(argt, i));
+      l = Conflict_(ARGT_ARG(argt, i));
       if (l)
         return TRUE;
     }
     return FALSE;
   case A_LABEL:
   default:
-    interr("_conflict: unexpected ast", sink, 2);
+    interr("Conflict_: unexpected ast", sink, 2);
     return FALSE;
   }
 }
@@ -1122,23 +1118,23 @@ is_fusable(int lp, int lp1, int nested)
     return FALSE;
 
   if (expr1)
-    if (conflict(A_LISTG(forall), lhs, expr1, FALSE, 1, 0))
+    if (Conflict(A_LISTG(forall), lhs, expr1, FALSE, 1, 0))
       return FALSE;
-  if (conflict(A_LISTG(forall), lhs, rhs1, FALSE, 1, 0))
+  if (Conflict(A_LISTG(forall), lhs, rhs1, FALSE, 1, 0))
     return FALSE;
 
   /* for communication */
   conf.otherlhs = lhs1;
   if (expr1)
-    if (conflict(A_LISTG(forall), lhs, expr1, TRUE, 0, 1))
+    if (Conflict(A_LISTG(forall), lhs, expr1, TRUE, 0, 1))
       return FALSE;
-  if (conflict(A_LISTG(forall), lhs, rhs1, TRUE, 0, 1))
+  if (Conflict(A_LISTG(forall), lhs, rhs1, TRUE, 0, 1))
     return FALSE;
 
   if (expr)
-    if (conflict(A_LISTG(forall), lhs1, expr, FALSE, 0, 0))
+    if (Conflict(A_LISTG(forall), lhs1, expr, FALSE, 0, 0))
       return FALSE;
-  if (conflict(A_LISTG(forall), lhs1, rhs, FALSE, 0, 0))
+  if (Conflict(A_LISTG(forall), lhs1, rhs, FALSE, 0, 0))
     return FALSE;
 
   if (is_branch_between(lp, lp1))
@@ -3588,10 +3584,11 @@ is_pcalls(int std, int fstd)
   ast = STD_AST(std);
   if (A_TYPEG(ast) == A_CALL) {
     sptr = A_SPTRG(A_LOPG(ast));
-    if (PUREG(sptr) || (ELEMENTALG(sptr) && !IMPUREG(sptr)))
-      return TRUE;
+    if (is_impure(sptr))
+      error(488, 4, STD_LINENO(fstd), "subprogram call in FORALL",
+            SYMNAME(sptr));
     else
-      error(488, 4, STD_LINENO(fstd), SYMNAME(sptr), CNULL);
+      return TRUE;
   }
   if (A_TYPEG(ast) == A_ICALL)
     return TRUE;
@@ -3612,7 +3609,7 @@ forall_make_same_idx(int std)
   int nd, nd1;
   int oldast, newast;
   int newforall;
-  int af, st, nc;
+  int af, st, nc, bd;
   int cnt;
   int ip, pstd, past;
   LITEMF *plist;
@@ -3635,6 +3632,9 @@ forall_make_same_idx(int std)
     isptr = get_init_idx(i, dtype);
     if (isptr == isptr1)
       cnt++;
+    if (STD_TASK(std) && SCG(isptr) == SC_PRIVATE) {
+      TASKP(isptr, 1);  
+    }
   }
   if (cnt == nidx)
     return;
@@ -3647,6 +3647,9 @@ forall_make_same_idx(int std)
     oldast = mk_id(isptr);
     isptr = get_init_idx(i, dtype);
     newast = mk_id(isptr);
+    if (STD_TASK(std) && SCG(isptr) == SC_PRIVATE) {
+      TASKP(isptr, 1);  
+    }
     ast_replace(oldast, newast);
   }
 
@@ -3654,11 +3657,13 @@ forall_make_same_idx(int std)
   af = A_ARRASNG(forall);
   st = A_STARTG(forall);
   nc = A_NCOUNTG(forall);
+  bd = A_CONSTBNDG(forall);
   newforall = ast_rewrite(forall);
   A_OPT1P(newforall, nd);
   A_ARRASNP(newforall, af);
   A_STARTP(newforall, st);
   A_NCOUNTP(newforall, nc);
+  A_CONSTBNDP(newforall, bd);
 
   A_STDP(newforall, std);
   STD_AST(std) = newforall;

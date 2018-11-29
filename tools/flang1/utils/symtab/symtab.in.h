@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, NVIDIA CORPORATION.  All rights reserved.
+ * Copyright (c) 2003-2018, NVIDIA CORPORATION.  All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,10 +15,15 @@
  *
  */
 
+#ifndef SYMTAB_H_
+#define SYMTAB_H_
+
 /**
  *  \file
  *  \brief symtab.h - symbol tab definitions for Fortran
  */
+
+#include <universal.h>
 
 /* clang-format off */
 .OC
@@ -26,7 +31,7 @@
 .ST
 /* the following macro depends on stype ordering */
 #define ST_ISVAR(s) ( ((s) >= ST_VAR && (s) <= ST_UNION) )
-
+#define IS_PROC(st) ( (st) >= ST_ENTRY && (st) <= ST_PD )
 .TY
 
 /*
@@ -55,7 +60,7 @@
 #define DT_CPTR DT_ADDR
 
 
-#define DTY(dt) (stb.dt_base[dt])
+#define DTY(d) (stb.dt.stg_base[d])
 
 /* for fast DT checking -- define table indexed by TY_ */
 extern short dttypes[TY_MAX+1];
@@ -105,15 +110,11 @@ extern short dttypes[TY_MAX+1];
 
 #define SC_AUTO SC_LOCAL
 #define SC_ISCMBLK(p)  (p == SC_CMBLK)
-#define EXTR_LANG_F90         0x00
-#define EXTR_F90_SERIAL       (EXTR_LANG_F90|EXTR_MODEL_SERIAL)
-#define EXTR_MODEL_SERIAL     0x00
-#define EXTR_IS_SERIAL(sym)   1
-#define EXTR_IS_F90(sym)      1
 #define CUDA_HOST             0x01
 #define CUDA_DEVICE           0x02
 #define CUDA_GLOBAL           0x04
 #define CUDA_BUILTIN          0x08
+#define CUDA_GRID             0x10
 
 #define INTENT_IN 0x1
 #define INTENT_OUT 0x2
@@ -270,6 +271,8 @@ typedef struct {
     char   *arasgn;	/* local ar (base pointer) ARASGN records */
     char   *regset;	/* target dependent register set info */
     char   *argset;	/* target dependent register set info */
+    int     launch_maxthread, launch_minctasm;
+                        /* launch_bounds for CUDA Fortran. 0 means not set. */
 } ENTRY;
 
 
@@ -408,7 +411,7 @@ LOGICAL is_arg_in_entry(int, int);
 int resolve_sym_aliases(int);
 LOGICAL is_procedure_ptr(int);
 void proc_arginfo(int, int *, int *, int *);
-void dup_sym(int, SYM *);
+void dup_sym(int, struct SYM *);
 int insert_dup_sym(int);
 int get_align_desc(int, int);
 void dump_align(FILE*, int);
@@ -423,9 +426,11 @@ char *sym_strsave(char *);
 void save_uname(int, INT);
 int add_symitem(int, int);
 void change_predefineds(int, LOGICAL);
+SPTR find_explicit_interface(SPTR s);
+void convert_2dollar_signs_to_hyphen(char *name);
 
 char *getsname(int);	/* defined in assem.c */
-void sym_is_refd(int);	/* defined in assem.c */
+void sym_is_refd(SPTR);	/* defined in assem.c */
 
 void iso_c_lib_stat(int *, int *, int);
 int get_ieee_arith_intrin(char *);
@@ -435,17 +440,44 @@ void newimplicitnone(void);
 void reinit_sym(int);
 void symtab_fini(void);
 int get_len_of_deferchar_ast(int ast); /* symutl.c */
+SPTR get_proc_ptr(SPTR sptr); /* symutl.c */
 
 LOGICAL sym_in_sym_list(int sptr, int symi);
 LOGICAL same_sym_list(int list1, int list2);
 void push_sym(int sptr);
 void init_implicit(void);
 void implicit_int(int default_int);
-int cmp_interfaces(int sym1, int sym2, int flag);
-int cmp_interfaces_strict(int sym1, int sym2, int flag);
+bool cmp_interfaces(int sym1, int sym2, int flag);
 void dmp_socs(int sptr, FILE *file);
 
 #define ALIGNG(sptr)	0
 #define DISTG(sptr)	0
 #define RUNTIMEG(sptr)	0
 #define INHERITG(sptr)	0
+
+/**
+ * \brief flag defintions for cmp_interfaces_strict()
+ */
+typedef enum CMP_INTERFACE_FLAGS {
+  IGNORE_IFACE_NAMES = 0x0, /**< ignore the symbol names sym1 & sym2, but make
+                                 sure arguments have same stypes and names. */
+  CMP_IFACE_NAMES = 0x1, /**< make sure sym1 and sym2 have the same symbol 
+                              name. */                          
+  IGNORE_ARG_NAMES = 0x2, /**< ignore the argument names. */   
+  RELAX_STYPE_CHK = 0x4, /**< relax stype check on arguments. */
+  CMP_OPTARG = 0x8, /**< make sure sym1 and sym2 OPTARG fields are identical. */
+  RELAX_INTENT_CHK = 0x10, /**< relax intent check on arguments. */
+  RELAX_POINTER_CHK = 0x20, /**< relax pointer check on arguments. */
+
+  RELAX_PURE_CHK_1 = 0x40, /**< relax pure check on argument #1 of
+                                cmp_interfaces_strict() function */
+  RELAX_PURE_CHK_2 = 0x80  /**< relax pure check on argument #2 of
+                                cmp_interfaces_strict() function */
+} cmp_interface_flags;
+
+bool compatible_characteristics(int psptr, int psptr2,
+                                cmp_interface_flags flag);
+bool cmp_interfaces_strict(SPTR sym1, SPTR sym2, cmp_interface_flags flag);
+bool is_used_by_submod(SPTR sym1, SPTR sym2);
+
+#endif // SYMTAB_H_

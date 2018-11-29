@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, NVIDIA CORPORATION.  All rights reserved.
+ * Copyright (c) 1994-2018, NVIDIA CORPORATION.  All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,6 +26,7 @@
 #define FE_GBLDEFS_H
 
 #include <stdint.h>
+#include "universal.h"
 #include "platform.h"
 #include "pgifeat.h"
 #include <scutil.h>
@@ -112,30 +113,30 @@ typedef int LOGICAL;
 #if DEBUG
 #define NEW(p, dt, n)                                    \
   if (1) {                                               \
-    p = (dt *)sccalloc((UINT)((INT)sizeof(dt) * (n)));   \
+    p = (dt *)sccalloc((BIGUINT64)((INT)sizeof(dt) * (n)));   \
     if (DBGBIT(7, 2))                                    \
-      bjunk((char *)(p), (UINT)((INT)sizeof(dt) * (n))); \
+      bjunk((char *)(p), (BIGUINT64)((INT)sizeof(dt) * (n))); \
   } else
 #define NEED(n, p, dt, size, newsize)                                        \
   if (n > size) {                                                            \
-    p = (dt *)sccrelal((char *)p, ((UINT)((newsize) * (INT)sizeof(dt))));    \
+    p = (dt *)sccrelal((char *)p, ((BIGUINT64)((newsize) * (INT)sizeof(dt))));    \
     if (DBGBIT(7, 2))                                                        \
-      bjunk((char *)(p + size), (UINT)((newsize - size) * (INT)sizeof(dt))); \
+      bjunk((char *)(p + size), (BIGUINT64)((newsize - size) * (INT)sizeof(dt))); \
     size = newsize;                                                          \
   } else
 
 #else
-#define NEW(p, dt, n) p = (dt *)sccalloc((UINT)((INT)sizeof(dt) * (n)))
+#define NEW(p, dt, n) p = (dt *)sccalloc((BIGUINT64)((INT)sizeof(dt) * (n)))
 #define NEED(n, p, dt, size, newsize)                                     \
   if (n > size) {                                                         \
-    p = (dt *)sccrelal((char *)p, ((UINT)((newsize) * (INT)sizeof(dt)))); \
+    p = (dt *)sccrelal((char *)p, ((BIGUINT64)((newsize) * (INT)sizeof(dt)))); \
     size = newsize;                                                       \
   } else
 #endif
 
 #define NEEDB(n, p, dt, size, newsize)                                    \
   if (n > size) {                                                         \
-    p = (dt *)sccrelal((char *)p, ((UINT)((newsize) * (INT)sizeof(dt)))); \
+    p = (dt *)sccrelal((char *)p, ((BIGUINT64)((newsize) * (INT)sizeof(dt)))); \
     BZERO(p + size, dt, newsize - size);                                  \
     size = newsize;                                                       \
   } else
@@ -152,11 +153,11 @@ typedef int LOGICAL;
 void finish(void); /* from main.c    */
 
 /* mall.c */
-char *sccalloc(UINT);
+char *sccalloc(BIGUINT64);
 void sccfree(char *);
-char *sccrelal(char *, UINT);
+char *sccrelal(char *, BIGUINT64);
 #ifdef DEBUG
-void bjunk(void *p, UINT n);
+void bjunk(void *p, BIGUINT64 n);
 #endif
 
 char *getitem(int, int); /* from salloc.c: */
@@ -168,7 +169,7 @@ void *get_getitem_p(int);
 void free_getitem_p(void);
 
 char *mkfname(char *, char *, char *); /* from miscutil.c: */
-LOGICAL is_xflag_bit(int);
+bool is_xflag_bit(int);
 void set_xflag(int, INT);
 void set_yflag(int, INT);
 void bzero(void *, size_t);

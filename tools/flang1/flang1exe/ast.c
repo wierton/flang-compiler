@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, NVIDIA CORPORATION.  All rights reserved.
+ * Copyright (c) 1994-2018, NVIDIA CORPORATION.  All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -46,6 +46,7 @@
 static int reduce_iadd(int, INT);
 static int reduce_i8add(int, int);
 static int convert_cnst(int, int);
+static SPTR sym_of_ast2(int);
 static LOGICAL bounds_match(int, int, int);
 static INT _fdiv(INT, INT);
 static void _ddiv(INT *, INT *, INT *);
@@ -73,90 +74,92 @@ ast_init(void)
 
   /* allocate AST and auxiliary structures: */
 
-  if (astb.size <= 0) {
-    astb.size = 1000;
-    NEW(astb.base, AST, astb.size);
+  if (astb.stg_size <= 0) {
+    STG_ALLOC(astb, 2000);
 #if DEBUG
-    assert(astb.base, "ast_init: no room for AST", astb.size, 4);
+    assert(astb.stg_base, "ast_init: no room for AST", astb.stg_size, 4);
 #endif
+  } else {
+    STG_RESET(astb);
   }
+  STG_NEXT(astb); /* reserve ast index 1 to terminate ast_traverse() */
   BZERO(astb.hshtb, int, HSHSZ + 1);
-  astb.avl = 2; /* need non-zero ast# to terminate ast_traverse() */
 
-  if (astb.asd.size <= 0) {
-    astb.asd.size = 200;
-    NEW(astb.asd.base, int, astb.asd.size);
+  if (astb.asd.stg_size <= 0) {
+    astb.asd.stg_size = 200;
+    NEW(astb.asd.stg_base, int, astb.asd.stg_size);
 #if DEBUG
-    assert(astb.asd.base, "ast_init: no room for ASD", astb.asd.size, 4);
+    assert(astb.asd.stg_base, "ast_init: no room for ASD", astb.asd.stg_size, 4);
 #endif
   }
   BZERO(astb.asd.hash, int, 7);
-  astb.asd.base[0] = 0;
-  astb.asd.avl = 1;
+  astb.asd.stg_base[0] = 0;
+  astb.asd.stg_avail = 1;
 
-  if (astb.shd.size <= 0) {
-    astb.shd.size = 200;
-    NEW(astb.shd.base, SHD, astb.shd.size);
+  if (astb.shd.stg_size <= 0) {
+    astb.shd.stg_size = 200;
+    NEW(astb.shd.stg_base, SHD, astb.shd.stg_size);
 #if DEBUG
-    assert(astb.shd.base, "ast_init: no room for SHD", astb.shd.size, 4);
+    assert(astb.shd.stg_base, "ast_init: no room for SHD", astb.shd.stg_size, 4);
 #endif
   } else
     BZERO(astb.shd.hash, int, 7);
-  astb.shd.base[0].lwb = 0;
-  astb.shd.base[0].upb = 0;
-  astb.shd.base[0].stride = 0;
-  astb.shd.avl = 1;
+  astb.shd.stg_base[0].lwb = 0;
+  astb.shd.stg_base[0].upb = 0;
+  astb.shd.stg_base[0].stride = 0;
+  astb.shd.stg_avail = 1;
 
-  if (astb.std.size <= 0) {
-    astb.std.size = 200;
-    NEW(astb.std.base, STD, astb.std.size);
+  if (astb.std.stg_size <= 0) {
+    STG_ALLOC(astb.std, 200);
 #if DEBUG
-    assert(astb.std.base, "ast_init: no room for STD", astb.std.size, 4);
+    assert(astb.std.stg_base, "ast_init: no room for STD", astb.std.stg_size, 4);
 #endif
+  } else {
+    STG_RESET(astb.std);
   }
-  astb.std.avl = 1;
+
   STD_PREV(0) = STD_NEXT(0) = 0;
   STD_FLAGS(0) = 0;
   STD_LINENO(0) = 0;
   STD_FINDEX(0) = 0;
 
-  if (astb.astli.size <= 0) {
-    astb.astli.size = 200;
-    NEW(astb.astli.base, ASTLI, astb.astli.size);
+  if (astb.astli.stg_size <= 0) {
+    astb.astli.stg_size = 200;
+    NEW(astb.astli.stg_base, ASTLI, astb.astli.stg_size);
 #if DEBUG
-    assert(astb.astli.base, "ast_init: no room for ASTLI", astb.astli.size, 4);
+    assert(astb.astli.stg_base, "ast_init: no room for ASTLI", astb.astli.stg_size, 4);
 #endif
   }
-  astb.astli.avl = 1;
-  astb.astli.base[0].h1 = 0;
-  astb.astli.base[0].h2 = 0;
-  astb.astli.base[0].flags = 0;
-  astb.astli.base[0].next = 0;
+  astb.astli.stg_avail = 1;
+  astb.astli.stg_base[0].h1 = 0;
+  astb.astli.stg_base[0].h2 = 0;
+  astb.astli.stg_base[0].flags = 0;
+  astb.astli.stg_base[0].next = 0;
 
-  if (astb.argt.size <= 0) {
-    astb.argt.size = 200;
-    NEW(astb.argt.base, int, astb.argt.size);
+  if (astb.argt.stg_size <= 0) {
+    astb.argt.stg_size = 200;
+    NEW(astb.argt.stg_base, int, astb.argt.stg_size);
 #if DEBUG
-    assert(astb.argt.base, "ast_init: no room for ARGT", astb.argt.size, 4);
+    assert(astb.argt.stg_base, "ast_init: no room for ARGT", astb.argt.stg_size, 4);
 #endif
   }
-  astb.argt.avl = 1;
-  astb.argt.base[0] = 1;
+  astb.argt.stg_avail = 1;
+  astb.argt.stg_base[0] = 0;
 
-  if (astb.comstr.size <= 0) {
-    astb.comstr.size = 200;
-    NEW(astb.comstr.base, char, astb.comstr.size);
+  if (astb.comstr.stg_size <= 0) {
+    astb.comstr.stg_size = 200;
+    NEW(astb.comstr.stg_base, char, astb.comstr.stg_size);
 #if DEBUG
-    assert(astb.comstr.base, "ast_init: no room for COMSTR", astb.comstr.size,
+    assert(astb.comstr.stg_base, "ast_init: no room for COMSTR", astb.comstr.stg_size,
            4);
 #endif
   }
-  astb.comstr.avl = 0;
-  astb.comstr.base[0] = 0;
+  astb.comstr.stg_avail = 0;
+  astb.comstr.stg_base[0] = 0;
 
   BZERO(astb.implicit, char, sizeof(astb.implicit));
 
-  BZERO(astb.base + 0, AST, 2); /* initialize AST #0 and #1 */
+  BZERO(astb.stg_base + 0, AST, 2); /* initialize AST #0 and #1 */
                                 /*
                                  * WARNING --- any changes/additions to the predeclared ASTs
                                  * need to be reflected in the interf/exterf module processing.
@@ -212,7 +215,7 @@ ast_init(void)
   DTY(DT_NCHAR + 1) = astb.bnd.one;
 
   atemps = 0;
-  astb.firstuast = astb.avl;
+  astb.firstuast = astb.stg_avail;
 #if DEBUG
   assert(astb.firstuast == 12,
          "ast_init(): # of predeclared ASTs has changed -- fix interf or IVSN",
@@ -241,33 +244,31 @@ ast_init(void)
 void
 ast_fini(void)
 {
-  if (astb.base) {
-    FREE(astb.base);
-    astb.avl = astb.size = 0;
+  if (astb.stg_base) {
+    STG_DELETE(astb);
   }
-  if (astb.asd.base) {
-    FREE(astb.asd.base);
-    astb.asd.avl = astb.asd.size = 0;
+  if (astb.asd.stg_base) {
+    FREE(astb.asd.stg_base);
+    astb.asd.stg_avail = astb.asd.stg_size = 0;
   }
-  if (astb.shd.base) {
-    FREE(astb.shd.base);
-    astb.shd.avl = astb.shd.size = 0;
+  if (astb.shd.stg_base) {
+    FREE(astb.shd.stg_base);
+    astb.shd.stg_avail = astb.shd.stg_size = 0;
   }
-  if (astb.std.base) {
-    FREE(astb.std.base);
-    astb.std.avl = astb.std.size = 0;
+  if (astb.std.stg_base) {
+    STG_DELETE(astb.std);
   }
-  if (astb.astli.base) {
-    FREE(astb.astli.base);
-    astb.astli.avl = astb.astli.size = 0;
+  if (astb.astli.stg_base) {
+    FREE(astb.astli.stg_base);
+    astb.astli.stg_avail = astb.astli.stg_size = 0;
   }
-  if (astb.argt.base) {
-    FREE(astb.argt.base);
-    astb.argt.avl = astb.argt.size = 0;
+  if (astb.argt.stg_base) {
+    FREE(astb.argt.stg_base);
+    astb.argt.stg_avail = astb.argt.stg_size = 0;
   }
-  if (astb.comstr.base) {
-    FREE(astb.comstr.base);
-    astb.comstr.avl = astb.comstr.size = 0;
+  if (astb.comstr.stg_base) {
+    FREE(astb.comstr.stg_base);
+    astb.comstr.stg_avail = astb.comstr.stg_size = 0;
   }
 } /* ast_fini */
 
@@ -276,11 +277,9 @@ new_node(int type)
 {
   int nd;
 
-  nd = astb.avl++;
-  NEED(astb.avl, astb.base, AST, astb.size, astb.size + 1000);
-  if (nd > MAXAST || astb.base == NULL)
+  nd = STG_NEXT(astb);
+  if (nd > MAXAST || astb.stg_base == NULL)
     errfatal(7);
-  BZERO(astb.base + nd, AST, 1);
   A_TYPEP(nd, type);
   return nd;
 }
@@ -518,22 +517,19 @@ hash_substr(int a, DTYPE dtype, int lop, int left, int right)
 int
 mk_id(int id)
 {
-  int ast;
-
-  ast = hash_sym(A_ID, DTYPEG(id), id);
-  if (A_SHAPEG(ast) == 0 && DTY(DTYPEG(id)) == TY_ARRAY)
-    A_SHAPEP(ast, mkshape((int)DTYPEG(id)));
+  int ast = mk_id_noshape(id);
+  if (A_SHAPEG(ast) == 0)
+    A_SHAPEP(ast, mkshape(DTYPEG(id)));
   return ast;
 }
 
 int
 mk_id_noshape(int id)
 {
-  int ast;
-
-  ast = hash_sym(A_ID, DTYPEG(id), id);
-  /* defer shape to later */
-  return ast;
+  if (id <= NOSYM || id >= stb.stg_avail) {
+    interr("mk_id: invalid symbol table index", id, ERR_Severe);
+  }
+  return hash_sym(A_ID, DTYPEG(id), id); /* defer shape to later */
 }
 
 int
@@ -610,6 +606,12 @@ mk_isz_cval(ISZ_T v, DTYPE dtype)
     return mk_cval1(getcon(num, DT_INT8), DT_INT8);
   }
   return mk_cval(v, dtype);
+}
+
+int
+mk_fake_iostat()
+{
+  return mk_id(get_temp(astb.bnd.dtype));
 }
 
 /** \brief Make a constant AST given the actual (single word) value or
@@ -705,16 +707,13 @@ mk_binop(int optype, int lop, int rop, DTYPE dtype)
   case OP_MUL:
   case OP_DIV:
     if (DTY(dtype) == TY_INT8 || DTY(dtype) == TY_LOG8) {
-      if (A_DTYPEG(lop) != dtype)
-        lop = mk_convert(lop, dtype);
-      if (A_DTYPEG(rop) != dtype)
-        rop = mk_convert(rop, dtype);
+      lop = convert_int(lop, dtype);
+      rop = convert_int(rop, dtype);
     }
     break;
   case OP_XTOI:
     if (DTY(dtype) == TY_INT8 || DTY(dtype) == TY_LOG8) {
-      if (A_DTYPEG(lop) != dtype)
-        lop = mk_convert(lop, dtype);
+      lop = convert_int(lop, dtype);
     }
   default:
     break;
@@ -1243,8 +1242,7 @@ mk_unop(int optype, int lop, DTYPE dtype)
   case OP_SUB:
   case OP_LNOT:
     if (DTY(dtype) == TY_INT8 || DTY(dtype) == TY_LOG8) {
-      if (A_DTYPEG(lop) != dtype)
-        lop = mk_convert(lop, dtype);
+      lop = convert_int(lop, dtype);
     }
     break;
   default:
@@ -1363,6 +1361,15 @@ mk_convert(int lop, DTYPE dtype)
   }
   A_CALLFGP(ast, A_CALLFGG(lop));
   return ast;
+}
+
+/* Generate a convert of ast to dtype if it isn't the right type already. */
+int
+convert_int(int ast, DTYPE dtype)
+{
+  if (A_DTYPEG(ast) == dtype)
+    return ast;
+  return mk_convert(ast, dtype);
 }
 
 static int
@@ -1746,11 +1753,11 @@ mk_subscr_copy(int arr, int asd, DTYPE dtype)
   int shape;
   int numdim = ASD_NDIM(asd);
 
-  assert(arr >= 0 && arr < astb.avl, "mk_subscr_copy: invalid array ast", arr,
+  assert(arr >= 0 && arr < astb.stg_avail, "mk_subscr_copy: invalid array ast", arr,
          ERR_Fatal);
-  assert(asd >= 0 && asd < astb.asd.avl, "mk_subscr_copy: invalid asd index",
+  assert(asd >= 0 && asd < astb.asd.stg_avail, "mk_subscr_copy: invalid asd index",
          asd, ERR_Fatal);
-  assert(dtype >= 0 && dtype < stb.dt_avail,
+  assert(dtype >= 0 && dtype < stb.dt.stg_avail,
          "mk_subscr_copy: invalid dtype index", dtype, ERR_Fatal);
 
   callfg = 0;
@@ -1842,9 +1849,9 @@ mk_asd(int *subs, int numdim)
   }
 
   /* allocate a new ASD; note that the type ASD allows for one subscript. */
-  asd = astb.asd.avl;
-  astb.asd.avl += sizeof(ASD) / sizeof(int) + numdim - 1;
-  NEED(astb.asd.avl, astb.asd.base, int, astb.asd.size, astb.asd.avl + 240);
+  asd = astb.asd.stg_avail;
+  astb.asd.stg_avail += sizeof(ASD) / sizeof(int) + numdim - 1;
+  NEED(astb.asd.stg_avail, astb.asd.stg_base, int, astb.asd.stg_size, astb.asd.stg_avail + 240);
   ASD_NDIM(asd) = numdim;
   ASD_NEXT(asd) = astb.asd.hash[numdim - 1];
   astb.asd.hash[numdim - 1] = asd;
@@ -1867,9 +1874,8 @@ mk_triple(int lb, int ub, int stride)
 {
   int ast;
   ast = hash_triple(A_TRIPLE, lb, ub, stride);
-  A_CALLFGP(ast,
-            (lb ? A_CALLFGG(lb) : 0) | (ub ? A_CALLFGG(ub) : 0) |
-                (stride ? A_CALLFGG(stride) : 0));
+  A_CALLFGP(ast, (lb ? A_CALLFGG(lb) : 0) | (ub ? A_CALLFGG(ub) : 0) |
+                     (stride ? A_CALLFGG(stride) : 0));
   return ast;
 }
 
@@ -1886,9 +1892,8 @@ mk_substr(int chr, int left, int right, DTYPE dtype)
 
   ast = hash_substr(A_SUBSTR, dtype, chr, left, right);
   A_SHAPEP(ast, A_SHAPEG(chr));
-  A_CALLFGP(ast,
-            A_CALLFGG(chr) | (left ? A_CALLFGG(left) : 0) |
-                (right ? A_CALLFGG(right) : 0));
+  A_CALLFGP(ast, A_CALLFGG(chr) | (left ? A_CALLFGG(left) : 0) |
+                     (right ? A_CALLFGG(right) : 0));
   return ast;
 }
 
@@ -2185,10 +2190,10 @@ mk_shape(void)
    * allocate a new SHD; note that the type SHD allows for one
    * subscript.
    */
-  shape = astb.shd.avl;
+  shape = astb.shd.stg_avail;
   i = ndim + 1; /* WATCH declaration of SHD */
-  astb.shd.avl += i;
-  NEED(astb.shd.avl, astb.shd.base, SHD, astb.shd.size, astb.shd.avl + 240);
+  astb.shd.stg_avail += i;
+  NEED(astb.shd.stg_avail, astb.shd.stg_base, SHD, astb.shd.stg_size, astb.shd.stg_avail + 240);
   SHD_NDIM(shape) = ndim;
   SHD_NEXT(shape) = astb.shd.hash[ndim - 1];
   SHD_FILL(shape) = 0; /* avoid bogus UMR reports */
@@ -2458,11 +2463,13 @@ int
 extent_of_shape(int shape, int dim)
 {
   int a;
+  int lb = SHD_LWB(shape, dim);
+  int ub = SHD_UPB(shape, dim);
+  int stride = SHD_STRIDE(shape, dim);
 
-  a = mk_binop(OP_SUB, (int)SHD_UPB(shape, dim), (int)SHD_LWB(shape, dim),
-               astb.bnd.dtype);
-  a = mk_binop(OP_ADD, a, (int)SHD_STRIDE(shape, dim), astb.bnd.dtype);
-  a = mk_binop(OP_DIV, a, (int)SHD_STRIDE(shape, dim), astb.bnd.dtype);
+  a = mk_binop(OP_SUB, ub, lb, astb.bnd.dtype);
+  a = mk_binop(OP_ADD, a, stride, astb.bnd.dtype);
+  a = mk_binop(OP_DIV, a, stride, astb.bnd.dtype);
 
   if (A_ALIASG(a)) {
     int cv;
@@ -2482,6 +2489,9 @@ extent_of_shape(int shape, int dim)
         /* zero-sized in the dimension */
         return astb.bnd.zero;
     }
+  } else {
+    int mask = mk_binop(OP_GE, ub, lb, astb.bnd.dtype);
+    a = mk_merge(a, astb.bnd.zero, mask, astb.bnd.dtype);
   }
 
   return a;
@@ -2664,31 +2674,17 @@ mk_shared_extent(int lb, int ub, int dim)
   return extent;
 }
 
-/* \brief returns TRUE if type of ast is a symbol or an object that can be 
+/* \brief returns TRUE if type of ast is a symbol or an object that can be
  * passed to sym_of_ast() or memsym_of_ast() functions.
  *
  * \param ast is the AST to test.
- * 
+ *
  * \returns TRUE if ast is suitable for sym_of_ast(), etc. Otherwise FALSE.
  */
 LOGICAL
 ast_is_sym(int ast)
 {
-  if (A_ALIASG(ast))
-    return TRUE;
-  switch (A_TYPEG(ast)) {
-  case A_ID:
-  case A_LABEL:
-  case A_ENTRY:
-  case A_SUBSCR:
-  case A_SUBSTR:
-  case A_MEM:
-  case A_FUNC:
-    return TRUE;
-  case A_CONV:
-    return ast_is_sym(A_LOPG(ast));
-  }
-  return FALSE;
+  return sym_of_ast2(ast) != 0;
 }
 
 /** \brief Like memsym_of_ast(), but for a member, returns the sptr of its
@@ -2697,31 +2693,36 @@ ast_is_sym(int ast)
 int
 sym_of_ast(int ast)
 {
-  int a;
+  SPTR sptr = sym_of_ast2(ast);
+  if (sptr == 0) {
+    interr("sym_of_ast: unexpected ast", ast, 3);
+    return stb.i0;
+  }
+  return sptr;
+}
 
-  if ((a = A_ALIASG(ast)))
-    return A_SPTRG(a);
-  while (1) {
-    switch (A_TYPEG(ast)) {
-    case A_ID:
-    case A_LABEL:
-    case A_ENTRY:
-      return A_SPTRG(ast);
-    case A_SUBSCR:
-    case A_SUBSTR:
-    case A_CONV:
-      ast = A_LOPG(ast);
-      break;
-    case A_MEM:
-      ast = A_PARENTG(ast);
-      break;
-    case A_FUNC:
-      ast = A_LOPG(ast);
-      break;
-    default:
-      interr("sym_of_ast: unexpected ast", ast, 3);
-      return stb.i0;
-    }
+/* Like sym_of_ast() but return 0 if ast does not have a sym. */
+static SPTR
+sym_of_ast2(int ast)
+{
+  int alias = A_ALIASG(ast);
+  if (alias)
+    return A_SPTRG(alias);
+  switch (A_TYPEG(ast)) {
+  case A_ID:
+  case A_LABEL:
+  case A_ENTRY:
+    return A_SPTRG(ast);
+  case A_SUBSCR:
+  case A_SUBSTR:
+  case A_CONV:
+  case A_FUNC:
+  case A_CALL:
+    return sym_of_ast2(A_LOPG(ast));
+  case A_MEM:
+    return sym_of_ast2(A_PARENTG(ast));
+  default:
+    return 0;
   }
 }
 
@@ -2748,6 +2749,7 @@ pass_sym_of_ast(int ast)
     case A_ENTRY:
       return A_SPTRG(ast);
     case A_FUNC:
+    case A_CALL:
     case A_SUBSCR:
     case A_SUBSTR:
       ast = A_LOPG(ast);
@@ -2790,6 +2792,7 @@ memsym_of_ast(int ast)
       ast = A_MEMG(ast);
       break;
     case A_FUNC:
+    case A_CALL:
       ast = A_LOPG(ast);
       break;
     default:
@@ -3075,17 +3078,6 @@ left_nonscalar_subscript_ast(int ast)
     }
   }
 }
-
-/*
- * this routine returns the distributed symbol
- *   for a%b(i)%c%d(j)%e, it will return 'a', 'b', 'c', 'd', or 'e',
- *   depending on which one (and only one can be) distributed or aligned.
- */
-int
-dist_symbol(int ast)
-{
-  return 0;
-} /* dist_symbol */
 
 /** \brief Return the AST of the leftmost A_SUBSCR or A_ID that is distributed
            or aligned.
@@ -3506,9 +3498,9 @@ elem_size_of_ast(int ast)
       bytes = mk_isz_cval(size_of(dtype), astb.bnd.dtype);
     else {
       if (!is_arr)
-        i = sym_mkfunc_nodesc(mkRteRtnNm(RTE_len), astb.bnd.dtype);
+        i = sym_mkfunc_nodesc(mkRteRtnNm(RTE_lena), astb.bnd.dtype);
       else
-        i = sym_mkfunc_nodesc_expst(mkRteRtnNm(RTE_len), astb.bnd.dtype);
+        i = sym_mkfunc_nodesc_expst(mkRteRtnNm(RTE_lena), astb.bnd.dtype);
       bytes = begin_call(A_FUNC, i, 1);
       add_arg(ast);
     }
@@ -3518,9 +3510,9 @@ elem_size_of_ast(int ast)
       bytes = mk_isz_cval(size_of(dtype), astb.bnd.dtype);
     else {
       if (!is_arr)
-        i = sym_mkfunc_nodesc(mkRteRtnNm(RTE_nlen), astb.bnd.dtype);
+        i = sym_mkfunc_nodesc(mkRteRtnNm(RTE_nlena), astb.bnd.dtype);
       else
-        i = sym_mkfunc_nodesc_expst(mkRteRtnNm(RTE_nlen), astb.bnd.dtype);
+        i = sym_mkfunc_nodesc_expst(mkRteRtnNm(RTE_nlena), astb.bnd.dtype);
       bytes = begin_call(A_FUNC, i, 1);
       add_arg(ast);
     }
@@ -3609,11 +3601,9 @@ mk_std(int ast)
 {
   int std;
 
-  std = astb.std.avl++;
-  NEED(astb.std.avl, astb.std.base, STD, astb.std.size, astb.std.size + 1000);
-  if (std > MAXAST || astb.std.base == NULL)
+  std = STG_NEXT(astb.std);
+  if (std > MAXAST || astb.std.stg_base == NULL)
     errfatal(7);
-  BZERO(astb.std.base + std, STD, 1);
   STD_AST(std) = ast; /* link std to ast */
   A_STDP(ast, std);   /* link ast to std */
   return std;
@@ -3765,18 +3755,17 @@ move_stmts_after(int std, int stdafter)
 void
 ast_to_comment(int ast)
 {
-  int newast;
-  int std;
-  int par;
+  int std = A_STDG(ast);
+  int par = STD_PAR(std);
+  int accel = STD_ACCEL(std);
+  int newast = mk_stmt(A_COMMENT, 0);
 
-  newast = mk_stmt(A_COMMENT, 0);
   A_LOPP(newast, ast);
-  std = A_STDG(ast);
   STD_AST(std) = newast;
   A_STDP(newast, std);
-  par = STD_PAR(std);
   STD_FLAGS(std) = 0;
   STD_PAR(std) = par;
+  STD_ACCEL(std) = accel;
 }
 
 int
@@ -3786,13 +3775,13 @@ mk_comstr(char *str)
   INT indx;
 
   newast = mk_stmt(A_COMSTR, 0);
-  indx = astb.comstr.avl;
+  indx = astb.comstr.stg_avail;
   A_COMPTRP(newast, indx);
-  astb.comstr.avl += strlen(str) + 1;
-  NEED(astb.comstr.avl, astb.comstr.base, char, astb.comstr.size,
-       astb.comstr.avl + 200);
+  astb.comstr.stg_avail += strlen(str) + 1;
+  NEED(astb.comstr.stg_avail, astb.comstr.stg_base, char, astb.comstr.stg_size,
+       astb.comstr.stg_avail + 200);
   strcpy(COMSTR(newast), str);
-  astb.comstr.base[indx] = '!';
+  astb.comstr.stg_base[indx] = '!';
 
   return newast;
 }
@@ -3807,10 +3796,10 @@ mk_argt(int cnt)
 
   if (cnt == 0)
     return 0;
-  argt = astb.argt.avl;
-  astb.argt.avl += cnt + 1;
-  NEED(astb.argt.avl, astb.argt.base, int, astb.argt.size, astb.argt.avl + 200);
-  if (argt > MAX_NMPTR || astb.argt.base == NULL)
+  argt = astb.argt.stg_avail;
+  astb.argt.stg_avail += cnt + 1;
+  NEED(astb.argt.stg_avail, astb.argt.stg_base, int, astb.argt.stg_size, astb.argt.stg_avail + 200);
+  if (argt > MAX_NMPTR || astb.argt.stg_base == NULL)
     errfatal(7);
   ARGT_CNT(argt) = cnt;
 
@@ -3825,7 +3814,7 @@ unmk_argt(int cnt)
 {
   if (cnt == 0)
     return;
-  astb.argt.avl -= cnt + 1;
+  astb.argt.stg_avail -= cnt + 1;
 } /* unmk_argt */
 
 /* AST List (ASTLI) Management */
@@ -3854,10 +3843,10 @@ add_astli(void)
 {
   int astli;
 
-  astli = astb.astli.avl++;
-  NEED(astb.astli.avl, astb.astli.base, ASTLI, astb.astli.size,
-       astb.astli.size + 200);
-  if (astli > MAX_NMPTR || astb.astli.base == NULL)
+  astli = astb.astli.stg_avail++;
+  NEED(astb.astli.stg_avail, astb.astli.stg_base, ASTLI, astb.astli.stg_size,
+       astb.astli.stg_size + 200);
+  if (astli > MAX_NMPTR || astb.astli.stg_base == NULL)
     errfatal(7);
   ASTLI_NEXT(tail_astli) = astli;
   ASTLI_NEXT(astli) = 0;
@@ -3871,7 +3860,7 @@ static void
 reset_astli(void)
 {
   if (ASTLI_HEAD) {
-    astb.astli.avl = ASTLI_HEAD;
+    astb.astli.stg_avail = ASTLI_HEAD;
     ASTLI_HEAD = 0;
   }
 } /* reset_astli */
@@ -3903,7 +3892,8 @@ static struct {
   int ast;
   int arg_num;
   int ast_type;
-} curr_call;
+  int arg_count;
+} curr_call = {0, 0, 0, 0, 0};
 
 /**
     \param ast_type A_FUNC, A_CALL, or A_INTR
@@ -3914,6 +3904,11 @@ int
 begin_call(int ast_type, int func, int count)
 {
   int lop;
+  /* make sure the previous call completed */
+  if (curr_call.arg_num < curr_call.arg_count)
+    interr("begin_call called before the previous procedure call completed",
+           curr_call.arg_num, 3);
+  curr_call.arg_count = count;
   curr_call.argt = mk_argt(count); /* mk_argt stuffs away count */
   curr_call.ast_type = ast_type;
   curr_call.ast = new_node(ast_type);
@@ -3935,6 +3930,10 @@ begin_call(int ast_type, int func, int count)
 void
 add_arg(int arg)
 {
+  if (curr_call.arg_num >= curr_call.arg_count)
+    interr("add_arg called with too many arguments, or one begin_call mixed in "
+           "with another",
+           curr_call.arg_num, ERR_Severe);
   ARGT_ARG(curr_call.argt, curr_call.arg_num) = arg;
   curr_call.arg_num++;
   if (A_CALLFGG(arg))
@@ -4136,9 +4135,12 @@ ast_unvisit_norepl(void)
 void
 ast_revisit(ast_visit_fn proc, int *extra_arg)
 {
-  int v;
-  for (v = visit_list; v; v = A_VISITG(v)) {
+  if (visit_list) {
+    int v;
+    v = visit_list;
     (*proc)(v, extra_arg);
+    for (v = A_VISITG(v); v && v != visit_list; v = A_VISITG(v))
+      (*proc)(v, extra_arg);
   }
 } /* ast_revisit */
 
@@ -4151,7 +4153,7 @@ ast_rewrite(int ast)
   int parent, mem, left, right, lop, rop, l1, l2, l3, sub, lbd, upbd, stride,
       dest, src, ifexpr, ifstmt, dolab, dovar, m1, m2, m3, itriple, otriple,
       otriple1, dim, bvect, ddesc, sdesc, mdesc, vsub, chunk, npar, start,
-      align, m4, stblk, lastvar, endlab;
+      align, m4, stblk, lastvar, endlab, finalexpr, priorityexpr;
   DTYPE dtype;
   int devsrc;
   int asd;
@@ -4871,8 +4873,8 @@ ast_rewrite(int ast)
       A_NPARP(astnew, npar);
       A_LOPP(astnew,
              A_LOPG(ast)); /* A_MP_PARALLEL points to A_MP_ENDPARALLEL */
-      A_LOPP(A_LOPG(ast), astnew);       /* and back */
-      A_ENDLABP(A_ENDLABG(ast), astnew); /* and back */
+      A_LOPP(A_LOPG(ast), astnew);         /* and back */
+      A_ENDLABP(A_ENDLABG(ast), astnew);   /* and back */
       A_PROCBINDP(A_ENDLABG(ast), astnew); /* and back */
     }
     break;
@@ -4890,11 +4892,29 @@ ast_rewrite(int ast)
   case A_MP_TASK:
     ifexpr = ast_rewrite(A_IFPARG(ast));
     endlab = ast_rewrite(A_ENDLABG(ast));
-    if (ifexpr != A_IFPARG(ast) || endlab != A_ENDLABG(ast)) {
+    priorityexpr = ast_rewrite(A_PRIORITYG(ast));
+    finalexpr = ast_rewrite(A_FINALPARG(ast));
+    if (ifexpr != A_IFPARG(ast) || endlab != A_ENDLABG(ast) ||
+        finalexpr != A_FINALPARG(ast) || priorityexpr != A_PRIORITYG(ast)) {
       astnew = mk_stmt(A_MP_TASK, 0);
       A_IFPARP(astnew, ifexpr);
+      A_FINALPARP(astnew, finalexpr);
       A_ENDLABP(astnew, endlab);
       A_LOPP(astnew, A_LOPG(ast)); /* A_MP_TASK points to A_MP_ENDTASK */
+      A_LOPP(A_LOPG(ast), astnew); /* and back */
+    }
+    break;
+  case A_MP_TASKLOOP:
+    ifexpr = ast_rewrite(A_IFPARG(ast));
+    finalexpr = ast_rewrite(A_FINALPARG(ast));
+    priorityexpr = ast_rewrite(A_PRIORITYG(ast));
+    if (ifexpr != A_IFPARG(ast) || finalexpr != A_FINALPARG(ast) ||
+        priorityexpr != A_PRIORITYG(ast)) {
+      astnew = mk_stmt(A_MP_TASKLOOP, 0);
+      A_IFPARP(astnew, ifexpr);
+      A_FINALPARP(astnew, finalexpr);
+      A_PRIORITYP(astnew, priorityexpr);
+      A_LOPP(astnew, A_LOPG(ast)); /* A_MP_TASKLOOP points to A_MP_ETASKLOOP */
       A_LOPP(A_LOPG(ast), astnew); /* and back */
     }
     break;
@@ -4926,7 +4946,7 @@ ast_rewrite(int ast)
   case A_MP_ENDDISTRIBUTE:
   case A_MP_TASKGROUP:
   case A_MP_ETASKGROUP:
-  case A_MP_ETASKREG:
+  case A_MP_ETASKDUP:
   case A_MP_ENDPARALLEL:
   case A_MP_CRITICAL:
   case A_MP_ENDCRITICAL:
@@ -4946,6 +4966,8 @@ ast_rewrite(int ast)
   case A_MP_EMPSCOPE:
   case A_MP_FLUSH:
   case A_MP_TASKREG:
+  case A_MP_TASKDUP:
+  case A_MP_ETASKLOOPREG:
   case A_MP_ATOMICREAD:
   case A_MP_ATOMICUPDATE:
   case A_MP_ATOMICCAPTURE:
@@ -5004,6 +5026,17 @@ ast_rewrite(int ast)
       A_ROPP(astnew, rop);
     }
     break;
+  case A_MP_TASKLOOPREG:
+    m1 = ast_rewrite(A_M1G(ast));
+    m2 = ast_rewrite(A_M2G(ast));
+    m3 = ast_rewrite(A_M3G(ast));
+    if (m1 != A_M1G(ast) || m2 != A_M2G(ast) || m3 != A_M3G(ast)) {
+      astnew = mk_stmt(A_MP_TASKLOOPREG, 0);
+      A_M1P(astnew, m1);
+      A_M2P(astnew, m2);
+      A_M3P(astnew, m3);
+    }
+    break;
   case A_MP_PDO:
     dolab = ast_rewrite(A_DOLABG(ast));
     dovar = ast_rewrite(A_DOVARG(ast));
@@ -5038,6 +5071,7 @@ ast_rewrite(int ast)
       A_ORDEREDP(astnew, A_ORDEREDG(ast));
       A_DISTRIBUTEP(astnew, A_DISTRIBUTEG(ast));
       A_DISTPARDOP(astnew, A_DISTPARDOG(ast));
+      A_TASKLOOPP(astnew, A_TASKLOOPG(ast));
     }
     break;
   case A_MP_ENDPDO:
@@ -5051,6 +5085,7 @@ ast_rewrite(int ast)
   case A_MP_BORDERED:
   case A_MP_EORDERED:
   case A_MP_ENDTASK:
+  case A_MP_ETASKLOOP:
     break;
   case A_PREFETCH:
     lop = ast_rewrite(A_LOPG(ast));
@@ -5693,6 +5728,24 @@ ast_trav_recurse(int ast, int *extra_arg)
 #endif
     /*_ast_trav((int)A_LOPG(ast), extra_arg);*/
     break;
+  case A_MP_TASKLOOP:
+#if DEBUG
+    assert(A_LOPG(ast), "_ast_trav, A_MP_TASKLOOP LOP field not set", ast, 2);
+#endif
+    if (A_IFPARG(ast))
+      _ast_trav((int)A_IFPARG(ast), extra_arg);
+    if (A_FINALPARG(ast))
+      _ast_trav((int)A_FINALPARG(ast), extra_arg);
+    if (A_PRIORITYG(ast))
+      _ast_trav((int)A_PRIORITYG(ast), extra_arg);
+    /*_ast_trav((int)A_LOPG(ast), extra_arg);*/
+    break;
+  case A_MP_ETASKLOOP:
+#if DEBUG
+    assert(A_LOPG(ast), "_ast_trav, A_MP_ETASKLOOP LOP field not set", ast, 2);
+#endif
+    /*_ast_trav((int)A_LOPG(ast), extra_arg);*/
+    break;
   case A_MP_CRITICAL:
   case A_MP_ENDCRITICAL:
 #if DEBUG
@@ -5756,7 +5809,7 @@ ast_trav_recurse(int ast, int *extra_arg)
   case A_MP_TASKGROUP:
   case A_MP_ETASKGROUP:
   case A_MP_BARRIER:
-  case A_MP_ETASKREG:
+  case A_MP_ETASKDUP:
   case A_MP_TASKWAIT:
   case A_MP_TASKYIELD:
   case A_MP_SECTION:
@@ -5772,6 +5825,8 @@ ast_trav_recurse(int ast, int *extra_arg)
   case A_MP_EMPSCOPE:
   case A_MP_FLUSH:
   case A_MP_TASKREG:
+  case A_MP_TASKDUP:
+  case A_MP_ETASKLOOPREG:
     break;
   case A_MP_BMPSCOPE:
 #if DEBUG
@@ -5780,6 +5835,14 @@ ast_trav_recurse(int ast, int *extra_arg)
 #endif
     if (A_STBLKG(ast))
       _ast_trav((int)A_STBLKG(ast), extra_arg);
+    break;
+  case A_MP_TASKLOOPREG:
+    if (A_M1G(ast))
+      _ast_trav((int)A_M1G(ast), extra_arg);
+    if (A_M2G(ast))
+      _ast_trav((int)A_M2G(ast), extra_arg);
+    if (A_M3G(ast))
+      _ast_trav((int)A_M3G(ast), extra_arg);
     break;
   case A_MP_PDO:
     if (A_DOLABG(ast))
@@ -5874,7 +5937,7 @@ _dump_one_ast(int i, FILE *file)
   char typeb[512];
   int l, sptr;
 
-  if (i <= 0 || i > astb.avl)
+  if (i <= 0 || i > astb.stg_avail)
     return;
   if (file == NULL)
     file = stderr;
@@ -6230,6 +6293,24 @@ _dump_one_ast(int i, FILE *file)
     if (A_ENDLABG(i))
       fprintf(file, " endlab:%5d", A_ENDLABG(i));
     break;
+  case A_MP_TASKLOOP:
+    fprintf(file, " lop:%5d", A_LOPG(i));
+    fprintf(file, " ifpar:%5d", A_IFPARG(i));
+    fprintf(file, " final:%5d", A_FINALPARG(i));
+    fprintf(file, " priority:%5d", A_PRIORITYG(i));
+    if (A_UNTIEDG(i))
+      fprintf(file, "  untied");
+    if (A_EXEIMMG(i))
+      fprintf(file, "  exeimm");
+    if (A_MERGEABLEG(i))
+      fprintf(file, "  mergeable");
+    if (A_NOGROUPG(i))
+      fprintf(file, "  nogroup");
+    if (A_GRAINSIZEG(i))
+      fprintf(file, "  grainsize");
+    if (A_NUM_TASKSG(i))
+      fprintf(file, "  num_tasks");
+    break;
   case A_MP_TARGET:
     fprintf(file, " iftarget:%5d", A_IFPARG(i));
     break;
@@ -6286,10 +6367,19 @@ _dump_one_ast(int i, FILE *file)
       fprintf(file, "  distpardo");
     if (A_DISTRIBUTEG(i))
       fprintf(file, "  distribute");
+    if (A_TASKLOOPG(i))
+      fprintf(file, "  taskloop");
     if (A_ENDLABG(i))
       fprintf(file, "  endlab:%5d", (int)A_ENDLABG(i));
     break;
+  case A_MP_TASKLOOPREG:
+    fprintf(file, "  m1:%5d", (int)A_M1G(i));
+    fprintf(file, "  m2:%5d", (int)A_M2G(i));
+    fprintf(file, "  m3:%5d\n", (int)A_M3G(i));
+    break;
+  case A_MP_ETASKLOOPREG:
   case A_MP_TASKREG:
+  case A_MP_TASKDUP:
   case A_MP_ENDTARGETDATA:
   case A_MP_ENDTARGET:
   case A_MP_ENDTEAMS:
@@ -6298,7 +6388,7 @@ _dump_one_ast(int i, FILE *file)
   case A_MP_TASKGROUP:
   case A_MP_ETASKGROUP:
   case A_MP_BARRIER:
-  case A_MP_ETASKREG:
+  case A_MP_ETASKDUP:
   case A_MP_TASKWAIT:
   case A_MP_TASKYIELD:
   case A_MP_ENDPDO:
@@ -6366,7 +6456,7 @@ dump_ast_tree(int i)
   int j, k;
   int asd;
 
-  if (i <= 0 || i > astb.avl)
+  if (i <= 0 || i > astb.stg_avail)
     return;
   fprintf(gbl.dbgfil, "\n");
   dump_one_ast(i);
@@ -6621,8 +6711,11 @@ dump_ast_tree(int i)
     indent -= 3;
     break;
   case A_MP_TASK:
+  case A_MP_TASKLOOP:
     indent += 3;
     dump_ast_tree(A_IFPARG(i));
+    dump_ast_tree(A_FINALPARG(i));
+    dump_ast_tree(A_PRIORITYG(i));
     indent -= 3;
     break;
   case A_MP_TASKFIRSTPRIV:
@@ -6663,11 +6756,13 @@ dump_ast_tree(int i)
   case A_MP_SINGLE:
   case A_MP_ENDSINGLE:
   case A_MP_BARRIER:
-  case A_MP_ETASKREG:
+  case A_MP_ETASKDUP:
   case A_MP_TASKWAIT:
   case A_MP_TASKYIELD:
   case A_MP_ENDTASK:
   case A_MP_EMPSCOPE:
+  case A_MP_ETASKLOOPREG:
+  case A_MP_TASKDUP:
     break;
   case A_MP_TASKREG:
     indent += 3;
@@ -6694,6 +6789,12 @@ dump_ast_tree(int i)
     dump_ast_tree(A_CHUNKG(i));
     indent -= 3;
     break;
+  case A_MP_TASKLOOPREG:
+    indent += 3;
+    dump_ast_tree(A_M1G(i));
+    dump_ast_tree(A_M2G(i));
+    dump_ast_tree(A_M3G(i));
+    indent -= 3;
     break;
   case A_MP_ATOMICREAD:
     dump_ast_tree(A_SRCG(i));
@@ -6738,7 +6839,7 @@ dump_ast(void)
   int i;
 
   fprintf(gbl.dbgfil, "AST Table\n");
-  for (i = 1; i < astb.avl; i++) {
+  for (i = 1; i < astb.stg_avail; i++) {
     fprintf(gbl.dbgfil, "\n");
     _dump_one_ast(i, gbl.dbgfil);
   }
@@ -6819,14 +6920,14 @@ dump_stg_stat(char *where)
   else
     fil = gbl.dbgfil;
   fprintf(fil, "  Storage Allocation %s\n", where);
-  fprintf(fil, "  AST   :%8d\n", astb.avl);
-  fprintf(fil, "  ASD   :%8d\n", astb.asd.avl);
-  fprintf(fil, "  STD   :%8d\n", astb.std.avl);
-  fprintf(fil, "  ASTLI :%8d\n", astb.astli.avl);
-  fprintf(fil, "  ARGT  :%8d\n", astb.argt.avl);
-  fprintf(fil, "  SHD   :%8d\n", astb.shd.avl);
+  fprintf(fil, "  AST   :%8d\n", astb.stg_avail);
+  fprintf(fil, "  ASD   :%8d\n", astb.asd.stg_avail);
+  fprintf(fil, "  STD   :%8d\n", astb.std.stg_avail);
+  fprintf(fil, "  ASTLI :%8d\n", astb.astli.stg_avail);
+  fprintf(fil, "  ARGT  :%8d\n", astb.argt.stg_avail);
+  fprintf(fil, "  SHD   :%8d\n", astb.shd.stg_avail);
   fprintf(fil, "  SYM   :%8d\n", stb.stg_avail);
-  fprintf(fil, "  DT    :%8d\n", stb.dt_avail);
+  fprintf(fil, "  DT    :%8d\n", stb.dt.stg_avail);
 }
 
 #include <stdarg.h>
@@ -7128,25 +7229,37 @@ void rw_ast_state(RW_ROUTINE, RW_FILE)
   int nw;
 
   RW_FD(astb.hshtb, astb.hshtb, 1);
-  RW_SCALAR(astb.avl);
-  RW_FD(astb.base, AST, astb.avl);
+  RW_SCALAR(astb.stg_avail);
+  RW_SCALAR(astb.stg_cleared);
+  RW_SCALAR(astb.stg_dtsize);
+  RW_FD(astb.stg_base, AST, astb.stg_avail);
 
   RW_FD(astb.asd.hash, astb.asd.hash, 1);
-  RW_SCALAR(astb.asd.avl);
-  RW_FD(astb.asd.base, int, astb.asd.avl);
+  RW_SCALAR(astb.asd.stg_avail);
+  RW_SCALAR(astb.asd.stg_cleared);
+  RW_SCALAR(astb.asd.stg_dtsize);
+  RW_FD(astb.asd.stg_base, int, astb.asd.stg_avail);
 
   RW_FD(astb.shd.hash, astb.shd.hash, 1);
-  RW_SCALAR(astb.shd.avl);
-  RW_FD(astb.shd.base, SHD, astb.shd.avl);
+  RW_SCALAR(astb.shd.stg_avail);
+  RW_SCALAR(astb.shd.stg_cleared);
+  RW_SCALAR(astb.shd.stg_dtsize);
+  RW_FD(astb.shd.stg_base, SHD, astb.shd.stg_avail);
 
-  RW_SCALAR(astb.astli.avl);
-  RW_FD(astb.astli.base, ASTLI, astb.astli.avl);
+  RW_SCALAR(astb.astli.stg_avail);
+  RW_SCALAR(astb.astli.stg_cleared);
+  RW_SCALAR(astb.astli.stg_dtsize);
+  RW_FD(astb.astli.stg_base, ASTLI, astb.astli.stg_avail);
 
-  RW_SCALAR(astb.argt.avl);
-  RW_FD(astb.argt.base, int, astb.argt.avl);
+  RW_SCALAR(astb.argt.stg_avail);
+  RW_SCALAR(astb.argt.stg_cleared);
+  RW_SCALAR(astb.argt.stg_dtsize);
+  RW_FD(astb.argt.stg_base, int, astb.argt.stg_avail);
 
-  RW_SCALAR(astb.comstr.avl);
-  RW_FD(astb.comstr.base, char, astb.comstr.avl);
+  RW_SCALAR(astb.comstr.stg_avail);
+  RW_SCALAR(astb.comstr.stg_cleared);
+  RW_SCALAR(astb.comstr.stg_dtsize);
+  RW_FD(astb.comstr.stg_base, char, astb.comstr.stg_avail);
 
 }
 
@@ -8004,7 +8117,8 @@ const_fold(int opr, INT conval1, INT conval2, DTYPE dtype)
       /* following if condition prevent seg fault from following example;
        * logical,parameter ::b=char(32,kind=2).eq.char(45,kind=2)
        */
-      if (CONVAL1G(conval1) > stb.stg_avail || CONVAL1G(conval2) > stb.stg_avail) {
+      if (CONVAL1G(conval1) > stb.stg_avail ||
+          CONVAL1G(conval2) > stb.stg_avail) {
         errsev(91);
         return 0;
       }
@@ -8264,7 +8378,7 @@ cngcon(INT oldval, int oldtyp, int newtyp)
       unum[0] = 0;
       unum[1] = oldval;
       return getcon((INT *)unum, newtyp);
-    } else if (TY_ISINT(from)) {
+    } else if (TY_ISINT(from) || (TY_ISLOG(to) && TY_ISLOG(from))) {
       if (oldval < 0) {
         num[0] = -1;
         num[1] = oldval;
@@ -9080,7 +9194,7 @@ rewrite_ast_with_new_dtype(int ast, DTYPE dtype)
   return ast;
 }
 
-/* Get the most credible bounds for the shape of an AST from the various
+/* Get the most credible shape (rank and extents) of an AST from the various
  * sources of information that exist.  Returns the rank, which is also
  * the number of leading entries that have been filled in extent_asts[].
  */
@@ -9091,7 +9205,7 @@ get_ast_extents(int extent_asts[], int from_ast, DTYPE arr_dtype)
 
   if (rank > 0) {
     int shape = A_SHAPEG(from_ast);
-    int asd = A_ASDG(from_ast);
+    int asd = A_TYPEG(from_ast) == A_SUBSCR ? A_ASDG(from_ast) : 0;
     int dim;
 
     for (dim = 0; dim < rank; ++dim) {
@@ -9137,6 +9251,73 @@ get_ast_extents(int extent_asts[], int from_ast, DTYPE arr_dtype)
   return rank;
 }
 
+/* Get the rank and lower/upper bounds on each dimension from an AST
+ * and/or an array dtype, if possible.  When lower and upper bounds
+ * cannot all be discerned, or when strides appear, then set the lower
+ * bounds all to 1 and use extents as the upper bounds.
+ */
+int
+get_ast_bounds(int lower_bound_asts[], int upper_bound_asts[], int from_ast,
+               DTYPE arr_dtype)
+{
+  int rank = get_ast_rank(from_ast);
+
+  if (rank > 0) {
+    int shape = A_SHAPEG(from_ast);
+    int asd = A_TYPEG(from_ast) == A_SUBSCR ? A_ASDG(from_ast) : 0;
+    int dim = 0;
+
+    for (dim = 0; dim < rank; ++dim) {
+      int lb = 0, ub = 0;
+      if (asd) {
+        int subscript = ASD_SUBS(asd, dim);
+        if (subscript > 0) {
+          if (A_TYPEG(subscript) == A_TRIPLE ||
+              A_SHAPEG(subscript) > 0 /* vector-valued subscript */) {
+            break;
+          }
+        }
+      }
+      if (shape) {
+        int stride = SHD_STRIDE(shape, dim);
+        if (stride > 0 && stride != astb.bnd.one) {
+          break;
+        }
+        lb = SHD_LWB(shape, dim);
+        ub = SHD_UPB(shape, dim);
+      }
+      if (is_array_dtype(arr_dtype)) {
+        if (!ub) {
+          ub = ADD_UPAST(arr_dtype, dim);
+        }
+        if (!lb) {
+          lb = ADD_LWAST(arr_dtype, dim);
+        }
+      }
+
+      if (lb > 0 && ub > 0) {
+        lower_bound_asts[dim] = lb;
+        upper_bound_asts[dim] = ub;
+      } else {
+        break;
+      }
+    }
+
+    if (dim < rank) {
+      /* Could not get good lower and upper bounds on all dimensions,
+       * or there's a subscript triplet or vector-valued subscript.
+       * Set the lower bounds all to 1, then try to extract extents
+       * for use as the upper bounds.
+       */
+      for (dim = 0; dim < rank; ++dim) {
+        lower_bound_asts[dim] = astb.bnd.one;
+      }
+      return get_ast_extents(upper_bound_asts, from_ast, arr_dtype);
+    }
+  }
+  return rank;
+}
+
 int
 add_extent_subscripts(int to_ast, int rank, const int extent_asts[],
                       DTYPE elt_dtype)
@@ -9145,6 +9326,20 @@ add_extent_subscripts(int to_ast, int rank, const int extent_asts[],
     int j, triple_asts[MAXRANK];
     for (j = 0; j < rank; ++j) {
       triple_asts[j] = mk_triple(astb.bnd.one, extent_asts[j], 0);
+    }
+    to_ast = mk_subscr(to_ast, triple_asts, rank, elt_dtype);
+  }
+  return to_ast;
+}
+
+int
+add_bounds_subscripts(int to_ast, int rank, const int lower_bound_asts[],
+                      const int upper_bound_asts[], DTYPE elt_dtype)
+{
+  if (rank > 0) {
+    int j, triple_asts[MAXRANK];
+    for (j = 0; j < rank; ++j) {
+      triple_asts[j] = mk_triple(lower_bound_asts[j], upper_bound_asts[j], 0);
     }
     to_ast = mk_subscr(to_ast, triple_asts, rank, elt_dtype);
   }

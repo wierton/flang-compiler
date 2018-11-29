@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, NVIDIA CORPORATION.  All rights reserved.
+ * Copyright (c) 1997-2018, NVIDIA CORPORATION.  All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,54 +15,90 @@
  *
  */
 
+#ifndef DINIT_H_
+#define DINIT_H_
+
 /** \file
  * \brief (Fortran) declarations needed to use dinitutil.c module.
  */
 
-typedef struct {/* dinit file record */
-  int dtype;    /*  also sptr  */
+#include "gbldefs.h"
+#include "symtab.h"
+#include <stdio.h>
+
+struct CONST;
+struct VAR;
+
+typedef struct DREC {/* dinit file record */
+  DTYPE dtype;  /*  also sptr  */
   ISZ_T conval; /*  also offset */
 } DREC;
 
-#define DINIT_ENDFILE -96
-#define DINIT_STARTARY -95
-#define DINIT_ENDARY -94
-#define DINIT_TYPEDEF -93
-#define DINIT_ENDTYPE -92
-#define DINIT_LOC -99
-#define DINIT_SLOC -91
-#define DINIT_REPEAT -88
-#define DINIT_SECT -87 /* conval field is sptr to string with section name */
-#define DINIT_DATASECT -86 /* return to data section */
-#define DINIT_OFFSET -77
-#define DINIT_LABEL -33
-#define DINIT_ZEROES -66
-#define DINIT_VPUINSTR -55 /* sparc/VPU compiler only */
-#define DINIT_COMMENT                           \
-  -44 /* comment string for asm file - the      \
-       * DREC.conval field is an int index into \
-       * the getitem_p table (salloc.c) which   \
-       * contains the pointer to the string.    \
-       */
-#define DINIT_FILL -59
-#define DINIT_MASK -60
-#define DINIT_ZEROINIT -61 /* llvm : use zeroinitializer */
+#define DINIT_ENDFILE  ((DTYPE)-96)
+#define DINIT_STARTARY ((DTYPE)-95)
+#define DINIT_ENDARY   ((DTYPE)-94)
+#define DINIT_TYPEDEF  ((DTYPE)-93)
+#define DINIT_ENDTYPE  ((DTYPE)-92)
+#define DINIT_LOC      ((DTYPE)-99)
+#define DINIT_SLOC     ((DTYPE)-91)
+#define DINIT_REPEAT   ((DTYPE)-88)
+#define DINIT_SECT     ((DTYPE)-87) /* conval field is sptr to string with section name */
+#define DINIT_DATASECT ((DTYPE)-86) /* return to data section */
+#define DINIT_OFFSET   ((DTYPE)-77)
+#define DINIT_LABEL    ((DTYPE)-33)
+#define DINIT_ZEROES   ((DTYPE)-66)
+#define DINIT_VPUINSTR ((DTYPE)-55) /* sparc/VPU compiler only */
+#define DINIT_COMMENT  ((DTYPE)-44) /* comment string for asm file - the
+                                     * DREC.conval field is an int index into
+                                     * the getitem_p table (salloc.c) which
+                                     * contains the pointer to the string.
+                                     */
+#define DINIT_FILL     ((DTYPE)-59)
+#define DINIT_MASK     ((DTYPE)-60)
+#define DINIT_ZEROINIT ((DTYPE)-61) /* llvm : use zeroinitializer */
 
-#define DINIT_FUNCCOUNT -31 /* gbl.func_count value */
-#define DINIT_STRING -30    /* holds string initialization, length given */
+#define DINIT_FUNCCOUNT ((DTYPE)-31) /* gbl.func_count value */
+#define DINIT_STRING   ((DTYPE)-30) // holds string initialization, length given
 
-extern void dinit_init(void);
-extern void dinit_put(int, ISZ_T);
-extern DREC *dinit_read(void);
-extern void dinit_read_string(ISZ_T, char *);
-extern void dinit_put_string(ISZ_T, char *);
-extern void dinit_fseek(long);
-extern void dinit_fskip(long);
-extern void dinit_save(void);
-extern void dinit_restore(void);
-extern long dinit_ftell(void);
-extern void dinit_end(void);
-extern void do_dinit(void);
+/**
+   \brief ...
+ */
+bool dinit_ok(int sptr);
 
-void dinit_save(void);
-void dinit_restore(void);
+/**
+   \brief ...
+ */
+int mk_largest_val(DTYPE dtype);
+
+/**
+   \brief ...
+ */
+int mk_smallest_val(DTYPE dtype);
+
+/**
+   \brief ...
+ */
+int mk_unop(int optype, int lop, DTYPE dtype);
+
+/**
+   \brief ...
+ */
+void dinit(struct VAR *ivl, struct CONST *ict);
+
+/**
+   \brief ...
+ */
+void dmp_ict(struct CONST *ict, FILE *f);
+
+/**
+   \brief ...
+ */
+void dmp_ivl(struct VAR *ivl, FILE *f);
+
+/**
+   \brief ...
+ */
+void do_dinit(void);
+
+
+#endif

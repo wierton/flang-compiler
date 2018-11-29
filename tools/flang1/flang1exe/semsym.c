@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, NVIDIA CORPORATION.  All rights reserved.
+ * Copyright (c) 1994-2018, NVIDIA CORPORATION.  All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -37,15 +37,15 @@
 static int find_in_host(int);
 static void internref_bnd(int);
 static int add_private_allocatable(int, int);
-static void check_parref(int , int , int );
+static void check_parref(int, int, int);
 
 static LOGICAL checking_scope = FALSE;
 
 static LOGICAL
 isGenericOrProcOrModproc(SPTR sptr)
 {
-  SPTR localSptr = STYPEG(sptr) == ST_ALIAS? SYMLKG(sptr): sptr;
-  switch(STYPEG(localSptr)) {
+  SPTR localSptr = STYPEG(sptr) == ST_ALIAS ? SYMLKG(sptr) : sptr;
+  switch (STYPEG(localSptr)) {
   case ST_PROC:
   case ST_MODPROC:
   case ST_USERGENERIC:
@@ -58,11 +58,39 @@ isGenericOrProcOrModproc(SPTR sptr)
 static LOGICAL
 isSameNameGenericOrProcOrModproc(SPTR sptr1, SPTR sptr2)
 {
-  if (GSAMEG(sptr2) &&
-      isGenericOrProcOrModproc(sptr1) && isGenericOrProcOrModproc(sptr2)) {
+  if (GSAMEG(sptr2) && isGenericOrProcOrModproc(sptr1) &&
+      isGenericOrProcOrModproc(sptr2)) {
     return NMPTRG(sptr1) == NMPTRG(GSAMEG(sptr2));
   }
   return FALSE;
+}
+
+static int
+getEnclFunc(SPTR sptr)
+{
+  int currencl;
+  int enclsptr;
+  currencl = enclsptr = ENCLFUNCG(sptr);
+  while (enclsptr && STYPEG(enclsptr) != ST_ENTRY) {
+    currencl = enclsptr;
+    enclsptr = ENCLFUNCG(enclsptr);
+  }
+
+  if (currencl)
+    return SCOPEG(currencl);
+  return 0;
+}
+
+static LOGICAL
+isLocalPrivate(SPTR sptr)
+{
+  int scope = getEnclFunc(sptr);
+
+  if (scope && STYPEG(scope) == ST_ENTRY && scope != gbl.currsub)
+    return FALSE;
+
+  /* have to return TRUE if ENCLFUNC nor SCOPE is set */
+  return TRUE;
 }
 
 /** \brief Look for symbol with same name as first and in a currectly active
@@ -108,6 +136,11 @@ sym_in_scope(int first, OVCLASS overloadclass, int *paliassym, int *plevel,
     case ST_TYPEDEF:
       if (HIDDENG(sptr))
         continue;
+      /* make sure it is in current function scope */
+      if (gbl.internal > 1 && SCG(sptr) == SC_PRIVATE && ENCLFUNCG(sptr)) {
+        if (!isLocalPrivate(sptr))
+          continue;
+      }
       break;
     default:;
     }
@@ -177,10 +210,12 @@ sym_in_scope(int first, OVCLASS overloadclass, int *paliassym, int *plevel,
       if (scope->sptr == want_scope ||
           /* module procedures are 'scoped' at module level.
            * treat as if they are scoped here */
-          scope->sptr == sptrloop) {
+          scope->sptr == sptrloop || 
+          (scope->sptr && want_scope < stb.stg_avail && 
+           scope->sptr == find_explicit_interface(want_scope))) {
         LOGICAL found = is_except_in_scope(scope, sptr) ||
                         is_except_in_scope(scope, cc_alias);
-        if (scope->private &&
+        if (scope->Private &&
             ((STYPEG(sptr) != ST_PROC && STYPEG(sptr) != ST_OPERATOR &&
               STYPEG(sptr) != ST_USERGENERIC) ||
              (!VTOFFG(sptr) && !TBPLNKG(sptr)) ||
@@ -189,6 +224,9 @@ sym_in_scope(int first, OVCLASS overloadclass, int *paliassym, int *plevel,
         } else if (scope->kind == SCOPE_USE &&
                    (PRIVATEG(sptr) || PRIVATEG(sptrloop))) {
           found = TRUE; /* private module variable */
+          /* private module variables are visible to inherited submodules*/
+          if (is_used_by_submod(gbl.currsub, sptr))
+            return sptr;
         }
         if (!found) { /* not found in 'except' list */
           if (STYPEG(sptr) == ST_ALIAS)
@@ -214,6 +252,9 @@ sym_in_scope(int first, OVCLASS overloadclass, int *paliassym, int *plevel,
               bestsptr = sptrlink;
               bestsptrloop = sptrloop;
             } else if (bestuse && scope->kind == SCOPE_USE &&
+                       /* for submodule, use-association overwrites host-association*/
+                       STYPEG(scope->sptr) == ST_MODULE && 
+                       ANCESTORG(gbl.currmod) != scope->sptr &&
                        scope->sptr != bestuse &&
                        STYPEG(sptrlink) != ST_USERGENERIC &&
                        STYPEG(sptrlink) != ST_ENTRY && !VTOFFG(sptrlink) &&
@@ -236,14 +277,16 @@ sym_in_scope(int first, OVCLASS overloadclass, int *paliassym, int *plevel,
       }
     }
   }
+
   if (bestuse && bestuse2 && multiple_use_error && bestuse != bestuse2 &&
-      !isSameNameGenericOrProcOrModproc(bestsptr, bestsptrloop) && 
+      !isSameNameGenericOrProcOrModproc(bestsptr, bestsptrloop) &&
       bestusecount == bestuse2count && sem.which_pass == 1) {
     /* oops; this name is USE-associated from two
      * different modules */
     char msg[200];
-    sprintf(msg, "is use-associated from modules %s and %s,"
-                 " and cannot be accessed",
+    sprintf(msg,
+            "is use-associated from modules %s and %s,"
+            " and cannot be accessed",
             SYMNAME(bestuse), SYMNAME(bestuse2));
     error(155, 3, gbl.lineno, SYMNAME(first), msg);
   }
@@ -346,7 +389,7 @@ find_in_host(int s)
         LOGICAL ex;
         if (scope->except) {
           ex = is_except_in_scope(scope, sptr);
-        } else if (scope->private) {
+        } else if (scope->Private) {
           for (ex = scope->only; ex; ex = SYMI_NEXT(ex)) {
             int sptr2 = SYMI_SPTR(ex);
             if (sptr2 == sptr)
@@ -380,7 +423,7 @@ test_scope(int sptr)
     SCOPESTACK *scope = get_scope(sl);
     if (scope->sptr == SCOPEG(sptr)) {
       int ex = is_except_in_scope(scope, sptr);
-      if (scope->private) {
+      if (scope->Private) {
         for (ex = scope->only; ex; ex = SYMI_NEXT(ex)) {
           int sptr2 = SYMI_SPTR(ex);
           if (sptr2 == sptr)
@@ -501,7 +544,8 @@ static void
 set_internref_flag(int sptr)
 {
   INTERNREFP(sptr, 1);
-  if (DTY(DTYPEG(sptr)) == TY_ARRAY || POINTERG(sptr) || ALLOCATTRG(sptr)) {
+  if (DTY(DTYPEG(sptr)) == TY_ARRAY || POINTERG(sptr) || ALLOCATTRG(sptr) ||
+      IS_PROC_DUMMYG(sptr)) {
     int descr, sdsc, midnum;
     descr = DESCRG(sptr);
     sdsc = SDSCG(sptr);
@@ -674,6 +718,13 @@ declsym(int first, SYMTYPE stype, LOGICAL errflg)
             SCOPEP(sptr, stb.curr_scope);
             return sptr;
           }
+        }
+
+        if (sptr == first && (int)SCOPEG(sptr) != stb.curr_scope && sem.interface == 1) {
+          sptr = insert_sym(first);
+          STYPEP(sptr, stype);
+          SCOPEP(sptr, stb.curr_scope);
+          return sptr;
         }
         error(44, 3, gbl.lineno, SYMNAME(first), CNULL);
         goto return0;
@@ -953,7 +1004,7 @@ refsym_inscope(int first, OVCLASS oclass)
       } else if (level == 0 && st == ST_MODULE &&
                  sptr == sem.mod_sym       /* is the current module */
                  && sptr != stb.curr_scope /* not in outer host scope */
-                 ) {
+      ) {
         /* context is a module which is being defined but not in its
          * module specification part -- the symbol is being declared
          * in a scope contained within the module.
@@ -961,9 +1012,10 @@ refsym_inscope(int first, OVCLASS oclass)
         goto return0;
       }
       if (gbl.internal > 1 && !INTERNALG(sptr)) {
-        /* declare a new symbol: existing one is not internal but we
-         * are in an internal subprogram */
-        goto return0;
+        /* This is a non-internal symbol in an internal subprogram. */
+        if (IS_INTRINSIC(STYPEG(sptr)))
+          goto returnit; // tentative intrinsic; may be overridden later
+        goto return0; // declare a new symbol
       }
       if (ENCLFUNCG(sptr) && STYPEG(ENCLFUNCG(sptr)) == ST_MODULE &&
           ENCLFUNCG(sptr) != gbl.currmod) {
@@ -976,9 +1028,17 @@ refsym_inscope(int first, OVCLASS oclass)
             (st == ST_PROC && PRIVATEG(SCOPEG(sptr))) ||
             ((st == ST_USERGENERIC || st == ST_OPERATOR) &&
              TBPLNKG(sptr)) /* FS#20696: needed for overloading */
-            )
+        )
           goto return0; /* create new symbol */
-        if (oclass == OC_CMBLK)
+        if (oclass == OC_CMBLK || 
+            /* Check whether the gbl.currmod and ENCLFUNCG(sptr) share
+               with the same ancestor, if yes then use host-association
+             */
+            (oclass == OC_OTHER && 
+             (ANCESTORG(gbl.currmod) ? 
+              ANCESTORG(gbl.currmod) : gbl.currmod) == 
+             (ANCESTORG(ENCLFUNCG(sptr)) ? 
+              ANCESTORG(ENCLFUNCG(sptr)) : ENCLFUNCG(sptr))))
           goto return0;
         error(155, 3, gbl.lineno, SYMNAME(sptr),
               "is use associated and cannot be redeclared");
@@ -1393,7 +1453,7 @@ ref_based_object_sc(int sptr, SC_KIND sc)
     set_internref_flag(sptr);
   }
   if (flg.smp)
-    check_parref(sptr,sptr,sptr);
+    check_parref(sptr, sptr, sptr);
   return sptr1;
 }
 
@@ -1656,6 +1716,7 @@ decl_private_sym(int sptr)
     for (i = sem.doif_depth; i; i--) {
       switch (DI_ID(i)) {
       case DI_TASK:
+      case DI_TASKLOOP:
         TASKP(new, 1);
         goto td_exit;
       case DI_PAR:
@@ -1749,7 +1810,7 @@ add_private_allocatable(int old, int new)
     }
   } else if (STYPEG(new) != ST_ARRAY && ASSUMLENG(old)) {
     /* 1) we don't know the size of assumlen char at compile time
-     * 2) make private copy adjustable len char 
+     * 2) make private copy adjustable len char
      * 3) make CVLEN a private copy for convenience.
      */
     int ast;
@@ -1849,7 +1910,7 @@ static void
 check_parref(int sym, int new, int orig)
 {
   /* Only set parref in parallel, task, or target.
-   * Target should cover teams and distribute. 
+   * Target should cover teams and distribute.
    */
   if (!(sem.parallel || sem.task || sem.target))
     return;
@@ -1895,7 +1956,7 @@ sem_check_scope(int sym, int orig)
   new = sym;
   if (sem.parallel || sem.task || sem.target || sem.teams
       || sem.orph
-      ) {
+  ) {
     /* Cray pointees are special cases:
      * 1.  the pointee is unaffected by the DEFAULT clause.
      * 2.  the pointer's scope is determined at the point of the

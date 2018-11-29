@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, NVIDIA CORPORATION.  All rights reserved.
+ * Copyright (c) 2006-2018, NVIDIA CORPORATION.  All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -839,7 +839,7 @@ is_source_global(int psdx)
         break;
       default:
         /* real error */
-        interr("bad PTE type", TPTE_TYPE(ptex), 4);
+        interr("bad PTE type", TPTE_TYPE(ptex), ERR_Fatal);
         return TRUE;
       }
     }
@@ -940,7 +940,7 @@ is_source_nonlocal(int psdx)
         break;
       default:
         /* real error */
-        interr("bad PTE type", TPTE_TYPE(ptex), 2);
+        interr("bad PTE type", TPTE_TYPE(ptex), ERR_Warning);
         return TRUE;
       }
     }
@@ -960,7 +960,7 @@ is_source_nonlocal(int psdx)
  * if this is an LHS reference, make sure it has a slot number
  */
 static void
-add_psd(int tpdx, int type, int parent, int sym, LOGICAL lhs)
+add_psd(int tpdx, int type, int parent, int sym, bool lhs)
 {
   int val, psdx, t;
 
@@ -1009,7 +1009,7 @@ add_psd(int tpdx, int type, int parent, int sym, LOGICAL lhs)
  * make sure all dependent (parent) pointer source descriptors are also built.
  */
 static void
-build_psd(int tdsx, LOGICAL lhs)
+build_psd(int tdsx, bool lhs)
 {
   int subtds;
   if (TLINK(tdsx))
@@ -1266,7 +1266,7 @@ make_address(int astx, int pt, int sym, int offset)
  * fill in temporary pointer structure descriptors
  */
 static int
-make_address_for_ast(int astx)
+make_address_for_ast(int astx, int parentast)
 {
   int a, sptr, ttype, ret;
   ttype = TT_PSYM;
@@ -1278,6 +1278,11 @@ make_address_for_ast(int astx)
       sptr = A_SPTRG(a);
       break;
     case A_MEM:
+      if (parentast && A_TKNG(parentast) == TK_ALLOCATE &&
+          A_SPTRG(A_MEMG(a)) && DTY(DTYPEG(A_SPTRG(A_MEMG(a)))) == TY_ARRAY) {
+        /* process allocate of an array that is a structure member */
+        sptr = A_SPTRG(A_MEMG(a));
+      }
       a = A_PARENTG(a);
       ttype = TT_ISYM;
       break;
@@ -1320,7 +1325,7 @@ make_assignment(int v, int iltx, int lhstds, int rhstds, int add, int stride)
     fprintf(gbl.dbgfil, " (stride=%d)\n", stride);
   }
 #endif
-  build_psd(lhstds, TRUE);
+  build_psd(lhstds, true);
   lhspsdx = TLINK(lhstds);
   asx = 0;
   switch (TTYPE(rhstds)) {
@@ -1382,7 +1387,7 @@ make_assignment(int v, int iltx, int lhstds, int rhstds, int add, int stride)
     break;
   default:
     /* indirect or otherwise; need dataflow analysis */
-    build_psd(rhstds, FALSE);
+    build_psd(rhstds, false);
     rhspsdx = TLINK(rhstds);
 
     asx = STG_NEXT(as);
@@ -1477,8 +1482,8 @@ _find_pointer_assignments_f90(int astx, int *pstdx)
       args = A_ARGSG(astx);
       lhsastx = ARGT_ARG(args, 0);
       rhsastx = ARGT_ARG(args, 1);
-      lhsdsx = make_address_for_ast(lhsastx);
-      rhsdsx = make_address_for_ast(rhsastx);
+      lhsdsx = make_address_for_ast(lhsastx, astx);
+      rhsdsx = make_address_for_ast(rhsastx, astx);
       stride = find_stride(rhsastx);
       make_assignment(globalv, *pstdx, lhsdsx, rhsdsx, 0, stride);
     } else if (A_OPTYPEG(astx) == I_NULLIFY) {
@@ -1486,7 +1491,7 @@ _find_pointer_assignments_f90(int astx, int *pstdx)
       int args, lhsastx, lhsdsx, rhsdsx;
       args = A_ARGSG(astx);
       lhsastx = ARGT_ARG(args, 0);
-      lhsdsx = make_address_for_ast(lhsastx);
+      lhsdsx = make_address_for_ast(lhsastx, astx);
       rhsdsx = make_address(astx, TT_CON, 0, 0);
       make_assignment(globalv, *pstdx, lhsdsx, rhsdsx, 0, 0);
     }
@@ -1519,7 +1524,7 @@ _find_pointer_assignments_f90(int astx, int *pstdx)
             dummy = aux.dpdsc_base[dpdsc + a];
             if (dummy && POINTERG(dummy)) {
               /* yes, it might */
-              lhsdsx = make_address_for_ast(arg);
+              lhsdsx = make_address_for_ast(arg, astx);
               rhsdsx = make_address(astx, TT_UNK, 0, 0);
               make_assignment(globalv, *pstdx, lhsdsx, rhsdsx, 0, 0);
             }
@@ -1537,7 +1542,7 @@ _find_pointer_assignments_f90(int astx, int *pstdx)
       if (A_TYPEG(objastx) == A_SUBSCR) {
         objastx = A_LOPG(objastx);
       }
-      lhsdsx = make_address_for_ast(objastx);
+      lhsdsx = make_address_for_ast(objastx, astx);
       rhsdsx = make_address(astx, TT_LDYN, 0, gdyn.local_dyn++);
       make_assignment(globalv, *pstdx, lhsdsx, rhsdsx, 0, 1);
     } else {
@@ -1547,7 +1552,7 @@ _find_pointer_assignments_f90(int astx, int *pstdx)
       if (A_TYPEG(objastx) == A_SUBSCR) {
         objastx = A_LOPG(objastx);
       }
-      lhsdsx = make_address_for_ast(objastx);
+      lhsdsx = make_address_for_ast(objastx, astx);
       rhsdsx = make_address(astx, TT_CON, 0, 0);
       make_assignment(globalv, *pstdx, lhsdsx, rhsdsx, 0, 0);
     }
@@ -1619,7 +1624,7 @@ make_init_assignment(int v, int sourcesptr, int stars, int targettype,
   while (stars-- > 0) {
     lhstds = make_address(0, TT_IND, 0, lhstds);
   }
-  build_psd(lhstds, TRUE);
+  build_psd(lhstds, true);
   lhspsdx = TLINK(lhstds);
   asx = 0;
   /* get PTE for RHS */
@@ -1658,7 +1663,7 @@ make_init_assignment(int v, int sourcesptr, int stars, int targettype,
     ASNEXT(asx) = 0;
     break;
   default:
-    interr("bad target type", targettype, 4);
+    interr("bad target type", targettype, ERR_Fatal);
     return;
   }
   if (asx) {
@@ -1806,7 +1811,7 @@ mark_apte_targets(int psdx)
           break;
         default:
           /* real error */
-          interr("bad PTE type", TPTE_TYPE(ptex), 2);
+          interr("bad PTE type", TPTE_TYPE(ptex), ERR_Warning);
           break;
         }
       }
@@ -1820,7 +1825,7 @@ mark_apte_targets(int psdx)
   case TT_UNK:
   case TT_UNINIT:
   default:
-    interr("bad PSD type", PSD_TYPE(psdx), 4);
+    interr("bad PSD type", PSD_TYPE(psdx), ERR_Fatal);
     break;
   }
 } /* mark_apte_targets */
@@ -1872,7 +1877,7 @@ might_target(int psdx)
         break;
       default:
         /* real error */
-        interr("bad PTE type", TPTE_TYPE(ptex), 2);
+        interr("bad PTE type", TPTE_TYPE(ptex), ERR_Warning);
         return TRUE;
       }
     }
@@ -2255,7 +2260,7 @@ effective_rhs(int psdx)
     return ptelistx;
   default:
     /* real error */
-    interr("pointsto: unknown RHS type in assignment", PSD_TYPE(psdx), 4);
+    interr("pointsto: unknown RHS type in assignment", PSD_TYPE(psdx), ERR_Fatal);
     return TPTE_UNK;
   }
 } /* effective_rhs */
@@ -2315,12 +2320,12 @@ interpret(int asx)
       break;
     case TT_MEM:
       /* not used yet */
-      interr("pointsto: unknown LHS type in assignment", PSD_TYPE(lhspsdx), 2);
+      interr("pointsto: unknown LHS type in assignment", PSD_TYPE(lhspsdx), ERR_Warning);
       unk_all();
       break;
     default:
       /* real error */
-      interr("pointsto: unknown LHS type in assignment", PSD_TYPE(lhspsdx), 4);
+      interr("pointsto: unknown LHS type in assignment", PSD_TYPE(lhspsdx), ERR_Fatal);
       unk_all();
       break;
     }
@@ -2351,12 +2356,12 @@ interpret(int asx)
       break;
     case TT_MEM:
       /* not used yet */
-      interr("pointsto: unknown LHS type in assignment", PSD_TYPE(lhspsdx), 2);
+      interr("pointsto: unknown LHS type in assignment", PSD_TYPE(lhspsdx), ERR_Warning);
       unk_all();
       break;
     default:
       /* real error */
-      interr("pointsto: unknown LHS type in assignment", PSD_TYPE(lhspsdx), 4);
+      interr("pointsto: unknown LHS type in assignment", PSD_TYPE(lhspsdx), ERR_Fatal);
       unk_all();
       break;
     }
@@ -2459,12 +2464,12 @@ interpret(int asx)
       break;
     case TT_MEM:
       /* ### really want to handle member LHS types */
-      interr("pointsto: unknown LHS type in assignment", PSD_TYPE(lhspsdx), 2);
+      interr("pointsto: unknown LHS type in assignment", PSD_TYPE(lhspsdx), ERR_Warning);
       Trace(("unknown LHS type in assignment"));
       break;
     default:
       /* real error */
-      interr("pointsto: unknown LHS type in assignment", PSD_TYPE(lhspsdx), 4);
+      interr("pointsto: unknown LHS type in assignment", PSD_TYPE(lhspsdx), ERR_Fatal);
       Trace(("unknown LHS type in assignment"));
       break;
     }
@@ -2516,12 +2521,12 @@ interpret(int asx)
       break;
     case TT_MEM:
       /* ### really want to handle member LHS types */
-      interr("pointsto: unknown LHS type in assignment", PSD_TYPE(lhspsdx), 2);
+      interr("pointsto: unknown LHS type in assignment", PSD_TYPE(lhspsdx), ERR_Warning);
       Trace(("unknown LHS type in assignment"));
       break;
     default:
       /* real error */
-      interr("pointsto: unknown LHS type in assignment", PSD_TYPE(lhspsdx), 4);
+      interr("pointsto: unknown LHS type in assignment", PSD_TYPE(lhspsdx), ERR_Fatal);
       Trace(("unknown LHS type in assignment"));
       break;
     }
@@ -2604,7 +2609,7 @@ imprecise_match(int lptex, int ptex)
       return ptex;
     default:
       /* real error */
-      interr("pointsto: unknown TPTE target type", TPTE_TYPE(lptex), 4);
+      interr("pointsto: unknown TPTE target type", TPTE_TYPE(lptex), ERR_Fatal);
       return 0;
     }
   } else {
@@ -2860,7 +2865,7 @@ check_pte(char *ch)
   }
   if (bad) {
     /* real error, consistency check failure */
-    interr(ch, 0, 4);
+    interr(ch, 0, ERR_Fatal);
   }
 } /* check_pte */
 #endif
@@ -2977,8 +2982,8 @@ f90_init(void)
     if (A_TYPEG(astx) == A_ICALL && A_OPTYPEG(astx) == I_PTR2_ASSIGN)
       ptr_assgns++;
   }
-  STG_ALLOC(fpte, FPTE, ptr_assgns * gpsd.nslots + gpsd.nslots + 100);
-  STG_ALLOC(fpsrc, FPSRC, ptr_assgns * gpsd.nslots + gpsd.nslots + 100);
+  STG_ALLOC(fpte, ptr_assgns * gpsd.nslots + gpsd.nslots + 100);
+  STG_ALLOC(fpsrc, ptr_assgns * gpsd.nslots + gpsd.nslots + 100);
   last_pta = 0;
 } /* f90_init */
 
@@ -3194,7 +3199,7 @@ putstdpta(int stdx)
 
 #endif /* } debug */
 
-static LOGICAL
+static bool
 different_pta(int pta1, int pta2)
 {
   int p1, p2;
@@ -3341,7 +3346,7 @@ set_std_pta(int stdx, int change)
 #define TRACEFLAG 10
 #define TRACEBIT 0x1000000
 
-LOGICAL
+bool
 pta_conflict(int ptrstdx, int ptrsptr, int targetstdx, int targetsptr,
              int targetpointer, int targettarget)
 {
@@ -3804,7 +3809,7 @@ pta_conflict(int ptrstdx, int ptrsptr, int targetstdx, int targetsptr,
  *  unk  - unknown
  *         unaligned
  */
-LOGICAL
+bool
 pta_aligned(int ptrstdx, int ptrsptr)
 {
   int ptrsrc, ptrpte, sptr;
@@ -3870,7 +3875,7 @@ pta_aligned(int ptrstdx, int ptrsptr)
  *  for instance that it can be passed directly to an assumed-shape argument
  *  without copying to a temp
  */
-LOGICAL
+bool
 pta_stride1(int ptrstdx, int ptrsptr)
 {
   int ptrsrc, ptrpte;
@@ -4034,13 +4039,13 @@ static void
 init_points_to_anal(void)
 {
   int savex6, a;
-  STG_ALLOC(gpte, TPTE, 100);
+  STG_ALLOC(gpte, 100);
   gpte.xstg_free = TTE_NULL;
   gpte.stg_avail = 2;
   /* entry zero is TPTE_UNK */
   STG_CLEAR_ALL(gpte);
 
-  STG_ALLOC(apte, APTE, 100);
+  STG_ALLOC(apte, 100);
   BZERO(aptehsh, int, APTEHSZ);
 
   a = get_apte(TT_UNK, 0, 0, 0);
@@ -4051,7 +4056,7 @@ init_points_to_anal(void)
   TPTE_APTEX(TPTE_UNINIT) = a;
   TPTE_NEXT(TPTE_UNINIT) = TPTE_NULL;
 
-  STG_ALLOC(gpsd, PSD, nmeb.stg_avail < 2 ? 2 : nmeb.stg_avail);
+  STG_ALLOC(gpsd, nmeb.stg_avail < 2 ? 2 : nmeb.stg_avail);
   BZERO(gpsd.stg_base, PSD, 2);
   BZERO(psdhsh, int, PSDHSZ);
   gpsd.stg_avail = 2;
@@ -4060,7 +4065,7 @@ init_points_to_anal(void)
   gpsd.nslots = 1;
   gpsd.slot = NULL;
 
-  STG_ALLOC(gtpd, TPD, 20);
+  STG_ALLOC(gtpd, 20);
   gtpd.stg_avail = 3;
   STG_CLEAR_ALL(gtpd);
   TTYPE(2) = TT_GLOB;
@@ -4068,12 +4073,12 @@ init_points_to_anal(void)
   TLINK(1) = 1;
   TTYPE(0) = TT_UNK;
 
-  STG_ALLOC(as, AS, 100);
+  STG_ALLOC(as, 100);
 
-  STG_ALLOC(ganon, int, 20);
+  STG_ALLOC(ganon, 20);
   BZERO(ganon.stg_base, int, 2);
 
-  STG_ALLOC(gdyn, int, 20);
+  STG_ALLOC(gdyn, 20);
   BZERO(gdyn.stg_base, int, 2);
   gdyn.local_dyn = 1;
 
@@ -4245,7 +4250,7 @@ points_to(void)
     fini_points_to_anal();
     return;
   }
-  STG_ALLOC(head, int, head.stg_size);
+  STG_ALLOC(head, head.stg_size);
   NEW(nodeoffset, int, opt.num_nodes + 1);
   BZERO(nodeoffset, int, opt.num_nodes + 1);
   NEW(localhead, int, gpsd.nslots + 1);
@@ -4400,7 +4405,7 @@ points_to(void)
     }
     if (asx > 0) {
       /* real error, didn't finish assignments from previous block */
-      interr("pointsto: didn't finish all symbolic assignments", asx, 4);
+      interr("pointsto: didn't finish all symbolic assignments", asx, ERR_Fatal);
     }
 #if DEBUG
     if (DBGBIT(TRACEFLAG, TRACEBIT)) {

@@ -1,5 +1,5 @@
 \"/*
-\" * Copyright (c) 2017, NVIDIA CORPORATION.  All rights reserved.
+\" * Copyright (c) 2011-2018, NVIDIA CORPORATION.  All rights reserved.
 \" *
 \" * Licensed under the Apache License, Version 2.0 (the "License");
 \" * you may not use this file except in compliance with the License.
@@ -1419,7 +1419,7 @@ stc - relative pointer to switch table, consisting of linked list of case value/
 
 .IL IAIF branch lnk sym1 sym2 sym3
 Arithmetic IF branch on integer expression.
-'sym's are symbol table pointers to labels.
+\'sym's are symbol table pointers to labels.
 .AT spec trm
 .OP ICJMPZ null p1 le v2
 .OP ICJMPZ null p1 eq v3
@@ -1438,7 +1438,7 @@ Arithmetic if branch on real expression.
 .IL AGOTO branch n lnk sym*
 Assigned GOTO.
 'lnk' is to an ILD ILM.
-'sym's are symbol table pointers
+\'sym's are symbol table pointers
 to labels specified on the assigned GOTO statement, if any.
 .AT spec trm
 .OP JMPA null t1
@@ -1691,6 +1691,9 @@ Call integer function.
 .IL IFUNCA proc n stc lnk lnk*
 Call integer function.
 .AT spec
+.IL PIFUNCA proc n stc sym lnk lnk*
+Call integer function through procedure pointer
+.AT spec
 .IL IVFUNCA proc n stc sym lnk sym lnk*
 Call integer function.
 .AT spec
@@ -1708,6 +1711,9 @@ Call real function.
 .IL RFUNCA proc n stc lnk lnk*
 Call real function.
 .AT spec
+.IL PRFUNCA proc n stc sym lnk lnk*
+Call real function through procedure pointer
+.AT spec
 .IL RVFUNCA proc n stc sym lnk sym lnk*
 Call real function.
 .AT spec
@@ -1719,6 +1725,9 @@ Call double function
 .AT spec
 .IL DFUNCA proc n stc lnk lnk*
 Call double function
+.AT spec
+.IL PDFUNCA proc n stc sym lnk lnk*
+Call double function through procedure pointer
 .AT spec
 .IL DVFUNCA proc n stc sym lnk sym lnk*
 Call double function
@@ -1753,7 +1762,7 @@ Call m128 function
 .IL CALL proc n sym lnk*
 Call external subprogram.
 'n' is the number of actual arguments.
-'sym' is symbol table pointer to the external subprogram.
+\'sym' is symbol table pointer to the external subprogram.
 The links point to the arguments in the same order they appeared
 in the CALL statement.
 .AT spec trm
@@ -1764,12 +1773,20 @@ Call external subprogram.
 The links point to the arguments in the same order they appeared
 in the CALL statement.
 .AT spec trm
+.IL PCALLA proc n stc sym lnk lnk*
+Call subprogram through procedure pointer
+\'n' is the number of actual arguments.
+\'sym' is the pointer's descriptor
+\'lnk1' is address of the subprogram
+The links point to the arguments in the same order they appeared
+in the CALL statement.
+.AT spec trm
 .IL VCALLA proc n stc sym lnk sym lnk*
 Call external subprogram.
 'n' is the number of actual arguments.
-'sym1' is symbol table pointer to the external subprogram.
+\'sym1' is symbol table pointer to the external subprogram.
 'lnk' ilm of invoking object
-'sym2' address of invoking object desc
+\'sym2' address of invoking object desc
 The links point to the arguments in the same order they appeared
 in the CALL statement.
 .AT spec trm
@@ -1781,17 +1798,26 @@ in the CALL statement.
 .AT spec
 .IL CFUNCA proc n stc lnk lnk*
 .AT spec
+.IL PCFUNCA proc n stc sym lnk lnk*
+Call complex function through procedure pointer.
+.AT spec
 .IL CVFUNCA proc n stc sym lnk sym lnk*
 .AT spec
 .FL CDFUNC proc n sym lnk*
 .AT spec dcmplx
 .IL CDFUNCA proc n stc lnk lnk*
 .AT spec dcmplx
+.IL PCDFUNCA proc n stc sym lnk lnk*
+Call double complex function through procedure pointer.
+.AT spec dcmplx
 .IL CDVFUNCA proc n stc sym lnk sym lnk*
 .AT spec dcmplx
 .IL LFUNC proc n sym lnk*
 .AT spec
 .IL LFUNCA proc n stc lnk lnk*
+.AT spec
+.IL PLFUNCA proc n stc sym lnk lnk*
+Call logical function through procedure pointer.
 .AT spec
 .IL LVFUNCA proc n stc sym lnk sym lnk*
 .AT spec
@@ -1800,6 +1826,9 @@ Call function which returns a pointer.
 .AT spec
 .IL PFUNCA proc n stc lnk lnk*
 Call function which returns a pointer.
+.AT spec
+.IL PPFUNCA proc n stc sym lnk lnk*
+Call function which returns a pointer through a procedure pointer.
 .AT spec
 .IL PVFUNCA proc n stc sym lnk sym lnk*
 Call function which returns a pointer.
@@ -1827,6 +1856,11 @@ Call function which returns Fortran character.
 The first link is the address (a BASE ilm) of the
 temporary which is used to return the result of the function.
 .AT spec trm
+.IL PCHFUNCA proc n stc sym lnk lnk lnk*
+Call function which returns Fortran character through a procedure pointer.
+The first link is the address (a BASE ilm) of the
+temporary which is used to return the result of the function.
+.AT spec trm
 .IL CHVFUNCA proc n stc sym lnk sym lnk lnk*
 Call function which returns Fortran character.
 The first link is the address (a BASE ilm) of the
@@ -1837,6 +1871,9 @@ Call function which returns ncharacter.
 .AT spec trm
 .IL NCHFUNCA proc n stc lnk lnk lnk*
 Call function which returns ncharacter.
+.AT spec trm
+.IL PNCHFUNCA proc n stc lnk lnk lnk*
+Call function which returns ncharacter through a procedure pointer.
 .AT spec trm
 .IL NCHVFUNCA proc n stc sym lnk sym lnk lnk*
 Call function which returns ncharacter.
@@ -1891,7 +1928,7 @@ stc2 - dtype record (TY_PFUNC/TY_FUNC) of the procedure
 This ILM is put out as the entry point for each
 entry point defined in this file is processed (except for the
 main entry in Fortran).
-'sym' is a symbol table
+\'sym' is a symbol table
 pointer to the function name.
 .AT spec trm
 .IL LABEL misc sym
@@ -1918,11 +1955,11 @@ alternate return number.
 .AT spec trm
 .IL RETAUTO misc sym
 Return from function after freeing automatic objects.
-'sym' is the symbol of the block containing the return.
+\'sym' is the symbol of the block containing the return.
 .AT spec trm
 .IL RETVAUTO misc lnk sym
 Return value from function after freeing automatic objects.
-'sym' is the symbol of the block containing the return.
+\'sym' is the symbol of the block containing the return.
 .AT spec trm
 .IL NOP misc
 .AT spec trm
@@ -1932,18 +1969,18 @@ ST_STRING representing <string>.
 .AT spec trm
 .IL GASM misc sym lnk lnk lnk
 asm ( <string> : <outputs> : <inputs> : <clobbers> );
-'sym' is the symbol table pointer of the
+\'sym' is the symbol table pointer of the
 ST_STRING representing <string>.
 'lnk1' is GASMLNK of list of outputs
 'lnk2' is GASMLNK of list of inputs
 'lnk3' is GASMLNK of list of clobber descriptors
 .AT spec trm
 .IL GASMLNK misc sym1 lnk lnk sym2 stc3
-'sym1' is the symbol table pointer of the ST_STRING representing the
+\'sym1' is the symbol table pointer of the ST_STRING representing the
 descriptor ('=r' for outputs, 'r' for inputs, 'r2' for clobbers)
 'lnk1' is the link to the output or input expression
 'lnk2' is the link to the next GASMLNK
-'sym2' is the symbol table pointer of the identifier representing the constraint
+\'sym2' is the symbol table pointer of the identifier representing the constraint
 name for an input or output item. It is 0 if no constraint name applies to this
 item.
 'stc3' is the dtype of the item.
@@ -2270,9 +2307,9 @@ setup necessary for the array bounds information of the entry's
 adjustable arrays. This ILM will do nothing if the this is for
 the primary entry and code has already been emitted for its adjustable
 arrays.
-'sym1' entry symbol
-'sym2' label of the additional code
-'sym3' label to which the code branches (returns)
+\'sym1' entry symbol
+\'sym2' label of the additional code
+\'sym3' label to which the code branches (returns)
 .AT spec trm
 .IL VFENTER misc sym
 Enter a "function" which computes the value of an expression in a
@@ -2598,6 +2635,9 @@ Load logical value.
 .AT spec trm i8
 .IL KFUNCA proc n stc lnk lnk*
 .AT spec trm i8
+.IL PKFUNCA proc n stc sym lnk lnk*
+Call a function which returns an integer*8 through a procedure pointer.
+.AT spec trm i8
 .IL KVFUNCA proc n stc sym lnk sym lnk*
 .AT spec trm i8
 .CL KFUNC proc n lnk lnk*
@@ -2798,7 +2838,7 @@ Barrier; thread synchronization point.
 .OP QJSR null =e'_mp_barrier2 t1
 .IL PDO SMP sym stc
 Marks the block associated with label as a parallel loop.
-'sym' - symbol table pointer to the label.
+\'sym' - symbol table pointer to the label.
 'stc' - encoded schedule information: stc&0xff          (stc>>8)&Oxff
 0 static	  0 chunk not specified
 0 static	  1 chunk is 1
@@ -3185,12 +3225,23 @@ sym - upperD
 stc -  dtype of loop bound type
 stc -  schedule type
 .AT spec trm
-.IL MPTASKLOOP SMP sym sym sym stc
+.IL BTASKDUP SMP
+Begin taskdup routine
+.AT spec trm
+.IL ETASKDUP SMP
+End taskdup routine
+.AT spec trm
+.IL MPTASKLOOP SMP sym sym sym sym stc
 Begin taskloop
 sym - lower bound
 sym - upper bound
 sym - stride
+sym - last iteration
 stc -  dtype of loop bound type
+.AT spec trm
+.IL TASKLASTPRIV SMP sym
+taskloop lastprivate offset on task structure
+sym - offset constant
 .AT spec trm
 .IL MPLOOPFINI SMP stc stc
 Begin parallel do/loop
@@ -3247,11 +3298,6 @@ Task firstprivate
 sym - symbol table pointer to the shared variable.
 sym - symbol table pointer to the private copy.
 .AT spec trm
-.IL TASKLPBND SMP sym sym
-Task firstprivate
-sym - symbol table pointer to the shared variable.
-sym - symbol table pointer to the private copy.
-.AT spec trm
 .IL BTASK SMP sym stc lnk lnk
 Begin task
 Always matches a ETASK ilm
@@ -3268,7 +3314,7 @@ lnk2 - link to the logical expression in the final clause; if the clause
 is absent, this field is 'null'
 .fi
 .AT spec trm
-.IL BTASKLOOP SMP sym stc lnk lnk
+.IL BTASKLOOP SMP sym stc lnk lnk lnk lnk
 Begin taskloop
 Always matches a ETASKLOOP ilm
 .nf
@@ -3278,10 +3324,17 @@ table pointer to the flags variable that should already be initialized.
 stc - bit vector:
 0x01 - untied clause is present
 0x02 - if clause is present
+0x20 - if final is present
+0x80 - if mergeable is present
+0x1000 - nogroup clause is present
+0x2000 - grainsize clause is present
+0x4000 - num_tasks clause is present
 lnk1 - link to the logical expression in the if clause; if the clause
 is absent, this field is 'null' (BOS_SIZE)
 lnk2 - link to the logical expression in the final clause; if the clause
 is absent, this field is 'null'
+lnk3 - link to priority expression, if clause is absent, this file is 0
+lnk4 - link to grainsize or num_tasks, if clause is abssent, this field 
 .fi
 .AT spec trm
 .IL ETASKGROUP SMP
@@ -3366,17 +3419,16 @@ Task register
 .IL ETASKLOOPREG SMP
 End of Taskloop register used in llvm target to mark the end of task region.
 .AT spec trm
-.IL TASKLOOPREG SMP stc sym sym sym sym
+.IL TASKLOOPVARS SMP
+Begin set up taskloop variables
+.AT spec trm
+.IL TASKLOOPREG SMP lnk lnk lnk
 Begin taskloop register
 .nf
 stc - bit vector
-0x1000 - set if nogroup
-0x2000 - set if grainsize is present
-0x4000 - set if num_tasks is present
-sym1 -  num_tasks or grainsize symbol
-sym2 -  lowerbound
-sym3 -  upperbound
-sym4 -  stride
+lnk1 -  lowerbound
+lnk2 -  upperbound
+lnk3 -  stride
 .AT spec trm
 .OP NULL t1 iv0
 .OP QJSR null =e'_mp_task_begin t1
@@ -3437,6 +3489,10 @@ Mark the end of a user's C++ catch region for GSCOPE purposes
 .AT spec trm
 .IL EHREG_ST misc sym sym
 Store catch_clause, caught_object to registers
+.AT spec trm
+.IL EHRESUME misc sym sym
+Resume propagation of an existing in-flight exception whose unwinding was 
+interrupted to run some cleanup code.
 .AT spec trm
 .IL PRAGMASLIST misc n stc stc lnk*
 Handles a pragma with a list of links to symbols.
@@ -3557,3 +3613,10 @@ Call long double complex function returning x87 80-bit extended precision
 complex.
 .AT spec x87cmplx
 .so ilmtp_atomic.n
+.IL PRAGMADPSELIST misc n stc stc lnk stc lnk*
+Handles a pragma with a link to a symbol and a number of expression arguments.
+n is number of subscripts defined by this pragma
+First stc is the pragma identifier, 2nd stc is the scope, 3rd stc is the policy id.
+First link is the symbol link.
+Links point to the arguments.
+.AT spec trm

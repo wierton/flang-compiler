@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, NVIDIA CORPORATION.  All rights reserved.
+ * Copyright (c) 2015-2018, NVIDIA CORPORATION.  All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,20 +15,22 @@
  *
  */
 
+#ifndef SCOPE_H_
+#define SCOPE_H_
+
+#include "gbldefs.h"
+#include "symtab.h"
+
 /**
    \file
    Functions for dealing with lexical scopes and the lifetimes of
    scoped variables.
  */
 
-#ifndef SCOPE_H_
-#define SCOPE_H_
-
 #if DEBUG + 0
 
-#define ICHECK(x)                                \
-  assert((x), "CHECK(" #x "): false at "__FILE__ \
-              ":",                               \
+#define ICHECK(x)                                       \
+  assert((x), "CHECK(" #x "): false at " __FILE__ ":",  \
          __LINE__, ERR_Informational)
 
 #else
@@ -36,14 +38,6 @@
 #define ICHECK(x)
 
 #endif
-
-LOGICAL scope_contains(int outer, int inner);
-LOGICAL is_scope_label(int label_sptr);
-LOGICAL is_scope_label_ili(int ilix);
-LOGICAL is_scope_labels_only_bih(int bihx);
-void scope_verify(void);
-int insert_begin_scope_label(int block_sptr);
-int insert_end_scope_label(int block_sptr);
 
 /*
  * Scope tracking.
@@ -56,9 +50,40 @@ int insert_end_scope_label(int block_sptr);
  */
 extern int current_scope;
 
-void track_scope_reset();
-void track_scope_label(int label);
-void find_scope_labels(int numilms);
+/**
+   \brief ...
+ */
+bool scope_contains(SPTR outer, SPTR inner);
+
+/**
+   \brief ...
+ */
+int insert_begin_scope_label(int block_sptr);
+
+/**
+   \brief ...
+ */
+int insert_end_scope_label(int block_sptr);
+
+/**
+   \brief ...
+ */
+bool is_scope_label_ili(int ilix);
+
+/**
+   \brief ...
+ */
+bool is_scope_label(int label_sptr);
+
+/**
+   \brief ...
+ */
+bool is_scope_labels_only_bih(int bihx);
+
+/**
+   \brief ...
+ */
+void scope_verify(void);
 
 /*
  * Inliner support.
@@ -73,11 +98,56 @@ void find_scope_labels(int numilms);
  */
 extern int new_callee_scope;
 
-void create_inlined_scope(int callee_sptr);
-void begin_inlined_scope(int callee_sptr);
-void end_inlined_scope(void);
-void end_inlined_scopes(int new_open_count);
+/**
+   \brief ...
+ */
+void begin_inlined_scope(int func_sptr);
+
+/**
+   \brief ...
+ */
 void cancel_inlined_scope(void);
+
+/**
+   \brief ...
+ */
+void create_inlined_scope(int callee_sptr);
+
+/**
+   \brief ...
+ */
+void end_inlined_scopes(int new_open_count);
+
+/**
+   \brief ...
+ */
+void end_inlined_scope(void);
+
+
+/**
+   \brief ...
+ */
+void find_scope_labels(int numilms);
+
+/**
+   \brief ...
+ */
 void remove_scope_labels(void);
+
+/**
+   \brief ...
+ */
+void reset_new_callee_scope(void);
+
+/**
+   \brief ...
+ */
+void track_scope_label(int label);
+
+/**
+   \brief ...
+ */
+void track_scope_reset(void);
+
 
 #endif /* SCOPE_H_ */

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, NVIDIA CORPORATION.  All rights reserved.
+ * Copyright (c) 1994-2018, NVIDIA CORPORATION.  All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,6 +28,7 @@
 #include "ast.h"
 #include "semant.h"
 #include "soc.h"
+#include "transfrm.h"
 #include "extern.h"
 #include "dinit.h"
 #include "direct.h"
@@ -321,16 +322,14 @@ bblock()
       STD_ATOMIC(std) = 1;
       atomic--;
       break;
-    case A_MP_TASKREG:
+    case A_MP_TASK:
+    case A_MP_TASKLOOP:
       task++;
       break;
-    case A_MP_ETASKREG:
+    case A_MP_ENDTASK:
+    case A_MP_ETASKLOOP:
       STD_TASK(std) = 1;
       task--;
-      break;
-    case A_MP_TASK:
-      break;
-    case A_MP_ENDTASK:
       break;
     case A_MP_MASTER:
     case A_MP_SINGLE:
@@ -1047,7 +1046,7 @@ rewrite_all_asts()
     STD_AST(std) = ss;
   }
   /* rewrite all array bounds */
-  for (dtype = 0; dtype < stb.dt_avail; dtype += dlen(DTY(dtype))) {
+  for (dtype = 0; dtype < stb.dt.stg_avail; dtype += dlen(DTY(dtype))) {
     switch (DTY(dtype)) {
     case TY_ARRAY:
       if (DTY(dtype + 2)) {
@@ -1478,7 +1477,7 @@ static void
 mark_ast(int ast, int limit)
 {
   int nlimit;
-  if (ast <= 0 || ast >= astb.avl)
+  if (ast <= 0 || ast >= astb.stg_avail)
     return;
   nlimit = limit;
   ast_traverse(ast, NULL, mark_used_variable, &nlimit);
@@ -1798,6 +1797,11 @@ eliminate_unused_variables(int which)
       IGNOREP(sptr, 1);
     }
   }
+#if DEBUG
+  /* aux.list[ST_PROC] must be terminated with NOSYM, not 0 */
+  assert(sptr > 0, "eliminate_unused_variables: corrupted ST_PROC list", sptr, 
+         3);
+#endif
   /* eliminate any completely unused common blocks */
   if (which == 1) {
     prevsptr = 0;

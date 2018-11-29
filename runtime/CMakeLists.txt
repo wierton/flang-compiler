@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2017, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2015-2018, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,20 +14,27 @@
 # limitations under the License.
 #
 
+set (RUNTIME_SHARED_DIR ${CMAKE_CURRENT_SOURCE_DIR}/shared)
+
 add_definitions(
  -DMAXCPUS=256 
  -DMAXCPUSL=8 
  -DMAXCPUSR=8 
  -DTARGET_LINUX 
+ -DTARGET_LLVM 
  -DLINUX 
  -DPGF90 
  -DPGFLANG
  -DNATIVE_FPCVT
  -DPGI_LITTLE_ENDIAN
+ -DINLINE_MEMOPS
 )
 
 if( ${TARGET_ARCHITECTURE} STREQUAL "x86_64" )
-  add_definitions(-DTARGET_X8664)
+  add_definitions(
+   -DTARGET_X8664
+   -DTARGET_LINUX_X8664
+  )
 elseif( ${TARGET_ARCHITECTURE} STREQUAL "aarch64" )
   add_definitions(
    -DTARGET_LLVM_ARM64

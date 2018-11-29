@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, NVIDIA CORPORATION.  All rights reserved.
+ * Copyright (c) 1994-2018, NVIDIA CORPORATION.  All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -71,8 +71,6 @@ static int _reshape(int, DTYPE, int);
 
 static int inline_reduction_f90(int ast, int dest, int lc, LOGICAL *doremove);
 static int inline_reduction_craft(int, int, int);
-
-static void move_alloc_type(int, int, int);
 
 static void nop_dealloc(int, int);
 static void handle_shift(int s);
@@ -1181,7 +1179,7 @@ contiguous_section(int arr_ast)
        ast1 = A_PARENTG(ast1)) {
     if (!A_SHAPEG(ast1))
       return TRUE; /* everything is contiguous so far and no more subscripting
-                      */
+                    */
     if (A_TYPEG(ast1) == A_MEM) {
       /* must be the first and only member */
       sptr = A_SPTRG(A_MEMG(ast1));
@@ -1367,7 +1365,7 @@ check_pointer_type(int past, int tast, int stmt, LOGICAL is_sourced_allocation)
   case A_INTR:
     if (A_OPTYPEG(tast) == I_NULL) {
       tsptr = psptr;
-      isNullAssn = true; 
+      isNullAssn = true;
       break;
     }
   default:
@@ -1428,9 +1426,9 @@ check_pointer_type(int past, int tast, int stmt, LOGICAL is_sourced_allocation)
                         ? inline_RTE_set_type(desc1, type2, stmt, 1, dt2, 0)
                         : 0;
         if (!is_inline) {
-          int dest_ast = mk_id(desc1); 
-          int src_ast = intrin_type ? type2 : 
-                        check_member(dest_ast, mk_id(type2));
+          int dest_ast = mk_id(desc1);
+          int src_ast =
+              intrin_type ? type2 : check_member(dest_ast, mk_id(type2));
 
           gen_set_type(dest_ast, src_ast, stmt, FALSE, intrin_type);
         }
@@ -1442,8 +1440,8 @@ check_pointer_type(int past, int tast, int stmt, LOGICAL is_sourced_allocation)
         if (!is_inline) {
           int nz_ast, if_ast, ptr_ast;
           int dest_ast = check_member(past, mk_id(sdsc_mem));
-          int src_ast = intrin_type ? type2 : 
-                        check_member(dest_ast,mk_id(type2));
+          int src_ast =
+              intrin_type ? type2 : check_member(dest_ast, mk_id(type2));
           astnew = mk_set_type_call(dest_ast, src_ast, intrin_type);
           ptr_ast = mk_unop(OP_LOC, A_PARENTG(past), DT_PTR);
           nz_ast = mk_binop(OP_NE, ptr_ast, nullptr, DT_LOG);
@@ -1466,8 +1464,10 @@ check_pointer_type(int past, int tast, int stmt, LOGICAL is_sourced_allocation)
         if (!is_inline) {
           int nz_ast, if_ast, ptr_ast;
           int dest_ast = mk_id(desc1);
-          int src_ast = intrin_type ? type2 :
-              mk_member(A_PARENTG(tast), mk_id(sdsc_mem), A_DTYPEG(tast));
+          int src_ast =
+              intrin_type
+                  ? type2
+                  : mk_member(A_PARENTG(tast), mk_id(sdsc_mem), A_DTYPEG(tast));
           astnew = mk_set_type_call(dest_ast, src_ast, intrin_type);
 
           /* if (tast .ne. 0) */
@@ -1493,10 +1493,12 @@ check_pointer_type(int past, int tast, int stmt, LOGICAL is_sourced_allocation)
         is_inline = 0; /* TBD: inline_RTE_set_type( ) */
         if (!is_inline) {
           int nz_ast, if_ast, ptr_ast;
-          int dest_ast = mk_member(A_PARENTG(past), mk_id(sdsc_mem2), 
-                                   A_DTYPEG(past));
-          int src_ast = intrin_type ? type2 : mk_member(A_PARENTG(tast), 
-                        mk_id(sdsc_mem), A_DTYPEG(tast));
+          int dest_ast =
+              mk_member(A_PARENTG(past), mk_id(sdsc_mem2), A_DTYPEG(past));
+          int src_ast =
+              intrin_type
+                  ? type2
+                  : mk_member(A_PARENTG(tast), mk_id(sdsc_mem), A_DTYPEG(tast));
           astnew = mk_set_type_call(dest_ast, src_ast, intrin_type);
 
           /* if (tast .ne. 0) */
@@ -1555,54 +1557,24 @@ check_pointer_type(int past, int tast, int stmt, LOGICAL is_sourced_allocation)
   }
 }
 
+/* Given one of the arguments to move_alloc (either from or to), return the
+ * corresponding symbol and pointer to the arg. */
 static void
-move_alloc_type(int psptr, int tsptr, int stmt)
+move_alloc_arg(int arg, SPTR *sptr, int *pvar)
 {
+  if (A_TYPEG(arg) == A_ID)
+    *sptr = A_SPTRG(arg);
+  else if (A_TYPEG(arg) == A_MEM)
+    *sptr = A_SPTRG(A_MEMG(arg));
+  else
+    *sptr = 0;
 
-  /* Used by transform_move_alloc(). Copy the dynamic type from
-   * tsptr type descriptor to psptr type descriptor.
-   */
-
-  int dt1, dt2, desc1, desc2;
-  int newargt, func, astnew, is_inline;
-
-  if (!CLASSG(psptr) /* || !CLASSG(tsptr)*/)
-    return;
-  dt1 = DTYPEG(psptr);
-  if (DTY(dt1) == TY_ARRAY) {
-    dt1 = DTY(dt1 + 1);
-  }
-  dt2 = DTYPEG(tsptr);
-  if (DTY(dt2) == TY_ARRAY) {
-    dt2 = DTY(dt2 + 1);
-  }
-  if (DTY(dt1) != TY_DERIVED || DTY(dt2) != TY_DERIVED) {
-    /* TBD - This condition will probably need fixing when
-     * we support unlimited polymorphic entities.
-     */
-    return;
-  }
-  if (ALLOCDESCG(psptr) && ALLOCDESCG(tsptr)) {
-    desc1 = SDSCG(psptr);
-    if (!desc1)
-      desc1 = DESCRG(psptr);
-
-    if (CLASSG(tsptr)) {
-      desc2 = SDSCG(tsptr);
-      if (!desc2)
-        desc2 = DESCRG(tsptr);
-    } else {
-      desc2 = get_static_type_descriptor(DTY(dt2 + 3));
-    }
-    DESCUSEDP(psptr, TRUE);
-    DESCUSEDP(tsptr, TRUE);
-
-    if (desc1 && desc2 && !XBIT(68, 0x4)) {
-      is_inline = inline_RTE_set_type(desc1, desc2, stmt, 1, dt2, 0);
-      if (!is_inline) {
-        gen_set_type(mk_id(desc1), mk_id(desc2), stmt, FALSE, FALSE);
-      }
-    }
+  if (MIDNUMG(*sptr)) {
+    *pvar = check_member(arg, mk_id(MIDNUMG(*sptr)));
+  } else if (!ALLOCATTRG(*sptr)) {
+    error(507, ERR_Fatal, gbl.lineno, SYMNAME(*sptr), 0);
+  } else {
+    *pvar = mk_unop(OP_LOC, mk_id(*sptr), DT_PTR);
   }
 }
 
@@ -1692,9 +1664,9 @@ check_alloc_ptr_type(int psptr, int stmt, DTYPE dt1, int flag, LOGICAL after,
         if (type2_sptr > NOSYM)
           type2_ast = mk_id(type2_sptr);
       }
-      if (is_member || (type2_ast && !XBIT(68, 0x4) &&
-                        (intrin_type ||
-                         !inline_RTE_set_type(desc1_sptr, type2_sptr, stmt,
+      if (is_member ||
+          (type2_ast && !XBIT(68, 0x4) &&
+           (intrin_type || !inline_RTE_set_type(desc1_sptr, type2_sptr, stmt,
                                                 after, dt1, astmem)))) {
         int desc1_ast = get_desc_tag(desc1_sptr);
         int tagdesc = get_desc_tag(desc1_sptr);
@@ -1822,6 +1794,7 @@ rewrite_func_ast(int func_ast, int func_args, int lhs)
   int shape = A_SHAPEG(func_ast);
   DTYPE dtype = A_DTYPEG(func_ast);
   int dim, ndims, cdim;
+  int shift;
   int newsym;
   int temp_arr;
   int newargt;
@@ -1837,12 +1810,10 @@ rewrite_func_ast(int func_ast, int func_args, int lhs)
   char *root;
   int i;
   int subscr[MAXSUBS];
-  int argt;
   int sptr;
   int astnew;
-  int temp_sptr, func;
+  int temp_sptr;
   LOGICAL is_icall; /* iff its first arg is changable */
-  LOGICAL take_out;
   int ast_from_len = 0;
   int arg1;
   int dtnew;
@@ -1930,11 +1901,13 @@ rewrite_func_ast(int func_ast, int func_args, int lhs)
 
     if (shape == 0 && (dim == 0 || cdim != -1)) {
       /*E.g.,  pghpf_anys(result, mask) */
-      rtlRtn = optype == I_ALL ? RTE_alls : optype == I_ANY ? RTE_anys : RTE_counts;
+      rtlRtn =
+          optype == I_ALL ? RTE_alls : optype == I_ANY ? RTE_anys : RTE_counts;
       nargs = 2;
     } else {
       /* E.g., pghpf_any(result, mask, dim) */
-      rtlRtn = optype == I_ALL ? RTE_all : optype == I_ANY ? RTE_any : RTE_count;
+      rtlRtn =
+          optype == I_ALL ? RTE_all : optype == I_ANY ? RTE_any : RTE_count;
       nargs = 3;
     }
     newargt = mk_argt(nargs);
@@ -2030,7 +2003,6 @@ rewrite_func_ast(int func_ast, int func_args, int lhs)
     /* don't inline forall(i=1:n) a(i,:) = cshift(b(i,:)) */
 
     if (!arg_gbl.inforall &&
-        /*EXTRG(gbl.currsub) != EXTR_HPF_CRAFT &&*/
         is_inline_overlap_shifts(func_ast, func_args, lhs))
       goto ret_norm;
     if (!is_no_comm_shift(func_ast, func_args))
@@ -2058,15 +2030,18 @@ rewrite_func_ast(int func_ast, int func_args, int lhs)
     dim = ARGT_ARG(func_args, 2);
     if (dim == 0)
       dim = mk_cval(1, DT_INT);
+    shift = ARGT_ARG(func_args, 1);
     nargs = 4;
-    if (A_SHAPEG(ARGT_ARG(func_args, 1)) == 0)
-      rtlRtn = DTYG(dtype) == TY_CHAR ? RTE_cshiftsc : RTE_cshifts;
-    else
-      rtlRtn = DTYG(dtype) == TY_CHAR ? RTE_cshiftc : RTE_cshift;
+    if (A_SHAPEG(shift) == 0) {
+      shift = convert_int(shift, astb.bnd.dtype);
+      rtlRtn = DTYG(dtype) == TY_CHAR ? RTE_cshiftsca : RTE_cshifts;
+    } else {
+      rtlRtn = DTYG(dtype) == TY_CHAR ? RTE_cshiftca : RTE_cshift;
+    }
     newargt = mk_argt(nargs);
     ARGT_ARG(newargt, 1) = srcarray;
-    ARGT_ARG(newargt, 2) = ARGT_ARG(func_args, 1);
-    ARGT_ARG(newargt, 3) = dim;
+    ARGT_ARG(newargt, 2) = shift;
+    ARGT_ARG(newargt, 3) = convert_int(dim, astb.bnd.dtype);
     goto ret_new;
 
   case I_DOT_PRODUCT: /* dot_product(vector_a, vector_b) */
@@ -2082,7 +2057,6 @@ rewrite_func_ast(int func_ast, int func_args, int lhs)
       goto eoshiftcall; /* shift not a scalar */
 
     if (!arg_gbl.inforall &&
-        /*EXTRG(gbl.currsub) != EXTR_HPF_CRAFT &&*/
         is_inline_overlap_shifts(func_ast, func_args, lhs))
       goto ret_norm;
 
@@ -2115,31 +2089,33 @@ rewrite_func_ast(int func_ast, int func_args, int lhs)
     if (dim == 0)
       dim = mk_cval(1, DT_INT);
     nargs = 5;
-    if (A_SHAPEG(ARGT_ARG(func_args, 1)) == 0) {
+    shift = ARGT_ARG(func_args, 1);
+    if (A_SHAPEG(shift) == 0) {
       /* shift is scalar */
+      shift = convert_int(shift, astb.bnd.dtype);
       /* boundary is... */
       if (ARGT_ARG(func_args, 2) == 0) { /* absent */
-        rtlRtn = DTYG(dtype) == TY_CHAR ? RTE_eoshiftszc : RTE_eoshiftsz;
+        rtlRtn = DTYG(dtype) == TY_CHAR ? RTE_eoshiftszca : RTE_eoshiftsz;
         --nargs;
       } else if (A_SHAPEG(ARGT_ARG(func_args, 2)) == 0) /* scalar */
-        rtlRtn = DTYG(dtype) == TY_CHAR ? RTE_eoshiftssc : RTE_eoshiftss;
+        rtlRtn = DTYG(dtype) == TY_CHAR ? RTE_eoshiftssca : RTE_eoshiftss;
       else /* array */
-        rtlRtn = DTYG(dtype) == TY_CHAR ? RTE_eoshiftsac : RTE_eoshiftsa;
+        rtlRtn = DTYG(dtype) == TY_CHAR ? RTE_eoshiftsaca : RTE_eoshiftsa;
     } else {
       /* shift is array */
       /* boundary is... */
       if (ARGT_ARG(func_args, 2) == 0) { /* absent */
-        rtlRtn = DTYG(dtype) == TY_CHAR ? RTE_eoshiftzc : RTE_eoshiftz;
+        rtlRtn = DTYG(dtype) == TY_CHAR ? RTE_eoshiftzca : RTE_eoshiftz;
         --nargs;
       } else if (A_SHAPEG(ARGT_ARG(func_args, 2)) == 0) /* scalar */
-        rtlRtn = DTYG(dtype) == TY_CHAR ? RTE_eoshiftsc : RTE_eoshifts;
+        rtlRtn = DTYG(dtype) == TY_CHAR ? RTE_eoshiftsca : RTE_eoshifts;
       else /* array */
-        rtlRtn = DTYG(dtype) == TY_CHAR ? RTE_eoshiftc : RTE_eoshift;
+        rtlRtn = DTYG(dtype) == TY_CHAR ? RTE_eoshiftca : RTE_eoshift;
     }
     newargt = mk_argt(nargs);
     ARGT_ARG(newargt, 1) = srcarray;
-    ARGT_ARG(newargt, 2) = ARGT_ARG(func_args, 1);
-    ARGT_ARG(newargt, 3) = dim;
+    ARGT_ARG(newargt, 2) = shift;
+    ARGT_ARG(newargt, 3) = convert_int(dim, astb.bnd.dtype);
     if (nargs == 5)
       ARGT_ARG(newargt, 4) = ARGT_ARG(func_args, 2);
     goto ret_new;
@@ -2258,9 +2234,9 @@ rewrite_func_ast(int func_ast, int func_args, int lhs)
     vector = ARGT_ARG(func_args, 2);
 
     if (vector == 0) {
-      rtlRtn = DTYG(dtype) == TY_CHAR ? RTE_packzc : RTE_packz;
+      rtlRtn = DTYG(dtype) == TY_CHAR ? RTE_packzca : RTE_packz;
     } else {
-      rtlRtn = DTYG(dtype) == TY_CHAR ? RTE_packc : RTE_pack;
+      rtlRtn = DTYG(dtype) == TY_CHAR ? RTE_packca : RTE_pack;
     }
 
     if (mask == 0)
@@ -2297,10 +2273,10 @@ rewrite_func_ast(int func_ast, int func_args, int lhs)
       goto ret_norm;
     }
     if (DTYG(dtype) == TY_CHAR) {
-      rtlRtn = A_SHAPEG(srcarray) == 0 ? RTE_spreadcs : RTE_spreadc;
+      rtlRtn = A_SHAPEG(srcarray) == 0 ? RTE_spreadcs : RTE_spreadca;
       ast_from_len = srcarray;
     } else {
-      rtlRtn = A_SHAPEG(srcarray) == 0 ? RTE_spreads : RTE_spread;
+      rtlRtn = A_SHAPEG(srcarray) == 0 ? RTE_spreadsa : RTE_spread;
     }
     nargs = 4;
     newargt = mk_argt(nargs);
@@ -2315,7 +2291,7 @@ rewrite_func_ast(int func_ast, int func_args, int lhs)
     }
     goto ret_norm;
   case I_UNPACK: /* unpack(vector, mask, field) */
-    rtlRtn = DTYG(dtype) == TY_CHAR ? RTE_unpackc : RTE_unpack;
+    rtlRtn = DTYG(dtype) == TY_CHAR ? RTE_unpackca : RTE_unpack;
     nargs = 4;
     srcarray = ARGT_ARG(func_args, 0);
 
@@ -2358,7 +2334,7 @@ rewrite_func_ast(int func_ast, int func_args, int lhs)
       }
     } else if (dtype == DT_ASSCHAR || dtype == DT_DEFERCHAR
                || dtype == DT_ASSNCHAR || dtype == DT_DEFERNCHAR
-               ) {
+    ) {
       retval = alloc_char_temp(dtype, "transfer", ARGT_ARG(newargt, 2),
                                arg_gbl.std, 0);
       ARGT_ARG(newargt, 0) = retval;
@@ -2382,10 +2358,10 @@ rewrite_func_ast(int func_ast, int func_args, int lhs)
   case I_ADJUSTL: /* adjustl(string) */
   case I_ADJUSTR: /* adjustr(string) */
     if (optype == I_ADJUSTL) {
-      rtlRtn = DTY(DDTG(dtype)) == TY_CHAR ? RTE_adjustl : RTE_nadjustl;
+      rtlRtn = DTY(DDTG(dtype)) == TY_CHAR ? RTE_adjustla : RTE_nadjustl;
       root = "adjl";
     } else {
-      rtlRtn = DTY(DDTG(dtype)) == TY_CHAR ? RTE_adjustr : RTE_nadjustr;
+      rtlRtn = DTY(DDTG(dtype)) == TY_CHAR ? RTE_adjustra : RTE_nadjustr;
       root = "adjr";
     }
     newsym = sym_mkfunc_nodesc(mkRteRtnNm(rtlRtn), DT_INT);
@@ -2491,7 +2467,7 @@ rewrite_func_ast(int func_ast, int func_args, int lhs)
     nargs = 2;
     newargt = mk_argt(nargs);
     ARGT_ARG(newargt, 1) = arg1;
-    rtlRtn = DTY(dtype) == TY_CHAR ? RTE_trim : RTE_ntrim;
+    rtlRtn = DTY(dtype) == TY_CHAR ? RTE_trima : RTE_ntrim;
     newsym = sym_mkfunc_nodesc(mkRteRtnNm(rtlRtn), DT_INT);
     /* the result has adjustable length */
     if (arg_gbl.inforall && charintr_arg_forall_depnd(arg1)) {
@@ -2521,7 +2497,7 @@ rewrite_func_ast(int func_ast, int func_args, int lhs)
       mk_mem_deallocate(astnew, arg_gbl.std);
       astnew = mk_subscr_copy(astnew, A_ASDG(arg1), DT_INT);
 
-      ast = mk_func_node(A_FUNC, mk_id(newsym), nargs, newargt);
+      ast = mk_func_node(A_INTR, mk_id(newsym), nargs, newargt);
       A_DTYPEP(ast, DT_INT);
       A_SHAPEP(ast, 0);
       A_OPTYPEP(ast, I_TRIM);
@@ -2562,7 +2538,7 @@ rewrite_func_ast(int func_ast, int func_args, int lhs)
     return retval;
 
   case I_DATE_AND_TIME:
-    rtlRtn = RTE_dandt;
+    rtlRtn = RTE_dandta;
     is_icall = FALSE;
     nargs = 4;
     goto opt_common;
@@ -2625,32 +2601,17 @@ rewrite_func_ast(int func_ast, int func_args, int lhs)
   case I_TIME:
     is_icall = FALSE;
     arg1 = ARGT_ARG(func_args, 0);
-    rtlRtn = DTY(A_DTYPEG(arg1)) == TY_CHAR ? RTE_ftime : RTE_ftimew;
+    rtlRtn = DTY(A_DTYPEG(arg1)) == TY_CHAR ? RTE_ftimea : RTE_ftimew;
     goto sub_common;
   case I_DATE:
     is_icall = FALSE;
     arg1 = ARGT_ARG(func_args, 0);
-    rtlRtn = DTY(A_DTYPEG(arg1)) == TY_CHAR ? RTE_date : RTE_datew;
+    rtlRtn = DTY(A_DTYPEG(arg1)) == TY_CHAR ? RTE_datea : RTE_datew;
     goto sub_common;
   case I_IDATE:
-    {
-      TY_KIND arg_ty = TY_NONE; /* args must all be short or int */
-      for (i = 0; i < nargs; ++i) {
-        int arg_ast = ARGT_ARG(func_args, i);
-        TY_KIND ty = DTY(A_DTYPEG(arg_ast));
-        if (i == 0) {
-          arg_ty = ty;
-        } else {
-          assert(arg_ty == ty,
-                 "rewrite_func_ast:idate called with bad arguments", 0,
-                 ERR_Fatal);
-        }
-      }
-      assert(arg_ty == TY_SINT || arg_ty == TY_INT,
-             "rewrite_func_ast:idate called with bad arguments", 0, ERR_Fatal);
-      rtlRtn = arg_ty == TY_SINT ? RTE_idate : RTE_jdate;
-    }
     is_icall = FALSE;
+    arg1 = ARGT_ARG(func_args, 0);
+    rtlRtn = DTY(A_DTYPEG(arg1)) == TY_SINT ? RTE_idate : RTE_jdate;
     goto sub_common;
   case I_LASTVAL:
     rtlRtn = RTE_lastval;
@@ -2756,7 +2717,7 @@ rewrite_func_ast(int func_ast, int func_args, int lhs)
       if (PTROFFG(sptr))
         ++nargs;
     }
-    rtlRtn = DTYG(A_DTYPEG(ast)) == TY_CHAR ? RTE_ptr_asgn_char : RTE_ptr_asgn;
+    rtlRtn = DTYG(A_DTYPEG(ast)) == TY_CHAR ? RTE_ptr_asgn_chara : RTE_ptr_asgn;
     newsym = sym_mkfunc_nodesc(mkRteRtnNm(rtlRtn), dtype);
     newargt = mk_argt(nargs);
     ARGT_ARG(newargt, 0) = ARGT_ARG(func_args, 0);
@@ -2810,10 +2771,10 @@ rewrite_func_ast(int func_ast, int func_args, int lhs)
   case I_GET_COMMAND:
   case I_GET_COMMAND_ARGUMENT:
     if (optype == I_GET_COMMAND) {
-      rtlRtn = RTE_get_cmd;
+      rtlRtn = RTE_get_cmda;
       nargs = 4;
     } else {
-      rtlRtn = RTE_get_cmd_arg;
+      rtlRtn = RTE_get_cmd_arga;
       nargs = 5;
     }
     newsym = sym_mkfunc_nodesc(mkRteRtnNm(rtlRtn), DT_INT);
@@ -2822,11 +2783,12 @@ rewrite_func_ast(int func_ast, int func_args, int lhs)
       int arg = ARGT_ARG(func_args, i);
       ARGT_ARG(newargt, i) = arg != 0 ? arg : i == 0 ? astb.ptr0c : astb.ptr0;
     }
-    ARGT_ARG(newargt, nargs - 1) = mk_cval(size_of(stb.user.dt_int), DT_INT4);
+    ARGT_ARG(newargt, nargs - 1) =
+        mk_cval(size_of(stb.user.dt_int), astb.bnd.dtype);
     is_icall = FALSE;
     goto ret_call;
   case I_GET_ENVIRONMENT_VARIABLE:
-    newsym = sym_mkfunc_nodesc(mkRteRtnNm(RTE_get_env_var), DT_INT);
+    newsym = sym_mkfunc_nodesc(mkRteRtnNm(RTE_get_env_vara), DT_INT);
     nargs = 6;
     newargt = mk_argt(nargs);
     for (i = 0; i < nargs - 1; i++) {
@@ -2872,7 +2834,8 @@ ret_call:
   /* add call to function */
   /* make every call ICALL iff call changes the first argument and
      no side effect, this will help optimizer */
-  ast = mk_func_node(is_icall ? A_ICALL : A_CALL, mk_id(newsym), nargs, newargt);
+  ast =
+      mk_func_node(is_icall ? A_ICALL : A_CALL, mk_id(newsym), nargs, newargt);
   A_OPTYPEP(ast, optype);
   add_stmt_before(ast, arg_gbl.std);
   return retval;
@@ -2941,7 +2904,7 @@ rewrite_intr_allocatable(int func_ast, int func_args, int lhs)
     return tmp_ast;
   }
 }
- 
+
 static LOGICAL
 ast_has_allocatable_member(int ast)
 {
@@ -3415,8 +3378,8 @@ rewrite_sub_args(int arg_ast, int lc)
     }
     if (iface && ELEMENTALG(iface)) {
       /* leave alone if arg is not an elemental function,
-       * else process function below 
-       */ 
+       * else process function below
+       */
       if (A_TYPEG(arg) == A_FUNC) {
         int sym;
         switch (A_TYPEG(A_LOPG(arg))) {
@@ -3456,7 +3419,7 @@ rewrite_sub_args(int arg_ast, int lc)
     }
     /* if this is a scalar expression variable passed to
      * a non-value intent(in) argument, copy to a temp
-     * so we don't have to mark the variable as ADDRKTN */
+     * so we don't have to mark the variable as ADDRTKN */
     if (dummy_sptr && XBIT(68, 8))
       arg = copy_scalar_intent_in(arg, dummy_sptr, std);
     shape = A_SHAPEG(arg);
@@ -3703,8 +3666,29 @@ rewrite_sub_ast(int ast, int lc)
   }
 }
 
+/* We are using the lhs for the result of an inline intrinsic.
+ * Allocate it if necessary. */
+static void
+allocate_lhs_if_needed(int lhs, int rhs, int std)
+{
+  int astif, new_lhs;
+  if (!XBIT(54, 1))
+    return;
+  if (A_TYPEG(lhs) == A_SUBSCR)
+    return;
+  if (!ast_is_sym(lhs) || !ALLOCATTRG(sym_of_ast(lhs)))
+    return;
+  astif = mk_conformable_test(lhs, rhs, OP_LE);
+  add_stmt_before(astif, std);
+  gen_dealloc_if_allocated(lhs, std);
+  new_lhs = add_shapely_subscripts(lhs, rhs, A_DTYPEG(rhs),
+                                   array_element_dtype(A_DTYPEG(lhs)));
+  add_stmt_before(mk_allocate(new_lhs), std);
+  add_stmt_before(mk_stmt(A_ENDIF, 0), std);
+}
+
 void
-rewrite_asn(int ast, int std, LOGICAL flag, int lc)
+rewrite_asn(int ast, int std, bool flag, int lc)
 {
   int rhs, lhs;
   int args;
@@ -3728,9 +3712,8 @@ rewrite_asn(int ast, int std, LOGICAL flag, int lc)
    * the LHS, avoid the temp */
   if (flag && A_SHAPEG(lhs) &&
       (A_TYPEG(rhs) == A_FUNC || A_TYPEG(rhs) == A_INTR)) {
-
+    int std_prev = STD_PREV(std); /* for allocate_lhs_if_needed case */
     if (A_TYPEG(lhs) == A_SUBSCR) {
-
       asd = A_ASDG(lhs);
       n = ASD_NDIM(asd);
       for (j = 0; j < n; ++j)
@@ -3742,22 +3725,17 @@ rewrite_asn(int ast, int std, LOGICAL flag, int lc)
     args = rewrite_sub_args(rhs, lc);
     A_ARGSP(rhs, args);
     new_rhs = inline_reduction_f90(rhs, lhs, lc, &doremove);
-    if (new_rhs != rhs) {
-      if (doremove) {
-        if (std)
-          delete_stmt(std);
-      } else {
-        A_SRCP(ast, new_rhs);
-      }
-      return;
+    if (new_rhs == rhs) {
+      new_rhs = rewrite_func_ast(rhs, args, lhs);
+      doremove = new_rhs == 0;
     }
-
-    l = rewrite_func_ast(rhs, args, lhs);
-    if (l == 0) {
+    if (doremove) {
+      allocate_lhs_if_needed(lhs, rhs, STD_NEXT(std_prev));
       if (std)
         delete_stmt(std);
-    } else
-      A_SRCP(ast, l);
+    } else {
+      A_SRCP(ast, new_rhs);
+    }
     return;
   }
 
@@ -3916,7 +3894,7 @@ rewrite_calls(void)
         }
         sptr_lhs = memsym_of_ast(A_SRCG(ast));
         if (allocatable_member(sptr_lhs)) {
-          rewrite_deallocate(A_SRCG(ast), std);
+          rewrite_deallocate(A_SRCG(ast), false, std);
           if (!ALLOCG(sptr_lhs) && !ALLOCATTRG(sptr_lhs) &&
               !POINTERG(sptr_lhs)) {
             /* Has allocatable members but item itself is not
@@ -3933,7 +3911,7 @@ rewrite_calls(void)
         } else {
           astmem = 0;
         }
-        switch (A_TYPEG(A_STARTG(ast))) { 
+        switch (A_TYPEG(A_STARTG(ast))) {
         case A_ID:
         case A_LABEL:
         case A_ENTRY:
@@ -4028,23 +4006,26 @@ rewrite_calls(void)
     case A_MP_DISTRIBUTE:
     case A_MP_ENDDISTRIBUTE:
     case A_MP_ENDTARGETDATA:
-      break;
     case A_MP_TASKREG:
-      set_descriptor_sc(SC_PRIVATE);
+    case A_MP_TASKDUP:
+    case A_MP_ETASKDUP:
       break;
-    case A_MP_ETASKREG:
-      if (parallel_depth == 0 && task_depth <= 1) {
-        set_descriptor_sc(SC_LOCAL);
-      }
+    case A_MP_TASKLOOPREG:
+    case A_MP_ETASKLOOPREG:
       break;
     case A_MP_TASK:
+    case A_MP_TASKLOOP:
       a = rewrite_sub_ast(A_IFPARG(ast), 0);
       A_IFPARP(ast, a);
-      a = rewrite_sub_ast(A_ENDLABG(ast), 0);
-      A_ENDLABP(ast, a);
+      a = rewrite_sub_ast(A_FINALPARG(ast), 0);
+      A_FINALPARP(ast, a);
+      a = rewrite_sub_ast(A_PRIORITYG(ast), 0);
+      A_PRIORITYP(ast, a);
       ++task_depth;
+      set_descriptor_sc(SC_PRIVATE);
       break;
     case A_MP_ENDTASK:
+    case A_MP_ETASKLOOP:
       --task_depth;
       if (parallel_depth == 0 && task_depth == 0) {
         set_descriptor_sc(SC_LOCAL);
@@ -4065,7 +4046,7 @@ rewrite_calls(void)
       A_IFPARP(ast, a);
       a = rewrite_sub_ast(A_NPARG(ast), 0);
       A_NPARP(ast, a);
-      /* proc_bind is constant 
+      /* proc_bind is constant
       a = rewrite_sub_ast(A_PROCBINDG(ast), 0);
       A_PROCBINDP(ast, a);
       */
@@ -4182,7 +4163,7 @@ static void
 add_reduce_descriptor(int temp_sptr, int arr_sptr, int arr_ast, int dim)
 {
   DTYPE dtype = DTYPEG(temp_sptr);
-  int kind = mk_cval(dtype_to_arg(DTY(dtype + 1)), DT_INT);
+  int kind = mk_cval(dtype_to_arg(DTY(dtype + 1)), astb.bnd.dtype);
   int len = size_ast(temp_sptr, DDTG(dtype));
   int sptrFunc = sym_mkfunc_nodesc(mkRteRtnNm(RTE_reduce_descriptor), 0);
   int astStmt = begin_call(A_CALL, sptrFunc, 5);
@@ -4190,7 +4171,7 @@ add_reduce_descriptor(int temp_sptr, int arr_sptr, int arr_ast, int dim)
   add_arg(kind);
   add_arg(len);
   add_arg(check_member(arr_ast, mk_id(DESCRG(arr_sptr))));
-  add_arg(dim);
+  add_arg(convert_int(dim, astb.bnd.dtype));
   add_stmt_before(astStmt, arg_gbl.std);
 }
 
@@ -4210,8 +4191,8 @@ add_spread_descriptor(int temp_sptr, int arr_sptr, int arr_ast, int dim,
   int sptrFunc;
   int astStmt;
 
-  dim = mk_default_int(dim);
-  ncopies = mk_default_int(ncopies);
+  dim = convert_int(dim, astb.bnd.dtype);
+  ncopies = convert_int(ncopies, astb.bnd.dtype);
   sptrFunc = sym_mkfunc_nodesc(mkRteRtnNm(RTE_spread_descriptor), 0);
   astStmt = begin_call(A_CALL, sptrFunc, 4);
   add_arg(mk_id(DESCRG(temp_sptr)));
@@ -4608,12 +4589,12 @@ transform_associated(int std, int ast)
 
   if (with_target) {
     if (DTYG(dtype) == TY_CHAR)
-      func = mk_id(sym_mkfunc(mkRteRtnNm(RTE_associated_tchar), DT_LOG));
+      func = mk_id(sym_mkfunc(mkRteRtnNm(RTE_associated_tchara), DT_LOG));
     else
       func = mk_id(sym_mkfunc(mkRteRtnNm(RTE_associated_t), DT_LOG));
   } else {
     if (DTYG(dtype) == TY_CHAR)
-      func = mk_id(sym_mkfunc(mkRteRtnNm(RTE_associated_char), DT_LOG));
+      func = mk_id(sym_mkfunc(mkRteRtnNm(RTE_associated_chara), DT_LOG));
     else
       func = mk_id(sym_mkfunc(mkRteRtnNm(RTE_associated), DT_LOG));
   }
@@ -4893,109 +4874,52 @@ transform_elemental(int func_ast, int func_args)
   delete_stmt(arg_gbl.std);
 }
 
+/* move_alloc(from, to) */
 static void
 transform_move_alloc(int func_ast, int func_args)
 {
-
-  /* move_alloc(from, to) */
-
-  int lineno;
-  int stdnext, std;
-  int fptr, fptr2;
+  int std;
   int pvar, pvar2;
   int shape, shape2;
   int desc, desc2;
-  int dtype, dtype2;
-  int sptr, sptr2;
+  SPTR sptr, sptr2;
   int func, nargs, newast, newargt;
+  int stdnext = arg_gbl.std;
+  int lineno = STD_LINENO(stdnext);
+  int fptr = ARGT_ARG(func_args, 0);
+  int fptr2 = ARGT_ARG(func_args, 1);
 
-  stdnext = arg_gbl.std;
-  lineno = STD_LINENO(stdnext);
-  fptr = ARGT_ARG(func_args, 0);
-  /*
-   * pass the address of "from" pointer
-   */
-  dtype = A_DTYPEG(fptr);
-  if (A_TYPEG(fptr) == A_ID)
-    sptr = A_SPTRG(fptr);
-  else if (A_TYPEG(fptr) == A_MEM)
-    sptr = A_SPTRG(A_MEMG(fptr));
-  else
-    sptr = 0;
-  if (MIDNUMG(sptr)) {
-    pvar = check_member(fptr, mk_id(MIDNUMG(sptr)));
-  } else if (!ALLOCATTRG(sptr)) {
-    error(507, 4, gbl.lineno, SYMNAME(sptr), CNULL);
-  } else {
-    /*interr( "TOPTR error in move_alloc()", fptr, 4 );*/
-    pvar = mk_unop(OP_LOC, mk_id(sptr), DT_PTR);
-  }
+  move_alloc_arg(fptr, &sptr, &pvar);
+  move_alloc_arg(fptr2, &sptr2, &pvar2);
 
-  shape = A_SHAPEG(fptr);
-  /*
-   * pass the address of "from" descriptor
-   */
   desc = find_descriptor_ast(sptr, fptr);
-#if DEBUG
   assert(desc, "transform_move_alloc: invalid 'from' descriptor", sptr,
          ERR_Fatal);
-#endif
-  /*
-   * pass the address of "to" pointer
-   */
-  fptr2 = ARGT_ARG(func_args, 1);
-  dtype2 = A_DTYPEG(fptr2);
-  if (A_TYPEG(fptr2) == A_ID)
-    sptr2 = A_SPTRG(fptr2);
-  else if (A_TYPEG(fptr2) == A_MEM)
-    sptr2 = A_SPTRG(A_MEMG(fptr2));
-  else
-    sptr2 = 0;
-
-  if (MIDNUMG(sptr2)) {
-    pvar2 = check_member(fptr2, mk_id(MIDNUMG(sptr2)));
-  } else if (!ALLOCATTRG(sptr2)) {
-    error(507, 4, gbl.lineno, SYMNAME(sptr2), CNULL);
-  } else {
-    /*interr( "FROMPTR error in move_alloc()", fptr2, 4 );*/
-    pvar2 = mk_unop(OP_LOC, mk_id(sptr2), DT_PTR);
-  }
-
-  shape2 = A_SHAPEG(fptr2);
-  /*
-   * pass the address of "to" descriptor
-   */
   desc2 = find_descriptor_ast(sptr2, fptr2);
-#if DEBUG
   assert(desc2, "transform_move_alloc: invalid 'to' descriptor", sptr2,
          ERR_Fatal);
-#endif
-  func = mk_id(sym_mkfunc_nodesc_expst(mkRteRtnNm(RTE_move_alloc), DT_INT));
 
+  func = mk_id(sym_mkfunc_nodesc_expst(mkRteRtnNm(RTE_move_alloc), DT_INT));
   nargs = 4;
   newargt = mk_argt(nargs);
   ARGT_ARG(newargt, 0) = pvar;  /* from ptr */
-  ARGT_ARG(newargt, 1) = desc;  /* from desc */
+  ARGT_ARG(newargt, 1) = desc;  /* from descriptor */
   ARGT_ARG(newargt, 2) = pvar2; /* to ptr */
-  ARGT_ARG(newargt, 3) = desc2; /* to desc */
+  ARGT_ARG(newargt, 3) = desc2; /* to descriptor */
   newast = mk_func_node(A_CALL, func, nargs, newargt);
   std = add_stmt_before(newast, stdnext);
-
-  move_alloc_type(sptr2, sptr, std);
 
   STD_LINENO(std) = lineno;
   STD_PAR(std) = STD_PAR(stdnext);
   STD_TASK(std) = STD_TASK(stdnext);
   STD_ACCEL(std) = STD_ACCEL(stdnext);
   STD_KERNEL(std) = STD_KERNEL(stdnext);
-  if (STYPEG(sptr) == ST_MEMBER && DTY(DTYPEG(sptr)) == TY_ARRAY) {
-    fix_mem_bounds(A_PARENTG(fptr), sptr);
+  if (A_SHAPEG(fptr2) && sptr != sptr2 && !SDSCG(sptr2)) {
+    int parent = STYPEG(sptr) == ST_MEMBER ? A_PARENTG(fptr) : 0;
+    int parent2 = STYPEG(sptr2) == ST_MEMBER ? A_PARENTG(fptr2) : 0;
+    copy_surrogate_to_bnds_vars(DTYPEG(sptr2), parent2, DTYPEG(sptr), parent,
+                                STD_NEXT(std));
   }
-  if (STYPEG(sptr2) == ST_MEMBER && DTY(DTYPEG(sptr2)) == TY_ARRAY) {
-    fix_mem_bounds(A_PARENTG(fptr2), sptr2);
-  }
-  if (shape2 && sptr != sptr2 && !SDSCG(sptr2))
-    copy_surrogate_to_bnds_vars(sptr2, sptr, STD_NEXT(std));
 
   delete_stmt(arg_gbl.std);
 }
@@ -5612,7 +5536,7 @@ inline_small_matmul(int ast, int dest)
       AD_UPBD(ad, 1) = AD_UPAST(ad, 1) = mk_cval(jextent, DT_INT);
       AD_EXTNTAST(ad, 1) = AD_UPBD(ad, 1);
     }
-    sptr = get_arr_temp(dtnew, TRUE, FALSE);
+    sptr = get_arr_temp(dtnew, TRUE, FALSE, FALSE);
     trans_mkdescr(sptr);
     dest = mk_id(sptr);
   }
@@ -6003,8 +5927,9 @@ inline_reduction_f90(int ast, int dest, int lc, LOGICAL *doremove)
               SHD_LWB(dest_shape, i);
           ADD_UPBD(dtypetmp, i) = ADD_UPAST(dtypetmp, i) = mk_binop(
               OP_DIV,
-              mk_binop(OP_ADD, mk_binop(OP_SUB, SHD_UPB(dest_shape, i),
-                                        SHD_LWB(dest_shape, i), astb.bnd.dtype),
+              mk_binop(OP_ADD,
+                       mk_binop(OP_SUB, SHD_UPB(dest_shape, i),
+                                SHD_LWB(dest_shape, i), astb.bnd.dtype),
                        SHD_STRIDE(dest_shape, i), astb.bnd.dtype),
               SHD_STRIDE(dest_shape, i), astb.bnd.dtype);
 
@@ -6455,7 +6380,11 @@ inline_reduction_f90(int ast, int dest, int lc, LOGICAL *doremove)
     }
   }
   ast2 = mk_id(destsptr);
-  ast2 = check_member(dest, ast2);
+  ast2 = check_member(ast_is_sym(dest) &&
+                              (sym_of_ast(dest) != pass_sym_of_ast(dest))
+                          ? A_PARENTG(dest)
+                          : dest,
+                      ast2);
   ad = AD_DPTR(DTYPEG(destsptr));
   destndim = AD_NUMDIM(ad);
   for (i = 1; i <= nbrloops; i++) {
@@ -6711,8 +6640,8 @@ matmul(int func_ast, int func_args, int lhs)
   }
 
   /* MORE if shape is set appropriately, the requirement that lhs is
-    *      contiguous can be dropped
-    */
+   *      contiguous can be dropped
+   */
   arg1 = ARGT_ARG(func_args, 0);
   arg2 = ARGT_ARG(func_args, 1);
   check_arg_isalloc(arg1);
@@ -6725,8 +6654,8 @@ matmul(int func_ast, int func_args, int lhs)
     ARGT_ARG(newargt, 1) = srcarray;
     ARGT_ARG(newargt, 2) = ARGT_ARG(func_args, 1);
     ARGT_ARG(newargt, 3) = astb.i1; /* place holder in case we recognize
-                                      * more than this one case
-                                      */
+                                     * more than this one case
+                                     */
   } else {
     /* use general purpose F90 matmul */
     nargs = 3;
@@ -7025,7 +6954,7 @@ mmul_arg(int arr, int transpose, MMUL *mm)
 #ifdef CONTIGATTRG
       && !CONTIGATTRG(sptr)
 #endif
-          )
+  )
     return FALSE;
   shape = A_SHAPEG(arr);
   if (!shape)
@@ -7035,7 +6964,7 @@ mmul_arg(int arr, int transpose, MMUL *mm)
 #ifdef CONTIGATTRG
       && !CONTIGATTRG(sptr)
 #endif
-          ) {
+  ) {
     /*
      * assumed-shaped arrays are guaranteed to be stride 1 in
      * just the first dimension.
@@ -7083,7 +7012,7 @@ mmul_arg(int arr, int transpose, MMUL *mm)
   }
 #ifdef NOEXTENTG
   else if (HCCSYMG(sptr) && SCG(sptr) == SC_LOCAL && ALLOCG(sptr) &&
-           NOEXTENTG(sptr)) {
+           (NOEXTENTG(sptr) || simply_contiguous(arr))) {
     /*
      * the EXTNTAST temp may not be defined for compiler-created
      * allocatable temps assigned the value of the argument.
@@ -7206,7 +7135,7 @@ reshape(int func_ast, int func_args, int lhs)
   ast_from_len = 0;
   tmp_lhs_array = FALSE;
   if (DTYG(dtype) == TY_CHAR) {
-    rtlRtn = RTE_reshapec;
+    rtlRtn = RTE_reshapeca;
     if (DDTG(dtype) == DT_ASSCHAR || DDTG(dtype) == DT_ASSNCHAR ||
         DDTG(dtype) == DT_DEFERCHAR || DDTG(dtype) == DT_DEFERNCHAR) {
       ast_from_len = ARGT_ARG(func_args, 0);

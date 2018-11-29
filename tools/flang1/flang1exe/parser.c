@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, NVIDIA CORPORATION.  All rights reserved.
+ * Copyright (c) 1994-2018, NVIDIA CORPORATION.  All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -188,6 +188,7 @@ _parser(void)
   int t;
   int start, end, nstate;
   int jstart, jend, ptr, i;
+  char *ptoken;
 
   endflg = 0;
   sst_size = SST_SIZE;
@@ -294,9 +295,12 @@ _parser(void)
         sem.tkntyp = tkntyp;
         if (DBGBIT(2, 1))
 #if DEBUG
-          fprintf(gbl.dbgfil, "     prod(%4d) %s\n", rednum, prodstr[rednum]);
+          fprintf(gbl.dbgfil, "%4d %crod(%4d) %s\n",
+                  gbl.lineno, sem.which_pass ? 'P' : 'p',
+                  rednum, prodstr[rednum]);
 #else
-          fprintf(gbl.dbgfil, "     rednum: %d\n", rednum);
+          fprintf(gbl.dbgfil, "     %cednum: %d\n",
+                  sem.which_pass ? 'R' : 'r', rednum);
 #endif
 
         /* call appropriate semantic action routine: */
@@ -354,7 +358,10 @@ _parser(void)
           }
         }
       issue_error:
-        error(34, 3, gbl.lineno, prettytoken(tkntyp, ctknval), CNULL);
+
+        ptoken = prettytoken(tkntyp, ctknval);
+        errWithSrc(34, 3, gbl.lineno, ptoken, CNULL, getCurrColumn(), 1, false,
+                   getDeduceStr(ptoken));
         sem.psfunc = FALSE; /* allow no stmt func defs */
         break;
       }
@@ -363,13 +370,15 @@ _parser(void)
       if (stktop >= sst_size) {
         sst_size += SST_SIZE;
         pstack = (PSTACK *)sccrelal((char *)pstack,
-                                    ((UINT)((sst_size) * sizeof(PSTACK))));
-        sst = (SST *)sccrelal((char *)sst, ((UINT)((sst_size) * sizeof(SST))));
+                                    ((BIGUINT64)((sst_size) * sizeof(PSTACK))));
+        sst = (SST *)sccrelal((char *)sst, ((BIGUINT64)((sst_size) * sizeof(SST))));
         assert(pstack != NULL, "parser:stack ovflw", stktop, 4);
         assert(sst != NULL, "parser:stack ovflw", stktop, 4);
       }
       pstack[stktop] = nstate;
       SST_SYMP(&sst[stktop], ctknval);
+      SST_LINENOP(&sst[stktop], gbl.lineno);
+      SST_COLUMNP(&sst[stktop], getCurrColumn());
       cstate = nstate;
 
       if (tkntyp == TK_EOL) {
@@ -399,7 +408,6 @@ parse_done:
   pstack = NULL;
   sst = NULL;
   sst_size = 0;
-
 }
 
 /*  Initialize parser to begin parsing of next Fortran statement */
@@ -733,6 +741,9 @@ prettytoken(int tkntyp, INT tknval)
     break;
   case TK_MP_TARGTEAMSDISTSIMD:
     sprintf(symbuf, "%s", "TARGETTEAMSDISTRIBUTESIMD");
+    break;
+  case TK_MP_TASK:
+    sprintf(symbuf, "%s", "TASK");
     break;
   case TK_MP_TASKLOOP:
     sprintf(symbuf, "%s", "TASKLOOP");

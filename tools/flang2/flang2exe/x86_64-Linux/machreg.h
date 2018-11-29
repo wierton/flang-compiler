@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, NVIDIA CORPORATION.  All rights reserved.
+ * Copyright (c) 1994-2018, NVIDIA CORPORATION.  All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,6 +14,11 @@
  * limitations under the License.
  *
  */
+
+#ifndef MACHREG_H_
+#define MACHREG_H_
+
+#include "gbldefs.h"
 
 extern const int scratch_regs[];
 
@@ -37,21 +42,21 @@ extern const int scratch_regs[];
 typedef enum {
   NO_REG = -1,
   IR_RAX = 1,
-  IR_RCX,
-  IR_RDX,
-  IR_RSI,
-  IR_RDI,
-  IR_R8,
-  IR_R9,
-  IR_R10,
-  IR_R11,
-  IR_RBX, /* = 10; first callee-saved on Unix-64 */
-  IR_RBP,
-  IR_R12,
-  IR_R13,
-  IR_R14,
-  IR_R15, /* = 15; last callee-saved on Unix-64, i.e. 6 c.s. GP regs */
-  IR_RSP  /* = 16 */
+  IR_RCX,    /* = 2 */
+  IR_RDX,    /* = 3 */
+  IR_RSI,    /* = 4 */
+  IR_RDI,    /* = 5 */
+  IR_R8,     /* = 6 */
+  IR_R9,     /* = 7 */
+  IR_R10,    /* = 8 */
+  IR_R11,    /* = 9 */
+  IR_RBX,    /* = 10; first callee-saved on Unix-64 */
+  IR_RBP,    /* = 11 */
+  IR_R12,    /* = 12 */
+  IR_R13,    /* = 13 */
+  IR_R14,    /* = 14 */
+  IR_R15,    /* = 15; last callee-saved on Unix-64, i.e. 6 c.s. GP regs */
+  IR_RSP     /* = 16 */
 } IR_REGS;
 
 #define GP_REG_NAMES    { "%badreg",                          \
@@ -84,21 +89,21 @@ typedef enum {
 typedef enum {
   NO_REG = -1,
   IR_RAX = 1,
-  IR_RCX,
-  IR_RDX,
-  IR_R8,
-  IR_R9,
-  IR_R10,
-  IR_R11,
-  IR_RBX, /* = 8; first callee-saved on Win-64 */
-  IR_RBP,
-  IR_RDI,
-  IR_RSI,
-  IR_R12,
-  IR_R13,
-  IR_R14,
-  IR_R15, /* = 15; last callee-saved on Win-64, i.e. 8 c.s. GP regs */
-  IR_RSP  /* = 16 */
+  IR_RCX,    /* = 2 */
+  IR_RDX,    /* = 3 */
+  IR_R8,     /* = 4 */
+  IR_R9,     /* = 5 */
+  IR_R10,    /* = 6 */
+  IR_R11,    /* = 7 */
+  IR_RBX,    /* = 8; first callee-saved on Win-64 */
+  IR_RBP,    /* = 9 */
+  IR_RDI,    /* = 10 */
+  IR_RSI,    /* = 11 */
+  IR_R12,    /* = 12 */
+  IR_R13,    /* = 13 */
+  IR_R14,    /* = 14 */
+  IR_R15,    /* = 15; last callee-saved on Win-64, i.e. 8 c.s. GP regs */
+  IR_RSP     /* = 16 */
 } IR_REGS;
 
 #define GP_REG_NAMES    { "%badreg",                          \
@@ -141,37 +146,38 @@ typedef enum {
  *-------------------------*/
 typedef enum {
   XR_XMM0 = 1,
-  XR_XMM1,
-  XR_XMM2,
-  XR_XMM3,
-  XR_XMM4,
-  XR_XMM5,
-  XR_XMM6, /* = 7; first callee-saved on Win-64 */
-  XR_XMM7,
-  XR_XMM8,
-  XR_XMM9,
-  XR_XMM10,
-  XR_XMM11,
-  XR_XMM12,
-  XR_XMM13,
-  XR_XMM14,
-  XR_XMM15, /* = 16; last callee-saved on Win-64, i.e. 10 c.s. XMM regs */
-  XR_XMM16, /* XR_XMM16 - 31 are only available in AVX-512 */
-  XR_XMM17,
-  XR_XMM18,
-  XR_XMM19,
-  XR_XMM20,
-  XR_XMM21,
-  XR_XMM22,
-  XR_XMM23,
-  XR_XMM24,
-  XR_XMM25,
-  XR_XMM26,
-  XR_XMM27,
-  XR_XMM28,
-  XR_XMM29,
-  XR_XMM30,
-  XR_XMM31
+  XR_XMM1,    /* = 2 */
+  XR_XMM2,    /* = 3 */
+  XR_XMM3,    /* = 4 */
+  XR_XMM4,    /* = 5 */
+  XR_XMM5,    /* = 6 */
+  XR_XMM6,    /* = 7; first callee-saved on Win-64 */
+  XR_XMM7,    /* = 8 */
+  XR_XMM8,    /* = 9 */
+  XR_XMM9,    /* = 10 */
+  XR_XMM10,   /* = 11 */
+  XR_XMM11,   /* = 12 */
+  XR_XMM12,   /* = 13 */
+  XR_XMM13,   /* = 14 */
+  XR_XMM14,   /* = 15 */
+  XR_XMM15,   /* = 16; last callee-saved on Win-64, i.e. 10 c.s. XMM regs */
+
+  XR_XMM16,   /* = 17; only available in AVX-512 */
+  XR_XMM17,   /* = 18;   "      "      "      "  */
+  XR_XMM18,   /* = 19;   "      "      "      "  */
+  XR_XMM19,   /* = 20;   "      "      "      "  */
+  XR_XMM20,   /* = 21;   "      "      "      "  */
+  XR_XMM21,   /* = 22;   "      "      "      "  */
+  XR_XMM22,   /* = 23;   "      "      "      "  */
+  XR_XMM23,   /* = 24;   "      "      "      "  */
+  XR_XMM24,   /* = 25;   "      "      "      "  */
+  XR_XMM25,   /* = 26;   "      "      "      "  */
+  XR_XMM26,   /* = 27;   "      "      "      "  */
+  XR_XMM27,   /* = 28;   "      "      "      "  */
+  XR_XMM28,   /* = 29;   "      "      "      "  */
+  XR_XMM29,   /* = 30;   "      "      "      "  */
+  XR_XMM30,   /* = 31;   "      "      "      "  */
+  XR_XMM31    /* = 32;   "      "      "      "  */
 } XR_REGS;
 
 #define XMM_REG_NAMES  { "%badxmm",                              \
@@ -243,6 +249,12 @@ enum {
 #define OPMASK_REG_NAMES  { "%badopmask",                  \
                             "%k0",  "%k1",  "%k2",  "%k3", \
                             "%k4",  "%k5",  "%k6",  "%k7" }
+
+/* No callee-saved opmask registers.  Note, the last non-callee-saved
+ * opmask register must be (OR_FIRST_CALLEE_SAVE - 1).
+ */
+#define OR_FIRST_CALLEE_SAVE  (OR_K7 + 1)    /* i.e. no c.s. opmask regs */
+#define OR_LAST_CALLEE_SAVE   OR_K7          /*   "    "    "    "    "  */
 
 #define N_OPMASK_REGS     8
 
@@ -451,7 +463,7 @@ typedef struct {
   char nused;              /* number of global registers assigned */
   const char mapbase;      /* offset in register bit vector where
                               this class of MACH_REGS begins. */
-  const char class;        /* class or type of register.  code generator needs
+  const char Class;        /* class or type of register.  code generator needs
                               to know what kind of registers these represent.
                               'i' (integer), 'f' (float stk), 'x' (float xmm) */
 } MACH_REG;
@@ -500,12 +512,50 @@ extern RGSETB rgsetb;
 
 /*****  External Function Declarations  *****/
 
-extern int mr_getnext(int rtype);
-extern int mr_getreg(int rtype);
-extern int mr_get_rgset();
-extern int mr_gindex(int rtype, int regno);
-extern void mr_end();
-extern void mr_init();
-extern void mr_reset_frglobals();
-extern void mr_reset(int rtype);
-extern void mr_reset_numglobals(int);
+/**
+   \brief ...
+ */
+int mr_getnext(int rtype);
+
+/**
+   \brief ...
+ */
+int mr_getreg(int rtype);
+
+/**
+   \brief ...
+ */
+int mr_get_rgset(void);
+
+/**
+   \brief ...
+ */
+int mr_gindex(int rtype, int regno);
+
+/**
+   \brief ...
+ */
+void mr_end(void);
+
+/**
+   \brief ...
+ */
+void mr_init(void);
+
+/**
+   \brief ...
+ */
+void mr_reset_frglobals(void);
+
+/**
+   \brief ...
+ */
+void mr_reset(int rtype);
+
+/**
+   \brief ...
+ */
+void mr_reset_numglobals(int reduce_by);
+
+
+#endif // MACHREG_H_

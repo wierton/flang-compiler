@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, NVIDIA CORPORATION.  All rights reserved.
+ * Copyright (c) 1994-2018, NVIDIA CORPORATION.  All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -713,7 +713,6 @@ partition_blocks(void)
       STD_BR(std) = 1;
       break;
     case A_ATOMIC:
-    case A_MP_ATOMIC:
     case A_ATOMICCAPTURE:
     case A_ATOMICREAD:
     case A_ATOMICWRITE:
@@ -753,17 +752,20 @@ partition_blocks(void)
       wr_block();
       break;
     case A_MP_CRITICAL:
+    case A_MP_ATOMIC:
       wr_block();
       expb.cs = 1;
       cr_block(std);
       break;
     case A_MP_TASKREG:
+    case A_MP_TASKLOOPREG:
       wr_block();
-      expb.task++;
       cr_block(std);
       break;
     case A_MP_TASK:
+    case A_MP_TASKLOOP:
       wr_block();
+      expb.task++;
       cr_block(std);
       break;
 
@@ -832,7 +834,6 @@ partition_blocks(void)
       break;
 
     case A_ENDATOMIC:
-    case A_MP_ENDATOMIC:
       chk_block(std);
       wr_block();
       expb.atomic = 0;
@@ -843,6 +844,7 @@ partition_blocks(void)
       expb.master = 0;
       break;
     case A_ENDCRITICAL:
+    case A_MP_ENDATOMIC:
       chk_block(std);
       wr_block();
       expb.cs = 0;
@@ -861,14 +863,15 @@ partition_blocks(void)
       chk_block(std);
       wr_block();
       break;
-    case A_MP_ETASKREG:
+    case A_MP_ETASKLOOPREG:
+      chk_block(std);
+      wr_block();
+      break;
+    case A_MP_ENDTASK:
+    case A_MP_ETASKLOOP:
       chk_block(std);
       wr_block();
       expb.task--;
-      break;
-    case A_MP_ENDTASK:
-      chk_block(std);
-      wr_block();
       break;
 
     /* asts which are leaders and also terminate a block */

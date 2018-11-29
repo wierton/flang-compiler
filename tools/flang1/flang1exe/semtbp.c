@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, NVIDIA CORPORATION.  All rights reserved.
+ * Copyright (c) 2016-2018, NVIDIA CORPORATION.  All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -317,8 +317,10 @@ initFinalSub(tbpTask task, TBP *curr)
     }
     if (task == TBP_COMPLETE_ENDMODULE || task == TBP_COMPLETE_FIN) {
       proc_arginfo(curr->impSptr, &paramct, &dpdsc, &sym);
-      if (task == TBP_COMPLETE_FIN && (!sym || !dpdsc || !paramct))
+      if (task == TBP_COMPLETE_FIN && (!sym || !dpdsc || !paramct ||
+          (SCOPEG(sym) != stb.curr_scope && sem.which_pass == 0))) {
           return -1;
+      }
       if (!INMODULEG(curr->impSptr) || !dpdsc || paramct != 1 || FVALG(sym)) {
         error(155, ERR_Fatal, gbl.lineno, "FINAL subroutine must be a module"
                                   " procedure with one dummy argument -",
@@ -811,7 +813,7 @@ semCheckTbp(tbpTask task, TBP *curr, char *impName)
               return errCnt;
             }
             if (STYPEG(psptr) == ST_PROC && STYPEG(psptr2) == ST_PROC) {
-              if (cmp_interfaces_strict(psptr, psptr2, FALSE) == 0) {
+              if (!cmp_interfaces_strict(psptr, psptr2, IGNORE_IFACE_NAMES)) {
                 error(155, 3, gbl.lineno,
                       "Interface is not compatible with "
                       "parent's interface for type bound procedure",
@@ -1358,10 +1360,17 @@ resolveImp(int dtype, tbpTask task, TBP *curr, char *impName)
     IGNOREP(sym, 1);
   }
 
-  if (!sem.which_pass && !STYPEG(sym)) {
+  if (!sem.which_pass && (!STYPEG(sym) ||  
+      (!curr->isInherited && PRIVATEG(sym) && IS_PROC(STYPEG(sym)) && 
+       SCOPEG(SCOPEG(sym)) != stb.curr_scope))) {
+    SPTR orig_sptr = sym;
     curr->isFwdRef = 1;
     sym = insert_sym(sym);
-    sym = declsym(sym, ST_ENTRY, FALSE);
+    if (!STYPEG(orig_sptr)) {
+      sym = declsym(sym, ST_ENTRY, FALSE);
+    } else {
+      sym = declsym_newscope(sym, ST_ENTRY, 0);
+    }
     SCP(sym, SC_EXTERN);
     IGNOREP(sym, 1); /* ignore forward reference */
   } else if (sem.which_pass && curr->isFwdRef) {
@@ -1499,8 +1508,6 @@ resolveImp(int dtype, tbpTask task, TBP *curr, char *impName)
      */
     DTYPEP(curr->memSptr, DTYPEG(curr->impSptr));
   }
-
-  CLASSP(curr->impSptr, 1);
 
   if (!curr->isExtern && IN_MODULE)
     INMODULEP(curr->impSptr, 1);
@@ -1673,6 +1680,7 @@ inheritTbps(int dtype, tbpTask task)
                       CNULL);
               } else {
                 curr2->isOverloaded = 1;
+                curr2->offset = curr->offset;
               }
               if ((curr->access != PRIVATE_ACCESS_TBP) &&
                   (curr2->access == PRIVATE_ACCESS_TBP ||
@@ -1887,8 +1895,6 @@ addToDtype(int dtype, tbpTask task)
           if (!curr2->genericType && !curr2->isInherited &&
               strcmp(nameCpy, nameCpy2) == 0) {
             curr->impSptr = 0;
-            curr->isInherited = 0;
-            curr->isOverloaded = 1;
             break;
           }
         }
@@ -2216,7 +2222,7 @@ clearStaleRecs(tbpTask task)
   
   if (IS_CLEAR_STALE_RECORDS_TASK(task)) {
     for (prev = curr = tbpQueue; curr; ) {
-      if (curr->dtype >= stb.dt_avail) {
+      if (curr->dtype >= stb.dt.stg_avail) {
         /* stale dtype field, so delete entire entry in tbpQueue */
         if (curr == tbpQueue) {
           prev = tbpQueue = curr->next;
@@ -2230,7 +2236,7 @@ clearStaleRecs(tbpTask task)
         ++numUpdated;
       } else {
         /* check for stale fields in current tbpQueue entry */
-        if (curr->dtPass >= stb.dt_avail) {
+        if (curr->dtPass >= stb.dt.stg_avail) {
           curr->dtPass = DT_NONE;
           ++numUpdated;
         }
@@ -2610,12 +2616,12 @@ checkForStaleTbpEntries(void)
   TBP *curr;
 
   for (curr = tbpQueue; curr; curr = curr->next) {
-    if (curr->dtype >= stb.dt_avail) {
+    if (curr->dtype >= stb.dt.stg_avail) {
       assert(FALSE, "checkForStaleTbpEntries: "
              "tbpQueue entry references stale dtype", curr->dtype,
              ERR_Warning);
     }
-    if (curr->dtPass >= stb.dt_avail) {
+    if (curr->dtPass >= stb.dt.stg_avail) {
       assert(FALSE, "checkForStaleTbpEntries: "
              "tbpQueue entry references stale dtPass dtype", curr->dtPass,
              ERR_Warning);

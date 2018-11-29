@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, NVIDIA CORPORATION.  All rights reserved.
+ * Copyright (c) 1997-2018, NVIDIA CORPORATION.  All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -48,8 +48,9 @@ ast_error(char *s, int ast)
          A_REPLG(ast));
   if (gbl.dbgfil) {
     if (gbl.dbgfil != stderr) {
-      fprintf(gbl.dbgfil, "---------------------------\n"
-                          "%s [ast=%d,asttype=%d,datatype=%d]\n",
+      fprintf(gbl.dbgfil,
+              "---------------------------\n"
+              "%s [ast=%d,asttype=%d,datatype=%d]\n",
               s, ast, A_TYPEG(ast), A_REPLG(ast));
     }
 #if DEBUG
@@ -921,6 +922,11 @@ conv_real_ilm(int ast, int ilm, int dtype)
       ast_error("unknown type for conversion to real", ast);
     }
     break;
+  case TY_PTR:
+    dtype = DTY(dtype + 1);
+    if (DTY(dtype) == TY_PROC)
+      dtype = DTY(dtype + 1);
+    return conv_real_ilm(ast, ilm, dtype);
   default:
     ast_error("unknown source type for conversion to real", ast);
     break;
@@ -1740,55 +1746,46 @@ lower_parenthesize_expression(int ast)
   return A_ILMG(ast);
 } /* parenthesize_expression */
 
-/*
- * some ASSOCIATED(p) calls are turned into pghpf_associated function calls
- * so, return TRUE if this is that function
- * if so, we don't insert a null pointer check, even if -Mchkptr is set
+/* Return true for RTE functions that permit null pointers as args.
+ * Don't insert null pointer check, even if -Mchkptr is set.
  */
-static int
-function_null_allowed(int sptr)
+static bool
+function_null_allowed(SPTR sptr)
 {
-  char *rtnNm;
-  /*
-   * any of
-   *   mkRteRtnNm(RTE_associated)   mkRteRtnNm(RTE_associated_char)
-   *   mkRteRtnNm(RTE_associated_t) mkRteRtnNm(RTE_associated_tchar)
-   */
-
-  rtnNm = mkRteRtnNm(RTE_associated);
-  if (strncmp(SYMNAME(sptr), rtnNm, strlen(rtnNm)) == 0)
-    return TRUE;
-  /*
-   * any of
-   *   mkRteRtnNm(RTE_conformable_dd) mkRteRtnNm(RTE_conformable_nd)
-   *   mkRteRtnNm(RTE_conformable_dn) mkRteRtnNm(RTE_conformable_nn)
-   */
-  rtnNm = mkRteRtnNm(RTE_conformable);
-  if (strncmp(SYMNAME(sptr), rtnNm, strlen(rtnNm)) == 0)
-    return TRUE;
-  /*
-   * any of
-   *   mkRteRtnNm(RTE_len)
-   */
-  rtnNm = mkRteRtnNm(RTE_len);
-  if (strncmp(SYMNAME(sptr), rtnNm, strlen(rtnNm)) == 0)
-    return TRUE;
-  /*
-   * any of
-   *   mkRteRtnNm(RTE_extends_type_of)
-   */
-  rtnNm = mkRteRtnNm(RTE_extends_type_of);
-  if (strncmp(SYMNAME(sptr), rtnNm, strlen(rtnNm)) == 0)
-    return TRUE;
-  /*
-   * any of
-   *   mkRteRtnNm(RTE_same_type_as)
-   */
-  rtnNm = mkRteRtnNm(RTE_same_type_as);
-  if (strncmp(SYMNAME(sptr), rtnNm, strlen(rtnNm)) == 0)
-    return TRUE;
-  return FALSE;
-} /* function_null_allowed */
+  static FtnRtlEnum rtl_functions_null_allowed[] = {
+      RTE_associated,
+      RTE_associated_chara,
+      RTE_associated_t,
+      RTE_associated_tchara,
+      RTE_conformable_11v,
+      RTE_conformable_1dv,
+      RTE_conformable_22v,
+      RTE_conformable_2dv,
+      RTE_conformable_33v,
+      RTE_conformable_3dv,
+      RTE_conformable_d1v,
+      RTE_conformable_d2v,
+      RTE_conformable_d3v,
+      RTE_conformable_dd,
+      RTE_conformable_dnv,
+      RTE_conformable_ndv,
+      RTE_conformable_nnv,
+      RTE_extends_type_of,
+      RTE_lena,
+      RTE_lentrima,
+      RTE_same_type_as,
+      RTE_no_rtn /* marks end of list */
+  };
+  int i;
+  for (i = 0;; i += 1) {
+    char *rtnNm;
+    FtnRtlEnum rtn = rtl_functions_null_allowed[i];
+    if (rtn == RTE_no_rtn)
+      return false;
+    if (strcmp(SYMNAME(sptr), mkRteRtnNm(rtn)) == 0)
+      return true;
+  }
+}
 
 int get_byval(int, int);
 
@@ -1810,6 +1807,7 @@ lower_function(int ast)
   int unlpoly; /* CLASS(*) */
   int retdesc;
   int bindC_structret = 0;
+  bool procDummyNeedsDesc;
 
   /*  symfunc = A_SPTRG( A_LOPG( ast ) );*/
   symfunc = procsym_of_ast(A_LOPG(ast));
@@ -1817,6 +1815,9 @@ lower_function(int ast)
       VTABLEG(symfunc)) {
     symfunc = (IFACEG(symfunc)) ? IFACEG(symfunc) : VTABLEG(symfunc);
   }
+
+  procDummyNeedsDesc = proc_arg_needs_proc_desc(symfunc);
+
   switch (A_TYPEG(A_LOPG(ast))) {
   case A_ID:
   case A_LABEL:
@@ -1875,9 +1876,9 @@ lower_function(int ast)
 #endif
     if (NOPASSG(tbp_mem)) {
       tbp_nopass_arg = pass_sym_of_ast(A_LOPG(ast));
-      tbp_nopass_sdsc = A_INVOKING_DESCG(ast) ? 
-                        sym_of_ast(A_INVOKING_DESCG(ast)) : 0;
-      if (!tbp_nopass_sdsc) 
+      tbp_nopass_sdsc =
+          A_INVOKING_DESCG(ast) ? sym_of_ast(A_INVOKING_DESCG(ast)) : 0;
+      if (!tbp_nopass_sdsc)
         tbp_nopass_sdsc = get_type_descr_arg(gbl.currsub, tbp_nopass_arg);
       lower_expression(A_LOPG(ast));
       tbp_nopass_arg = lower_base(A_LOPG(ast));
@@ -1886,11 +1887,16 @@ lower_function(int ast)
       if (tbp_inv == 0)
         tbp_inv = max_binding_invobj(symfunc, INVOBJG(tbp_bind));
     }
-  } else if (!is_procedure_ptr(symfunc)) {
+  } else if (!is_procedure_ptr(symfunc) && !procDummyNeedsDesc) {
     is_procsym = 1;
     UCALL = "UCALL";
     PUFUNC = "PUFUNC";
     UFUNC = "UFUNC";
+  } else if (procDummyNeedsDesc || is_procedure_ptr(symfunc)) {
+    is_procsym = STYPEG(symfunc) == ST_PROC;
+    UCALL = "UPCALLA";
+    PUFUNC = "PUFUNC";
+    UFUNC = "PUFUNCA";
   } else {
     is_procsym = 0;
     UCALL = "UCALLA";
@@ -1905,11 +1911,14 @@ lower_function(int ast)
     if (function_null_allowed(symfunc)) {
       lower_disable_ptr_chk = 1;
     }
-    callee = symfunc;
+
+    callee = (procDummyNeedsDesc || is_procedure_ptr(symfunc))
+                 ? lower_base(A_LOPG(ast))
+                 : symfunc;
     paramcount = PARAMCTG(symfunc);
     params = DPDSCG(symfunc);
     /* get result datatype from function name */
-    if(is_tbp != 1) 
+    if (is_tbp != 1)
       dtype = A_NDTYPEG(A_LOPG(ast));
     else
       dtype = DTYPEG(callee);
@@ -1966,8 +1975,7 @@ lower_function(int ast)
       } else {
         funcusecall = 1;
       }
-    } else
-    {
+    } else {
       funcusecall = 1;
     }
     if (CFUNCG(symfunc) || (iface && CFUNCG(iface))) {
@@ -2168,21 +2176,46 @@ lower_function(int ast)
       if (retdesc != CLASS_MEM && retdesc != CLASS_PTR) {
         ilm = plower("om", "SFUNC");
       }
-    } else
-    {
-      ilm = plower("om", ltyped(UFUNC, dtype));
+    } else {
+      if (procDummyNeedsDesc || is_procedure_ptr(symfunc)) {
+        char *l;
+        char op[100] = {'P', '\0'};
+        int dtype2 = DTY(dtype + 1);
+        if (DTY(dtype2) == TY_PROC) {
+          if (DTY(dtype2 + 2)) {
+            dtype2 = DTYPEG(DTY(dtype2 + 2));
+            if (DTY(dtype2) == TY_ARRAY)
+              dtype2 = DTY(dtype2 + 1);
+          } else {
+            dtype2 = DTY(dtype2 + 1);
+          }
+          l = ltyped(UFUNC + 1, dtype2);
+        } else {
+          l = ltyped(UFUNC + 1, dtype);
+        }
+        strcat(op, l);
+        ilm = plower("om", op);
+      } else {
+        ilm = plower("om", ltyped(UFUNC, dtype));
+      }
     }
   }
 
   if (is_tbp) {
+    int is_cfunc = (CFUNCG(symfunc) || (iface && CFUNCG(iface)));
     VTABLEP(tbp_mem, symfunc);
-    plower("nnsm", realcount + functmpinc,
-           (CFUNCG(symfunc) || (iface && CFUNCG(iface))) ? 1 : 0, tbp_mem);
-  } else if (is_procsym)
+    plower("nnsm", realcount + functmpinc, is_cfunc, tbp_mem);
+  } else if (procDummyNeedsDesc || is_procedure_ptr(symfunc)) {
+    int sdsc = A_INVOKING_DESCG(ast) ? sym_of_ast(A_INVOKING_DESCG(ast))
+                                     : SDSCG(memsym_of_ast(ast));
+    int is_cfunc = (CFUNCG(symfunc) || (iface && CFUNCG(iface)));
+    plower("nnsim", realcount + functmpinc, is_cfunc, sdsc, callee);
+  } else if (is_procsym) {
     plower("nsm", realcount + functmpinc, callee);
-  else
-    plower("nnim", realcount + functmpinc,
-           (CFUNCG(symfunc) || (iface && CFUNCG(iface))) ? 1 : 0, callee);
+  } else {
+    int is_cfunc = (CFUNCG(symfunc) || (iface && CFUNCG(iface)));
+    plower("nnim", realcount + functmpinc, is_cfunc, callee);
+  }
 
   if (is_tbp) {
     if (tbp_nopass_arg) {
@@ -2861,7 +2894,7 @@ intrinsic_arg_dtype(int intr, int ast, int args, int nargs)
 
   case NEW_INTRIN:
     return A_DTYPEG(ast);
-  /*------------------*/
+    /*------------------*/
 
   case I_DATE:
   case I_EXIT:
@@ -3020,7 +3053,7 @@ static int
 lower_intrinsic(int ast)
 {
   int intr, ilm, ilm1, ilm2, args, nargs, i, arg0, argdtype, dty, dtype,
-      symfunc;
+      symfunc, input_ast;
   int shape, cnt, num, arg, arg1, arg2, fromdtype;
   int sptr;
   int pairwise = 0, argsdone = 0, save_disable_ptr_chk;
@@ -3464,8 +3497,34 @@ lower_intrinsic(int ast)
   case I_KMAX1:
   case I_AMAX1: /* r*4,r*4 -> r*4 */
   case I_DMAX1:
+    /*
+    i0: BOS l0 n1 n0
+    i4: BASE s37944 ;specstring$len
+    i6: ICON s656   ;4
+    i8: BASE s37931 ;speclist$len
+    i10: KLD i8
+    i12: I8TOI i10
+    i14: KMAX i12 i6   ---> Should be "i14: IMAX i12 i6"
+    i17: IMUL i14 i6
+    i20: ITOI8 i17
+    i22: KCON s610  ;0
+    i24: KMAX i20 i22
+    i27: KST i4 i24
+    For intrinsic function, compiler will convert operands dtype to the same as
+    the intrinsic, e.g. like "i20 ITOI8 i17" shows here. But when generating the
+    MAX instruction, it checks operands dtype to decide which types of MAX to be
+    generated. When we converting operands initially, symtab is not changed, so,
+    MAX instruction just needs to use the same dtype as intrinsic function. e.g.
+    the first  KMAX is incorrect here, as operands type is integer not
+    integer*8. To fix the issue, we check whether operands have the same dtype,
+    if yes we just user the first operand dtype, otherwise use the
+    intrinsic-func dtype as the operands have been converted the same as the one
+    of intrinsic-func.
+    */
     arg0 = ARGT_ARG(args, 0);
-    ilm = intrin_name("MAX", arg0, in_I_K_R_D);
+    arg1 = ARGT_ARG(args, 1);
+    input_ast = A_NDTYPEG(arg0) == A_NDTYPEG(arg1) ? arg0 : ast;
+    ilm = intrin_name("MAX", input_ast, in_I_K_R_D);
     pairwise = 1;
     break;
 
@@ -3485,7 +3544,9 @@ lower_intrinsic(int ast)
   case I_AMIN1:
   case I_DMIN1:
     arg0 = ARGT_ARG(args, 0);
-    ilm = intrin_name("MIN", arg0, in_I_K_R_D);
+    arg1 = ARGT_ARG(args, 1);
+    input_ast = A_NDTYPEG(arg0) == A_NDTYPEG(arg1) ? arg0 : ast;
+    ilm = intrin_name("MIN", input_ast, in_I_K_R_D);
     pairwise = 1;
     break;
 
@@ -3676,7 +3737,7 @@ lower_intrinsic(int ast)
 
   case I_LEN_TRIM:
     dtype = A_DTYPEG(ast);
-    symfunc = lower_makefunc(mkRteRtnNm(RTE_lentrim), DT_INT8, FALSE);
+    symfunc = lower_makefunc(mkRteRtnNm(RTE_lentrima), DT_INT8, FALSE);
     if (dtype == DT_INT8) {
       ilm = plower("onsm", "KFUNC", nargs, symfunc);
     } else {
@@ -3732,7 +3793,7 @@ lower_intrinsic(int ast)
       } else {
         fromdtype = DT_INT4;
       }
-      ilm = f90_function(mkRteRtnNm(RTE_index), fromdtype, args, nargs);
+      ilm = f90_function(mkRteRtnNm(RTE_indexa), fromdtype, args, nargs);
     }
     break;
 
@@ -3744,10 +3805,8 @@ lower_intrinsic(int ast)
     break;
 
   case I_ALLOCATED:
-    {
-      ilm =
-          f90_function(mkRteRtnNm(RTE_allocated), stb.user.dt_log, args, nargs);
-    }
+    rtlRtn = RTE_allocated;
+    ilm = f90_function(mkRteRtnNm(rtlRtn), stb.user.dt_log, args, nargs);
     break;
 
   case I_PRESENT:
@@ -3878,6 +3937,13 @@ lower_intrinsic(int ast)
       break;
     }
     break;
+
+  case I_ADJUSTL:
+  case I_ADJUSTR:
+  case I_TRIM:
+    ilm = lower_function(ast);
+    A_ILMP(ast, ilm);
+    return ilm;
 
   case I_ILEN:
     /* just treat like a function call, with pghpf prefix */
@@ -4084,15 +4150,15 @@ lower_intrinsic(int ast)
     break;
   case I_VERIFY:
     dtype = A_DTYPEG(ast);
-    rtlRtn = (DTY(DDTG(A_NDTYPEG(ARGT_ARG(args, 0)))) == TY_CHAR) ? RTE_verify
+    rtlRtn = (DTY(DDTG(A_NDTYPEG(ARGT_ARG(args, 0)))) == TY_CHAR) ? RTE_verifya
                                                                   : RTE_nverify;
     retDtype = (dtype == DT_INT8) ? DT_INT8 : DT_INT4;
     ilm = f90_function(mkRteRtnNm(rtlRtn), retDtype, args, nargs);
     break;
   case I_SCAN:
     dtype = A_DTYPEG(ast);
-    rtlRtn = (DTY(DDTG(A_NDTYPEG(ARGT_ARG(args, 0)))) == TY_CHAR) ? RTE_scan
-                                                                  : RTE_scan;
+    rtlRtn = (DTY(DDTG(A_NDTYPEG(ARGT_ARG(args, 0)))) == TY_CHAR) ? RTE_scana
+                                                                  : RTE_scana;
     retDtype = (dtype == DT_INT8) ? DT_INT8 : DT_INT4;
     ilm = f90_function(mkRteRtnNm(rtlRtn), retDtype, args, nargs);
     break;
@@ -4263,7 +4329,7 @@ lower_intrinsic(int ast)
     A_ILMP(ast, ilm);
     break;
 
-  /*------------------*/
+    /*------------------*/
 
   case I_DATE:
   case I_EXIT:
@@ -4310,8 +4376,6 @@ lower_intrinsic(int ast)
   case I_EOSHIFT:
   case I_RESHAPE:
   case I_SHAPE:
-  case I_ADJUSTL:
-  case I_ADJUSTR:
   case I_BIT_SIZE:
   case I_DIGITS:
   case I_MAXEXPONENT:
@@ -4321,7 +4385,6 @@ lower_intrinsic(int ast)
   case I_RANGE:
   case I_REPEAT:
   case I_TRANSFER:
-  case I_TRIM:
   case I_DOTPRODUCT:
   case I_PROCESSORS_SHAPE:
   case I_LASTVAL:
@@ -4421,7 +4484,7 @@ lower_intrinsic(int ast)
   return ilm;
 } /* lower_intrinsic */
 
-#if AST_MAX != 153
+#if AST_MAX != 159
 #error "Need to edit lowerexp.c to add or delete A_... AST types"
 #endif
 
@@ -4673,7 +4736,7 @@ lower_ast(int ast, int *unused)
     } else {
       int alias;
       alias = A_ALIASG(ast);
-      if (alias && alias != ast) {
+      if (alias && alias != ast && eq_dtype(dtype, A_DTYPEG(alias))) {
         /* put out the constant */
         lower_ast(alias, unused);
         ilm = A_ILMG(alias);
@@ -4745,8 +4808,8 @@ lower_ast(int ast, int *unused)
 
   case A_FUNC:
     /* function call */
-    if (is_iso_cptr(A_DTYPEG(A_LOPG(ast)))) {
-      /* functions returning iso_cptrs should be treated as
+    if (is_iso_cptr(A_DTYPEG(A_LOPG(ast))) && CFUNCG(A_SPTRG(A_LOPG(ast)))) {
+      /* functions with BIND(c) and returning iso_cptrs should be treated as
          functions returning integers (pointers),  for pass
          by value and all processing
        */
@@ -5292,7 +5355,7 @@ lower_ast(int ast, int *unused)
     ilm = plower("oin", "MP_ATOMICREAD", ilm, A_MEM_ORDERG(ast));
     base = ilm;
     break;
-  /* ------------- unsupported AST types ------------- */
+    /* ------------- unsupported AST types ------------- */
 
   case A_ATOMIC:
   case A_ATOMICCAPTURE:
@@ -5343,10 +5406,15 @@ lower_ast(int ast, int *unused)
   case A_MP_COPYPRIVATE:
   case A_MP_ECOPYPRIVATE:
   case A_MP_TASK:
+  case A_MP_TASKLOOP:
   case A_MP_TASKFIRSTPRIV:
   case A_MP_TASKREG:
-  case A_MP_ETASKREG:
+  case A_MP_TASKDUP:
+  case A_MP_ETASKDUP:
+  case A_MP_TASKLOOPREG:
+  case A_MP_ETASKLOOPREG:
   case A_MP_ENDTASK:
+  case A_MP_ETASKLOOP:
   case A_MP_BMPSCOPE:
   case A_MP_EMPSCOPE:
   case A_MP_BORDERED:
@@ -5717,7 +5785,7 @@ lower_logical(int ast, iflabeltype *iflabp)
     }
     break;
 
-  /* ------------- unsupported AST types ------------- */
+    /* ------------- unsupported AST types ------------- */
 
   case A_ATOMIC:
   case A_BARRIER:
@@ -5775,7 +5843,7 @@ lower_check_ast(int ast, int *unused)
   switch (A_TYPEG(ast)) {
   case A_FUNC:
     symfunc = memsym_of_ast(A_LOPG(ast));
-    if (strcmp(SYMNAME(symfunc), mkRteRtnNm(RTE_len)) == 0) {
+    if (strcmp(SYMNAME(symfunc), mkRteRtnNm(RTE_lena)) == 0) {
       /* Disable subscript checking for LEN */
       lower_no_subscr_chk(ast, unused);
       return TRUE;

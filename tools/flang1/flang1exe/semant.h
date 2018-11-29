@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, NVIDIA CORPORATION.  All rights reserved.
+ * Copyright (c) 1994-2018, NVIDIA CORPORATION.  All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -93,54 +93,48 @@ typedef struct xyyz {
     int ilm;
     int cltype;
     INT conval;
-    ISZ_T szv;
     struct sst *stkp;
     FLITM *flitmp;
   } t;
 } ITEM;
 #define ITEM_END ((ITEM *)1)
 
-typedef enum LOOPTYPE { 
-  LP_PDO = 1,         	/* omp do */
-  LP_PARDO,           	/* parallel do */
-  LP_DISTRIBUTE,        /* distribute loop: distribute construct */
-  LP_DIST_TEAMS,        /* distribute loop: teams distribute construct */
-  LP_DIST_TARGTEAMS,    /* distribute loop: target teams distribute construct */
-  LP_DISTPARDO,       	/* distribute loop: distribute parallel do ... */
-  LP_DISTPARDO_TEAMS,  	/* distribute loop: teams distribute parallel do ... */
-  LP_DISTPARDO_TARGTEAMS,  	/* distribute loop: target teams dist... */
-  LP_PARDO_OTHER        /* parallel do: created for any distribute parallel do 
-                         *              construct.
-                         */
- 
-}distlooptype;
+typedef enum {
+  LP_PDO = 1,         /* omp do */
+  LP_PARDO,           /* parallel do */
+  LP_DISTRIBUTE,      /* distribute loop: distribute construct */
+  LP_DIST_TEAMS,      /* distribute loop: teams distribute construct */
+  LP_DIST_TARGTEAMS,  /* distribute loop: target teams distribute construct */
+  LP_DISTPARDO,       /* distribute loop: distribute parallel do ... */
+  LP_DISTPARDO_TEAMS, /* distribute loop: teams distribute parallel do ... */
+  LP_DISTPARDO_TARGTEAMS, /* distribute loop: target teams dist... */
+  LP_PARDO_OTHER,         /* parallel do: created for any distribute parallel do
+                           * construct. */
+} distlooptype;
 
 typedef struct {
-  int index_var; /* do index variable */
+  int index_var;    /* do index variable */
   int init_expr;
   int limit_expr;
   int step_expr;
-  int count; /* loop count ast */
+  int count;        /* loop count ast */
   int lastval_var;
-  int collapse;    /* collapse level if loop is within a collapse set of
-                    * loops; 1 is innermost
-                    */
-  char prev_dovar; /* DOVAR flag of index variable before it's entered */
+  int collapse;     /* collapse level if applicable; 1 is innermost */
+  char prev_dovar;  /* DOVAR flag of index variable before it's entered */
   LOGICAL nodepchk;
-  int distloop;    /* LOOPTYPE */
-
+  distlooptype distloop;
 } DOINFO;
 
 typedef struct reduc_sym {
   int shared;  /* shared symbol */
-  int private; /* private copy */
+  int Private; /* private copy */
   struct reduc_sym *next;
 } REDUC_SYM;
 
-typedef struct reduc_tag {/* reduction clause item */
-  int opr;                /* if != 0, OP_xxx value */
-  int intrin;             /* if != 0, sptr to intrinsic */
-  REDUC_SYM *list;        /* list of shared variables & private copies */
+typedef struct reduc_tag { /* reduction clause item */
+  int opr;                 /* if != 0, OP_xxx value */
+  int intrin;              /* if != 0, sptr to intrinsic */
+  REDUC_SYM *list;         /* list of shared variables & private copies */
   struct reduc_tag *next;
 } REDUC;
 
@@ -151,7 +145,7 @@ typedef struct noscope_sym {
   LOGICAL is_dovar;
 } NOSCOPE_SYM;
 
-typedef struct {/* DO-IF stack entries */
+typedef struct { /* DO-IF stack entries */
   int Id;
   int lineno;     /* beginning line# of control structure */
   BIGUINT nest;   /* bit vector indicating the structures are present
@@ -168,6 +162,11 @@ typedef struct {/* DO-IF stack entries */
                    * For a case-construct, label of the statement after
                    * the case construct
                    */
+  /* These four fields are OpenMP fields used in non-OpenMP slots. */
+  NOSCOPE_SYM *no_scope_base; /* list of variables without scope */
+  int no_scope_avail;
+  int no_scope_size;
+  int no_scope_forall;
   union {
     struct {
       int do_label;    /* label in the DO statement */
@@ -175,6 +174,18 @@ typedef struct {/* DO-IF stack entries */
       int top_label;   /* label of the top of a DO while loop */
       int ast;         /* DO ast */
       DOINFO *doinfo;  /* 'do' info record for a DO statement */
+                       /* The remaining fields are for DO CONCURRENT loops.
+                        * Some fields are only set on an innermost loop. */
+      SPTR symavl;     /* stb.stg_avail value at entry (sym "watermark") */
+      int count;       /* var=triplet control count -- outermost=1 */
+      int kind;        /* temp: 1) curr locality kind; 2) loop component kind */
+      bool no_default; /* loop has a DEFAULT(NONE) locality spec? */
+      int syms;        /* list of index, local, local_init, and shared syms */
+      int last_sym;    /* last sym in syms list */
+      int label_syms;  /* list of label syms */
+      int error_syms;  /* list of syms that have errors */
+      int mask_std;    /* mask std (may be null) */
+      int body_std;    /* first loop body std (may be null) */
     } u1;
     struct {
       int shapedim; /* number of dimensions in the WHERE construct */
@@ -239,12 +250,6 @@ typedef struct {/* DO-IF stack entries */
       REDUC_SYM *lastprivate; /* lastprivate for parallel constructs */
       ITEM *allocated;        /* list of allocated private variables */
       ITEM *region_vars;      /* accelerator region copy/local/mirror vars */
-      NOSCOPE_SYM *no_scope_base; /* list of variables without scope
-                                   * with default(none)
-                                   */
-      int no_scope_avail;
-      int no_scope_size;
-      int no_scope_forall;
       union {
         struct {
           /* DO */
@@ -275,10 +280,12 @@ typedef struct {/* DO-IF stack entries */
       int class_default_label; /* sptr of label to class default */
       TYPE_LIST *types;        /* list of types */
     } u5;
-    struct {/* forall stuff */
+    struct { /* forall stuff */
+      int laststd;    /* last gen'd std at start of forall processing */
+      SPTR symavl;    /* stb.stg_avail value at entry (sym "watermark") */
+      DTYPE dtype;    /* explicit index data type */
+      int idxlist;    /* list of index var sptrs */
       int forall_ast;
-      int idxlist; /* list of index var sptrs */
-      int laststd; /* last gen'd std at start of forall processing*/
     } u6;
     struct {       /* ASSOCIATE */
       ITEM *sptrs; /* sptrs of association names */
@@ -289,7 +296,7 @@ typedef struct {/* DO-IF stack entries */
 #define DI_IF 0
 #define DI_IFELSE 1
 #define DI_DO 2
-#define DI_DOW 3
+#define DI_DOWHILE 3
 #define DI_WHERE 4
 #define DI_ELSEWHERE 5
 #define DI_FORALL 6
@@ -324,7 +331,7 @@ typedef struct {/* DO-IF stack entries */
 #define DI_SELECT_TYPE 35
 #define DI_ACCHOSTDATA 36
 #define DI_ATOMIC_CAPTURE 37
-#define DI_DODOC 38
+#define DI_DOCONCURRENT 38
 #define DI_SIMD 39
 #define DI_TASKGROUP 40
 #define DI_TASKLOOP 41
@@ -344,7 +351,9 @@ typedef struct {/* DO-IF stack entries */
 #define DI_TEAMSDIST 55
 #define DI_TARGTEAMSDISTPARDO 56
 #define DI_TEAMSDISTPARDO 57
-#define DI_MAXID 58
+#define DI_ACCSERIAL 58
+#define DI_ACCSERIALLOOP 59
+#define DI_MAXID 60 /* always the last one */
 
 /*   NOTE: the DI_ID value cannot be greater than 63 (SEE DI_NEST ...)  **/
 
@@ -368,6 +377,16 @@ typedef struct {/* DO-IF stack entries */
 #define DI_TOP_LABEL(d) sem.doif_base[d].u.u1.top_label
 #define DI_DO_AST(d) sem.doif_base[d].u.u1.ast
 #define DI_DOINFO(d) sem.doif_base[d].u.u1.doinfo
+#define DI_CONC_SYMAVL(d) sem.doif_base[d].u.u1.symavl
+#define DI_CONC_COUNT(d) sem.doif_base[d].u.u1.count
+#define DI_CONC_KIND(d) sem.doif_base[d].u.u1.kind
+#define DI_CONC_NO_DEFAULT(d) sem.doif_base[d].u.u1.no_default
+#define DI_CONC_SYMS(d) sem.doif_base[d].u.u1.syms
+#define DI_CONC_LAST_SYM(d) sem.doif_base[d].u.u1.last_sym
+#define DI_CONC_LABEL_SYMS(d) sem.doif_base[d].u.u1.label_syms
+#define DI_CONC_ERROR_SYMS(d) sem.doif_base[d].u.u1.error_syms
+#define DI_CONC_MASK_STD(d) sem.doif_base[d].u.u1.mask_std
+#define DI_CONC_BODY_STD(d) sem.doif_base[d].u.u1.body_std
 
 #define DI_SHAPEDIM(d) sem.doif_base[d].u.u2.shapedim
 #define DI_MASKED(d) sem.doif_base[d].u.u2.masked
@@ -399,10 +418,10 @@ typedef struct {/* DO-IF stack entries */
 #define DI_ISSIMD(d) sem.doif_base[d].u.u4.v.v1.is_simd
 #define DI_SECT_CNT(d) sem.doif_base[d].u.u4.v.v2.sect_cnt
 #define DI_SECT_VAR(d) sem.doif_base[d].u.u4.v.v2.sect_var
-#define DI_NOSCOPE_BASE(d) sem.doif_base[d].u.u4.no_scope_base
-#define DI_NOSCOPE_SIZE(d) sem.doif_base[d].u.u4.no_scope_size
-#define DI_NOSCOPE_AVL(d) sem.doif_base[d].u.u4.no_scope_avail
-#define DI_NOSCOPE_FORALL(d) sem.doif_base[d].u.u4.no_scope_forall
+#define DI_NOSCOPE_BASE(d) sem.doif_base[d].no_scope_base
+#define DI_NOSCOPE_SIZE(d) sem.doif_base[d].no_scope_size
+#define DI_NOSCOPE_AVL(d) sem.doif_base[d].no_scope_avail
+#define DI_NOSCOPE_FORALL(d) sem.doif_base[d].no_scope_forall
 
 #define DI_SELECTOR(d) sem.doif_base[d].u.u5.selector
 #define DI_IS_WHOLE(d) sem.doif_base[d].u.u5.is_whole
@@ -412,33 +431,30 @@ typedef struct {/* DO-IF stack entries */
 #define DI_CLASS_DEFAULT_LABEL(d) sem.doif_base[d].u.u5.class_default_label
 #define DI_SELECT_TYPE_LIST(d) sem.doif_base[d].u.u5.types
 
+#define DI_FORALL_LASTSTD(d) sem.doif_base[d].u.u6.laststd
+#define DI_FORALL_SYMAVL(d) sem.doif_base[d].u.u6.symavl
+#define DI_FORALL_DTYPE(d) sem.doif_base[d].u.u6.dtype
 #define DI_IDXLIST(d) sem.doif_base[d].u.u6.idxlist
 #define DI_FORALL_AST(d) sem.doif_base[d].u.u6.forall_ast
-#define DI_FORALL_LASTSTD(d) sem.doif_base[d].u.u6.laststd
 
 #define DI_ASSOCIATIONS(d) sem.doif_base[d].u.u7.sptrs
 
 #define onel 1ULL
 #define DI_B(t) (onel << (t))
-#define DI_IN_NEST(d, t) (DI_NEST(d) & DI_B(t))
+#define DI_IN_NEST(d, t) (d && d <= sem.doif_depth && (DI_NEST(d) & DI_B(t)))
 
-#define NEED_LOOP(df, typ)                                               \
+#define NEED_DOIF(df, typ)                                               \
   {                                                                      \
     df = ++sem.doif_depth;                                               \
     NEED(df + 1, sem.doif_base, DOIF, sem.doif_size, sem.doif_size + 8); \
-    DI_EXIT_LABEL(df) = DI_CYCLE_LABEL(df) = 0;                          \
-    DI_NAME(df) = 0;                                                     \
+    BZERO(sem.doif_base+df, DOIF, 1);                                    \
     DI_LINENO(df) = gbl.lineno;                                          \
     DI_ID(df) = typ;                                                     \
-    DI_NOSCOPE_AVL(df) = 0;                                              \
-    DI_NOSCOPE_SIZE(df) = 0;                                             \
-    DI_NOSCOPE_BASE(df) = NULL;                                          \
-    DI_NOSCOPE_FORALL(df) = 0;                                           \
     DI_NEST(df) = DI_NEST(df - 1) | DI_B(typ);                           \
   }
 
 /* Define Initializer Variable Tree */
-typedef struct var_init {/* used for elements of dinit variable list */
+typedef struct var_init { /* used for elements of dinit variable list */
   short id;
 #define Dostart 0
 #define Doend 1
@@ -476,25 +492,25 @@ typedef struct var_init {/* used for elements of dinit variable list */
  */
 typedef struct _aexpr AEXPR;
 typedef struct _acl {
-  char id;            /* one of AC_... */
+  char id;               /* one of AC_... */
   unsigned is_const : 1, /* is it constant ? */
-      ci_exprt : 1,   /* 1==>component initialization has been exported */
-      no_dinitp : 1;  /* do not set DINIT flag */
-  DTYPE dtype;        /* used in init. Later if AC_ACONST or AC_SCONST */
-  DTYPE ptrdtype;     /* ptr type if pointer init */
-  int repeatc;        /* used in init. ast or ==0 for default of 1 */
-  int sptr;           /* used for DATA stmt, VMS struct inits, and F95
-                       * derived type component initializers */
-  int size;           /* set by chk_constructor() - the ast of the size
-                       * (upper bound) of the temporary (if AC_ACONST).
-                       */
-  INT conval;         /* "constant" value when evaluating F95
-                       * derived type component initializations
-                       * for non-static variable */
-  struct _acl *next;  /* next in list */
-  struct _acl *subc;  /* down in tree. Valid for AC_ACONST,
-                            AC_SCONST, AC_IDO, AC_REPEAT ,
-                            AC_VMSSTRUCT, AC_VMSUNION */
+      ci_exprt : 1,      /* 1==>component initialization has been exported */
+      no_dinitp : 1;     /* do not set DINIT flag */
+  DTYPE dtype;           /* used in init. Later if AC_ACONST or AC_SCONST */
+  DTYPE ptrdtype;        /* ptr type if pointer init */
+  int repeatc;           /* used in init. ast or ==0 for default of 1 */
+  int sptr;              /* used for DATA stmt, VMS struct inits, and F95
+                          * derived type component initializers */
+  int size;              /* set by chk_constructor() - the ast of the size
+                          * (upper bound) of the temporary (if AC_ACONST).
+                          */
+  INT conval;            /* "constant" value when evaluating F95
+                          * derived type component initializations
+                          * for non-static variable */
+  struct _acl *next;     /* next in list */
+  struct _acl *subc;     /* down in tree. Valid for AC_ACONST,
+                               AC_SCONST, AC_IDO, AC_REPEAT ,
+                               AC_VMSSTRUCT, AC_VMSUNION */
   union {
     struct sst *stkp; /* if AC_EXPR   */
     AEXPR *expr;      /* if AC_AEXPR */
@@ -565,53 +581,64 @@ struct _aexpr {
 #define AC_EXPX 24
 #define AC_TRIPLE 25
 
-#define AC_I_adjustl 1
-#define AC_I_adjustr 2
-#define AC_I_char 3
-#define AC_I_ichar 4
-#define AC_I_index 5
-#define AC_I_int 6
-#define AC_I_ishft 7
-#define AC_I_ishftc 8
-#define AC_I_kind 9
-#define AC_I_lbound 10
-#define AC_I_len 11
-#define AC_I_len_trim 12
-#define AC_I_nint 13
-#define AC_I_null 14
-#define AC_I_repeat 15
-#define AC_I_reshape 16
-#define AC_I_scan 17
-#define AC_I_selected_int_kind 18
-#define AC_I_selected_real_kind 19
-#define AC_I_size 20
-#define AC_I_transfer 21
-#define AC_I_trim 22
-#define AC_I_ubound 23
-#define AC_I_verify 24
-#define AC_I_shape 25
-#define AC_I_min 26
-#define AC_I_max 27
-#define AC_I_fltconvert 28
-#define AC_I_floor 29
-#define AC_I_ceiling 30
-#define AC_I_mod 31
-#define AC_I_sqrt 32
-#define AC_I_exp 33
-#define AC_I_log 34
-#define AC_I_log10 35
-#define AC_I_sin 36
-#define AC_I_cos 37
-#define AC_I_tan 38
-#define AC_I_asin 39
-#define AC_I_acos 40
-#define AC_I_atan 41
-#define AC_I_atan2 42
-#define AC_I_selected_char_kind 43
-#define AC_I_abs 44
-#define AC_I_iand 45
-#define AC_I_ior 46
-#define AC_I_ieor 47
+typedef enum {
+  AC_I_NONE = 0,
+  AC_I_adjustl,
+  AC_I_adjustr,
+  AC_I_char,
+  AC_I_ichar,
+  AC_I_index,
+  AC_I_int,
+  AC_I_ishft,
+  AC_I_ishftc,
+  AC_I_kind,
+  AC_I_lbound,
+  AC_I_len,
+  AC_I_len_trim,
+  AC_I_nint,
+  AC_I_null,
+  AC_I_repeat,
+  AC_I_reshape,
+  AC_I_scan,
+  AC_I_selected_int_kind,
+  AC_I_selected_real_kind,
+  AC_I_size,
+  AC_I_transfer,
+  AC_I_trim,
+  AC_I_ubound,
+  AC_I_verify,
+  AC_I_shape,
+  AC_I_min,
+  AC_I_max,
+  AC_I_fltconvert,
+  AC_I_floor,
+  AC_I_ceiling,
+  AC_I_mod,
+  AC_I_sqrt,
+  AC_I_exp,
+  AC_I_log,
+  AC_I_log10,
+  AC_I_sin,
+  AC_I_cos,
+  AC_I_tan,
+  AC_I_asin,
+  AC_I_acos,
+  AC_I_atan,
+  AC_I_atan2,
+  AC_I_selected_char_kind,
+  AC_I_abs,
+  AC_I_iand,
+  AC_I_ior,
+  AC_I_ieor,
+  AC_I_merge,
+  AC_I_lshift,
+  AC_I_rshift,
+  AC_I_maxloc,
+  AC_I_maxval,
+  AC_I_minloc,
+  AC_I_minval,
+  AC_I_scale,
+} AC_INTRINSIC;
 
 #define BINOP(p) ((p)->op != AC_NEG && (p)->op != AC_CONV)
 
@@ -633,7 +660,7 @@ typedef struct {   /* STRUCTURE stack entries */
 /* access entries in STRUCTURE stack; 0 ==> top of stack, 1 ==> 1 back, etc. */
 #define STSK_ENT(i) sem.stsk_base[sem.stsk_depth - (i)-1]
 
-typedef struct equiv_var {/* variable references in EQUIVALENCE statements */
+typedef struct equiv_var { /* variable references in EQUIVALENCE statements */
   int sptr;
   int lineno;
   int ps;
@@ -649,17 +676,17 @@ typedef struct equiv_var {/* variable references in EQUIVALENCE statements */
 #define EQV_NUMSS(i) sem.eqv_ss_base[i]         /* number of subscripts */
 #define EQV_SS(i, j) sem.eqv_ss_base[i + j + 1] /* j from 0 to EQV_NUMSS(i) */
 
-typedef struct _seql {/* variable references in [NO]SEQUENCE statements */
-  char type;          /* 's' - SEQUENCE; 'n' - NOSEQUENCE */
-  int sptr;           /*  sym ptr of object in statement */
-  struct _seql *next; /*  next _seql item */
+typedef struct _seql { /* variable references in [NO]SEQUENCE statements */
+  char type;           /* 's' - SEQUENCE; 'n' - NOSEQUENCE */
+  int sptr;            /*  sym ptr of object in statement */
+  struct _seql *next;  /*  next _seql item */
 } SEQL;
 
-typedef struct _accl {/* variable references in ACCESS statements */
-  char type;          /* 'u' - PUBLIC; 'v' - PRIVATE */
-  char oper;          /* 'o' - operator; ' ' - not an operator */
-  int sptr;           /*  sym ptr of object in statement */
-  struct _accl *next; /*  next _accl item */
+typedef struct _accl { /* variable references in ACCESS statements */
+  char type;           /* 'u' - PUBLIC; 'v' - PRIVATE */
+  char oper;           /* 'o' - operator; ' ' - not an operator */
+  int sptr;            /*  sym ptr of object in statement */
+  struct _accl *next;  /*  next _accl item */
 } ACCL;
 
 /*
@@ -668,6 +695,7 @@ typedef struct _accl {/* variable references in ACCESS statements */
 typedef struct {
   int currsub; /* previous subprogram */
   RU_TYPE rutype;  /* type of previous subprogram */
+  bool module_procedure; /* instantiated with MODULE PROCEDURE <id> */
   int pgphase;
   int none_implicit; /* bit vector indicating presence of implicit
                       * none.  A nonzero value indicates that all
@@ -774,7 +802,6 @@ typedef enum SCOPEKIND {
   SCOPE_MODULE,
   SCOPE_INTERFACE,
   SCOPE_USE,
-  SCOPE_HPF,
   SCOPE_PAR,
 } SCOPEKIND;
 
@@ -782,7 +809,7 @@ typedef struct {
   int sptr;        /* identifier of this scope, usually a symbol */
   SCOPEKIND kind;  /* defined below */
   LOGICAL open;    /* is this open scope? */
-  LOGICAL private; /* symbols here are private */
+  LOGICAL Private; /* symbols here are private */
   int symavl;      /* stb.symavl when the scope was opened */
   int except;      /* SYMI list of names not used */
   int only;        /* in a private scope, SYMI list of public names */
@@ -861,6 +888,7 @@ void set_modusename(int, int);
 void use_init(void);
 void init_use_stmts(void);
 void add_use_stmt(void);
+void add_submodule_use(void);
 SPTR add_use_rename(SPTR, SPTR, LOGICAL);
 void apply_use_stmts(void);
 void add_isoc_intrinsics(void);
@@ -894,15 +922,15 @@ typedef struct {
     int lwast;
     int upast;
   } bounds[MAXDIMS];
-  struct _sem_arrdim {/* communicate info for <dim spec>s to mk_arrdsc() */
-    int ndim;         /* number of dimensions */
-    int ndefer;       /* number of deferred dimensions (:) */
+  struct _sem_arrdim { /* communicate info for <dim spec>s to mk_arrdsc() */
+    int ndim;          /* number of dimensions */
+    int ndefer;        /* number of deferred dimensions (:) */
   } arrdim;
 } SEM_DIM_SPECS;
 
 /* semutil2.c */
-ISZ_T size_of_array(int);
-int chk_constructor(ACL *, int);
+ISZ_T size_of_array(DTYPE);
+DTYPE chk_constructor(ACL *, DTYPE);
 void chk_struct_constructor(ACL *);
 void gen_type_initialize_for_sym(SPTR, int, int, DTYPE);
 void clean_struct_default_init(int);
@@ -910,11 +938,12 @@ void restore_host_state(int);
 void restore_internal_subprograms(void);
 void dummy_program(void);
 int have_module_state(void);
-void fix_type_param_members(int, int);
+void fix_type_param_members(SPTR, DTYPE);
 void add_type_param_initialize(int);
 void add_p_dealloc_item(int sptr);
 int gen_finalization_for_sym(int sptr, int std, int memAst);
 void gen_alloc_mem_initialize_for_sym(int sptr, int std);
+int add_parent_to_bounds(int parent, int ast);
 int fix_mem_bounds2(int, int);
 int fix_mem_bounds(int parent, int mem);
 int init_sdsc(int, DTYPE, int, int);
@@ -938,28 +967,25 @@ void gen_derived_type_alloc_init(ITEM *);
 void save_host_state(int); /* semtutil2.c */
 void add_auto_finalize(int);
 int runtime_array(int);
-int mk_arrdsc(void);
-void save_dim_specs(SEM_DIM_SPECS *);
-void restore_dim_specs(SEM_DIM_SPECS *);
+DTYPE mk_arrdsc(void);
 int gen_defer_shape(int, int, int);
 ACL *eval_init_expr(ACL *e);
 void gen_allocate_array(int);
 void gen_deallocate_arrays(void);
-void mk_defer_shape(int, int *, int *);
-void mk_assumed_shape(int);
-int get_arr_const(int);
-int select_kind(int, int, INT);
-void dinit_constructor(int, ACL *);
-int get_param_alias_var(int, int);
+void mk_defer_shape(SPTR);
+void mk_assumed_shape(SPTR);
+SPTR get_arr_const(DTYPE);
+DTYPE select_kind(DTYPE, int, INT);
+SPTR get_param_alias_var(SPTR, DTYPE);
 void init_named_array_constant(int, int);
 int init_sptr_w_acl(int, ACL *);
 int init_derived_w_acl(int, ACL *);
-ACL *mk_init_intrinsic(int);
+ACL *mk_init_intrinsic(AC_INTRINSIC);
 ACL *get_acl(int);
 ACL *save_acl(ACL *);
-ACL *construct_acl_from_ast(int, int, int);
-ACL *rewrite_acl(ACL *, int, int);
-ACL *all_default_init(int);
+ACL *construct_acl_from_ast(int, DTYPE, int);
+ACL *rewrite_acl(ACL *, DTYPE, int);
+ACL *all_default_init(DTYPE);
 void dmp_acl(ACL *, int);
 void mk_struct_constr(int, int);
 void process_struct_components(int, void (*)(int));
@@ -967,15 +993,15 @@ int get_struct_leafcnt(int);
 int get_first_mangled(int);
 void re_struct_constr(int, int);
 void propagate_attr(int, int);
-ACL *dinit_struct_vals(ACL *, int, int);
-int get_temp(int);
-int get_temp_dtype(int, int);
-int get_itemp(int);
-int get_arr_temp(int, LOGICAL, LOGICAL);
-int get_adjlr_arr_temp(int);
+ACL *dinit_struct_vals(ACL *, DTYPE, SPTR);
+SPTR get_temp(DTYPE);
+DTYPE get_temp_dtype(DTYPE, int);
+SPTR get_itemp(DTYPE);
+SPTR get_arr_temp(DTYPE, LOGICAL, LOGICAL, LOGICAL);
+SPTR get_adjlr_arr_temp(DTYPE);
 int get_shape_arr_temp(int);
-int get_ch_temp(int);
-int need_alloc_ch_temp(int);
+SPTR get_ch_temp(DTYPE);
+int need_alloc_ch_temp(DTYPE);
 int sem_strcmp(char *, char *);
 LOGICAL sem_eq_str(int, char *);
 void add_case_range(int, int, int);
@@ -1004,7 +1030,7 @@ LOGICAL cuda_enabled(char *);
 LOGICAL in_device_code(int);
 void sem_err104(int, int, char *);
 void sem_err105(int);
-VAR *gen_varref_var(int, int);
+VAR *gen_varref_var(int, DTYPE);
 void sem_fini(void);
 int gen_set_type(int dest_ast, int src_ast, int std, LOGICAL insert_before,
                  LOGICAL intrin_type);
@@ -1014,7 +1040,6 @@ int mk_set_type_call(int arg0, int arg1, LOGICAL intrin_type);
 void semant_init(int noparse);
 int getMscall(void);
 int getCref(void);
-int get_default_extrinsic(void);
 void build_typedef_init_tree(int sptr, int dtype);
 int internal_proc_has_ident(int ident, int proc);
 void fixup_reqgs_ident(int sptr);
@@ -1040,20 +1065,26 @@ int has_length_type_parameter_use(int dtype);
 DTYPE create_parameterized_dt(DTYPE dtype, LOGICAL force);
 DTYPE get_parameterized_dt(DTYPE dtype);
 int is_parameter_context();
+bool in_intrinsic_decl(void);
 int get_entity_access();
 
-typedef struct {    /* deferred procedure interface */
-  int iface;        /* sptr of interface name */
-  int dtype;        /* dtype of TY_PROC data type record */
-  int proc;         /* sptr of external/dummy procedure */
-  int mem;          /* sptr of the procedure member/component */
-  int lineno;       /* line number of the statement */
-  char *iface_name; /* iface name string */
-  int pass_class;   /* set if pass arg has class set */
-  char *tag_name;   /* name of pass arg dtype tag */
-  int sem_pass;     /* semantic pass that this symbol was set */
-  int stype;        /* STYPE of iface */
-  int scope;        /* scope of the procedure pointer declaration */
+/**
+ * \brief Deferred procedure interface.
+ */
+typedef struct {    
+  SPTR iface;       /**< sptr of interface name */
+  DTYPE dtype;      /**< dtype of TY_PROC data type record */
+  SPTR proc;        /**< sptr of external/dummy procedure */
+  SPTR mem;         /**< sptr of the procedure member/component */
+  int lineno;       /**< line number of the statement */
+  char *iface_name; /**< iface name string */
+  int pass_class;   /**< set if pass arg has class set */
+  char *tag_name;   /**< name of pass arg dtype tag */
+  int sem_pass;     /**< semantic pass that this symbol was set */
+  int stype;        /**< STYPE of iface */
+  SPTR scope;       /**< scope of the procedure pointer declaration */
+  SPTR proc_var;    /**< the procedure variable */
+  int internal;     /**< value of gbl.internal when processing proc or mem */
 } IFACE;
 
 typedef struct ident_proc_list {
@@ -1074,7 +1105,7 @@ typedef struct ident_list {
  *
  *  INIT - nothing seen yet (initial value)
  *  HEADER - SUBROUTINE, FUNCTION, BLOCKDATA,
- *      PROGRAM, MODULE
+ *      PROGRAM, MODULE, SUBMODULE
  *  USE - USE statements seen
  *  IMPORT - IMPORT statements seen
  *  IMPLICIT - IMPLICIT statements
@@ -1097,7 +1128,7 @@ typedef struct ident_list {
  *     DATA, NAMELIST do not explicitly set
  *     pgphase unless pgphase is < SPEC in which
  *     case it's set to SPEC.
-*/
+ */
 typedef enum {
   PHASE_END_MODULE = -1,
   PHASE_INIT = 0,
@@ -1126,6 +1157,8 @@ typedef struct {
   int doif_size;      /* size in records of DOIF stack area.  */
   DOIF *doif_base;    /* base pointer for DOIF stack area. */
   int doif_depth;     /* current DO-IF nesting level */
+  SPTR doconcurrent_symavl; /* stb.stg_avail value at start of do concurrent */
+  DTYPE doconcurrent_dtype; /* explicit do concurrent index data type */
   int eqvlist;        /* head of list of equivalences */
   EQVV *eqv_base;     /* list of equivalences */
   int eqv_size;
@@ -1133,9 +1166,9 @@ typedef struct {
   int *eqv_ss_base; /* subscripts for equivalences */
   int eqv_ss_size;
   int eqv_ss_avail;
-  int flabels; /* pointer to list of ftn ref'd labels */
-  int nml;     /* pointer to list of namelist symbols */
-  int funcval; /* pointer to variable for function ret val */
+  int flabels;            /* pointer to list of ftn ref'd labels */
+  int nml;                /* pointer to list of namelist symbols */
+  int funcval;            /* pointer to variable for function ret val */
   PHASE_TYPE pgphase;     /* statement type seen so far */
   int gdtype;             /* global data typ, a DT_ value */
   int ogdtype;            /* original global data type (i.e. before *n
@@ -1212,7 +1245,6 @@ typedef struct {
   int mod_cnt;            /* incremented if MODULE is seen */
   SPTR mod_sym;           /* ST_MODULE symbol for the MODULE subprogram */
   SPTR submod_sym;        /* original ST_MODULE symbol for SUBMODULE */
-  int mod_extrinsic;      /* extrinsic kind for the MODULE subprogram */
   int mod_public_level;   /* scope level of public USEs in module */
   int use_seen;           /* the current subprogram has a USE stmt */
   ACCL accl;              /* records PUBLIC/PRIVATE:
@@ -1222,7 +1254,6 @@ typedef struct {
                            *        'v' -- 'default' is PRIVATE
                            *    next:  list of ACCL items, one for each variable
                            */
-  int extrinsic;          /* extrinsic kind for the current subprogram */
   LOGICAL atomic[3]; /* atomic update: three element flag to record when the
                       * directive is seen (atomic[1]), whether or not atomic
                       * was the previous statement (atomic[0]), and whether
@@ -1266,6 +1297,7 @@ typedef struct {
   int expect_acc_do;       /* next statement after ACC DO or ACC REGION DO
                             * needs to be a DO.
                             */
+  int collapsed_acc_do;    /* value of collapse clause for acc loop */
   int expect_cuf_do; /* next statement after CUF KERNELS needs to be a DO.  */
   LOGICAL close_pdo; /* A DO loop for a PDO, PARALLELDO, or DOACROSS
                       * has been processed and its removal from the
@@ -1279,16 +1311,16 @@ typedef struct {
                       * the parallel region is closed when the
                       * DO loop is closed.
                       */
-  LOGICAL expect_simd_do;  /* next statement after SIMD construct
-                            * to be a DO.
-                            */
-  LOGICAL expect_dist_do;  /* next statement after SIMD construct
-                            * to be a DO.
-                            */
-  int target;              /* use for OpenMP target */
-  int teams;               /* use for OpenMP teams */
+  LOGICAL expect_simd_do; /* next statement after SIMD construct
+                           * to be a DO.
+                           */
+  LOGICAL expect_dist_do; /* next statement after SIMD construct
+                           * to be a DO.
+                           */
+  int target;             /* use for OpenMP target */
+  int teams;              /* use for OpenMP teams */
 
-  struct {                 /* For atomic smp directive */
+  struct { /* For atomic smp directive */
     int is_acc;
     int lineno;      /* line number of atomic */
     LOGICAL seen;    /* atomic directive just seen */
@@ -1301,14 +1333,13 @@ typedef struct {
 #define ATOMIC_READ 2
 #define ATOMIC_WRITE 3
 #define ATOMIC_CAPTURE 4
-    int ast;         /* ast of generated A_MP_CRITICAL, or
-                        genreated A_ACC_ATOMIC */
-    int rmw_op;      /* AOP_ADD, AOP_SUB, etc */
-    int mem_order;   /* AOP_UNDEF: if this isn't read-modify-write */
-    
+    int ast;       /* ast of generated A_MP_CRITICAL, or
+                      genreated A_ACC_ATOMIC */
+    int rmw_op;    /* AOP_ADD, AOP_SUB, etc */
+    int mem_order; /* AOP_UNDEF: if this isn't read-modify-write */
+
   } mpaccatomic;
   LOGICAL is_hpf;     /* is this statement in !hpf$? */
-  int endpdo_std;     /* std of A_MP_ENDPDO */
   int hpfdcl;         /* available index for the hpf declarations
                        * whose semantic processing is deferred
                        * until the first executable is seen. The
@@ -1413,6 +1444,7 @@ typedef struct {
   SPTR modhost_entry;         /* ST_ENTRY of a module host routine containing an
                                * internal procedure (set on demand)
                                */
+  bool module_procedure;   /* in instantiated MODULE PROCEDURE <id> def'n */
 } SEM;
 
 extern SEM sem;
@@ -1438,7 +1470,10 @@ void CheckDecl(int);
 
 #define DOCHK(sptr) \
   if (DOVARG(sptr)) \
-    error(115, 2, gbl.lineno, SYMNAME(sptr), CNULL);
+    if (sem.doconcurrent_symavl) \
+      error(1053, ERR_Severe, gbl.lineno, "DO CONCURRENT", CNULL); \
+    else \
+      error(115, 2, gbl.lineno, SYMNAME(sptr), CNULL);
 
 #define IN_MODULE (sem.mod_cnt && gbl.internal == 0)
 #define IN_MODULE_SPEC (sem.mod_cnt && gbl.currsub == 0)
@@ -1454,51 +1489,28 @@ int emit_etarget(void);
 void is_dovar_sptr(int);
 void clear_no_scope_sptr(void);
 void add_no_scope_sptr(int, int, int);
-void no_scope_in_forall(void);
-void no_scope_out_forall(void);
+void pop_accel_vars(void);
+void handle_accdecl(int keyword);
 void check_no_scope_sptr(void);
 void parstuff_init(void);
 int emit_bcs_ecs(int);
 void end_parallel_clause(int);
-extern void end_teams();
-extern void end_target();
+void end_teams();
+void end_target();
 void add_assign_firstprivate(int, int);
 void accel_end_dir(int, LOGICAL);
 void add_non_private(int);
 void mk_cuda_builtins(int *, int *, int);
 int mk_cuda_typedef(char *);
 int mk_mbr_ref(int, char *);
-void set_parref_flag(int sptr, int psptr, int stblk);
-void set_parref_flag2(int sptr, int psptr, int scope);
-int is_sptr_in_shared_list(int sptr);
-void set_private_encl(int, int);
-void set_private_taskflag(int);
-int find_outer_sym(int);
-/**/
-
-/* semsmp.c */
-void parstuff_init(void);
-int emit_epar(void);
-int emit_bcs_ecs(int);
-int is_sptr_in_shared_list(int);
-void end_parallel_clause(int);
-extern void end_teams();
-extern void end_target();
-int find_outer_sym(int);
-void add_assign_firstprivate(int, int);
-void add_non_private(int);
-void add_no_scope_sptr(int, int, int);
-void clear_no_scope_sptr(void);
-void check_no_scope_sptr(void);
-void no_scope_in_forall(void);
-void no_scope_out_forall(void);
-void is_dovar_sptr(int);
-void par_add_stblk_shvar(void);
 void set_parref_flag(int, int, int);
 void set_parref_flag2(int, int, int);
+int is_sptr_in_shared_list(SPTR);
 void set_private_encl(int, int);
 void set_private_taskflag(int);
-extern int do_distbegin(DOINFO*, int, int);
+int find_outer_sym(int);
+void par_add_stblk_shvar(void);
+int do_distbegin(DOINFO *, int, int);
 
 /* semutil.c */
 void check_derived_type_array_section(int);
@@ -1516,9 +1528,9 @@ int mod_type(int, int, int, int, int, int);
 int getbase(int);
 int do_index_addr(int);
 int do_begin(DOINFO *);
-int do_lastval(DOINFO *);
+void do_lastval(DOINFO *);
 int do_parbegin(DOINFO *);
-int do_end(DOINFO *);
+void do_end(DOINFO *);
 int mkmember(int, int, int);
 LOGICAL legal_labelvar(int);
 void resolve_fwd_refs(void);
@@ -1611,6 +1623,7 @@ void copy_specifics(int fromsptr, int tosptr);
 int test_private_dtype(int dtype);
 
 /* semant3.c */
+void check_doconcurrent(int doif);
 int has_poly_mbr(int sptr, int flag);
 void push_tbp_arg(ITEM *item);
 ITEM *pop_tbp_arg(void);
@@ -1622,16 +1635,16 @@ void xref(void);
 /* end xref.c */
 
 /** \brief Constants representing tasks for type bound procedure (tbp)
-  *  processing.
-  *
-  *  These are used with the task argument in the queue_tbp() function.
-  */
+ *  processing.
+ *
+ *  These are used with the task argument in the queue_tbp() function.
+ */
 typedef enum tbpTasks {
-  TBP_CLEAR_ERROR = -1, /**< Clear all entries in queue after an error */
-  TBP_CLEAR,            /**< Clear all entries after normal processing */
+  TBP_CLEAR_ERROR = -1,    /**< Clear all entries in queue after an error */
+  TBP_CLEAR,               /**< Clear all entries after normal processing */
   TBP_CLEAR_STALE_RECORDS, /**< Clear tbp_queue entries with stale dtypes */
   TBP_ADD_SIMPLE,   /**< Add tbp after parsing simple tbp (e.g., procedure tbp;)
-                       */
+                     */
   TBP_ADD_TO_DTYPE, /**< Add tbps to derived type dtype records */
   TBP_COMPLETE_ENDMODULE, /**< Complete tbp ST_MEMBERs in derived type after
                                parsing ENDMODULE */
@@ -1670,3 +1683,12 @@ typedef enum tbpTasks {
 /* semtbp.c */
 int queue_tbp(int sptr, int bind, int offset, int dtype, tbpTask task);
 void ensure_no_stale_tbp_queue_entries(void);
+
+/** \brief These are constants used by SST_DIMFLAG and A_MASK to represent
+ *         empty subscripts (e.g., (:), (:,:), (:,:,:), etc. )
+ */
+typedef enum dimMask {
+  lboundMask = 0x1, /**< empty lower bound mask */
+  uboundMask = 0x2, /**< empty upper bound mask */
+  strideMask = 0x4  /**< empty stride mask */
+} dimMask;

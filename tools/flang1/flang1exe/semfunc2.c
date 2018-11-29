@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, NVIDIA CORPORATION.  All rights reserved.
+ * Copyright (c) 1994-2018, NVIDIA CORPORATION.  All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -350,8 +350,9 @@ ref_stfunc(SST *stktop, ITEM *args)
       arginfo->refd = 0;
     } else if (SST_IDG(itemp->t.stkp) == S_TRIPLE ||
                SST_IDG(itemp->t.stkp) == S_STAR) {
-      error(155, 3, gbl.lineno, "An argument to this statement function looks "
-                                "like an array section subscript",
+      error(155, 3, gbl.lineno,
+            "An argument to this statement function looks "
+            "like an array section subscript",
             CNULL);
       continue;
     }
@@ -722,19 +723,6 @@ again:
       sp2 = SCOPEG(sptr);
       if (STYPEG(sp2) == ST_ALIAS)
         sp2 = SYMLKG(sp2);
-      if (INTERNALG(sptr) && SCG(sptr) != SC_DUMMY &&
-          (SCOPEG(sptr) == gbl.outersub ||
-           (sp2 == gbl.currsub && sptr != gbl.currsub &&
-            SCG(sptr) != SC_EXTERN))
-
-              ) {
-
-        if (STYPEG(sptr) == ST_ALIAS)
-          sptr = SYMLKG(sptr);
-        error(439, 3, gbl.lineno, SYMNAME(sptr), CNULL);
-        SST_DTYPEP(stkptr, *dtype = DTYPEG(sptr));
-        return 1;
-      }
       if (ELEMENTALG(sptr)) {
         error(464, 3, gbl.lineno, SYMNAME(sptr), CNULL);
         SST_DTYPEP(stkptr, *dtype = DTYPEG(sptr));
@@ -899,20 +887,17 @@ intrinsic_as_arg(int intr)
         if (XBIT(58, 0x40)) { /* input is f90 */
 #ifdef CREFP
           if (WINNT_CREF) {
-            rtlRtn = WINNT_NOMIXEDSTRLEN? RTE_indexx_cr_nm : RTE_indexx_cr;
-          }
-          else
+            rtlRtn = WINNT_NOMIXEDSTRLEN ? RTE_indexx_cr_nma : RTE_indexx_cra;
+          } else
 #endif
           {
-            rtlRtn = RTE_indexx;
+            rtlRtn = RTE_indexxa;
           }
-        }
-        else if (XBIT(124, 0x10)) { /* -i8 for f77 */
+        } else if (XBIT(124, 0x10)) { /* -i8 for f77 */
           sp2 = intast_sym[I_KINDEX];
           dt = DT_INT8;
           rtlRtn = RTE_lenDsc;
-        }
-        else {
+        } else {
           rtlRtn = RTE_indexDsc;
         }
         break;
@@ -922,21 +907,18 @@ intrinsic_as_arg(int intr)
         if (XBIT(58, 0x40)) { /* input is f90 */
 #ifdef CREFP
           if (WINNT_CREF) {
-            rtlRtn = WINNT_NOMIXEDSTRLEN? RTE_lenx_cr_nm : RTE_lenx_cr;
-          }
-          else
+            rtlRtn = WINNT_NOMIXEDSTRLEN ? RTE_lenx_cr_nma : RTE_lenx_cra;
+          } else
 #endif
           {
-            rtlRtn = RTE_lenx;
+            rtlRtn = RTE_lenxa;
           }
-        }
-        else if (XBIT(124, 0x10)) { /* -i8 for f77 */
+        } else if (XBIT(124, 0x10)) { /* -i8 for f77 */
           sp2 = intast_sym[I_KLEN];
           dt = DT_INT8;
           rtlRtn = RTE_lenDsc;
           break;
-        }
-        else {
+        } else {
           rtlRtn = RTE_lenDsc;
         }
         break;
@@ -1380,7 +1362,7 @@ ref_entry(int ent)
   }
   if (sem.parallel || sem.task || sem.target || sem.teams
       || sem.orph
-      ) {
+  ) {
     /* if in a parallel region, need to first determine if a private copy
      * was declared for the entry's variable in the parallel directive.
      * Then need to check the current scope for a default clause.
@@ -1463,7 +1445,7 @@ get_fval_array(int ent)
       ADJARRP(ent, 1);
     } else if (AD_DEFER(ad)) {
       ASSUMSHPP(sptr, 1);
-      if (!XBIT(54, 2))
+      if (!XBIT(54, 2) && !(XBIT(58, 0x400000) && TARGETG(sptr)))
         SDSCS1P(sptr, 1);
       ASSUMSHPP(ent, 1);
     } else if (AD_ASSUMSZ(ad)) {
@@ -1598,7 +1580,7 @@ get_keyword_args(ITEM *list, int cnt, char *kwdarg, int pod, int pass_pos)
   LOGICAL kwd_present;
   int varpos;
   int varbase;
-  int pass_pos2, pod2; /* pass object info for type bound procedure */
+  int pass_pos2 = 0, pod2 = 0; /* pass object info for type bound procedure */
 
   /* convention for the keyword 'variable' arguments ---
    * the keyword specifier is of the form
@@ -1660,13 +1642,13 @@ get_keyword_args(ITEM *list, int cnt, char *kwdarg, int pod, int pass_pos)
           kwd += 2;
           varbase = *kwd; /* digit (char) to be subtracted */
           kwd += 2;
-        } else if (strncmp(kwd, "_V_", 3) == 0 &&
-                   kwd[3] != ' ' && kwd[3] != '\0') {
+        } else if (strncmp(kwd, "_V_", 3) == 0 && kwd[3] != ' ' &&
+                   kwd[3] != '\0') {
           /* Use the original argument name for VALUE dummy arguments
            * that have been renamed in semant.c to distinguish them from
            * their local copies.
            */
-         kwd += 3;
+          kwd += 3;
         }
         kwd_len = 0;
         for (np = kwd; TRUE; np++, kwd_len++)
@@ -2019,6 +2001,14 @@ compat_arg_lists(int formal, int actual)
   if (STYPEG(actual) == ST_INTRIN || STYPEG(actual) == ST_GENERIC)
     return TRUE;
 
+  if (STYPEG(formal) == ST_PROC && STYPEG(actual) == ST_PROC && FVALG(formal) &&
+      FVALG(actual) &&
+      !compatible_characteristics(formal, actual,
+                                  (IGNORE_ARG_NAMES | RELAX_STYPE_CHK |
+                                   RELAX_POINTER_CHK | RELAX_PURE_CHK_2))) {
+    return FALSE;
+  }
+
   fdscptr = DPDSCG(formal);
   adscptr = DPDSCG(actual);
   if (fdscptr == 0 || adscptr == 0)
@@ -2059,7 +2049,6 @@ check_arguments(int ext, int count, ITEM *list, char *kwd_str)
   dpdsc = DPDSCG(ext);
   return chk_arguments(ext, count, list, kwd_str, paramct, dpdsc, 0, NULL);
 }
-
 /** \brief Check arguments passed to a user subprogram which has an interface
  *         block. Its keyword string is available and is located by kwd_str.
  *
@@ -2092,7 +2081,7 @@ chk_arguments(int ext, int count, ITEM *list, char *kwd_str, int paramct,
     int pdum;
 
     pdum = PASSG(ext);
-    if (!tk_match_arg(DTYPEG(pdum), A_DTYPEG(A_PARENTG(callee)), FALSE)) {
+    if (!tk_match_arg(DTYPEG(pdum), A_DTYPEG(A_PARENTG(callee)), TRUE)) {
       error(155, 3, gbl.lineno,
             "Type mismatch for the passed-object dummy argument",
             SYMNAME(pdum));
@@ -2167,8 +2156,10 @@ chk_arguments(int ext, int count, ITEM *list, char *kwd_str, int paramct,
         shape = A_SHAPEG(actual);
         if (DTY(eldact) == TY_PTR && DTY(elddum) == TY_PROC) {
           eldact = DTY(eldact + 1);
+          eldact = DDTG(eldact);
         } else if (DTY(eldact) == TY_PROC && DTY(elddum) == TY_PTR) {
           elddum = DTY(elddum + 1);
+          elddum = DDTG(elddum);
         } else if (dum_is_proc && DTY(eldact) == TY_PTR) {
           eldact = DTY(eldact + 1);
           if (DTY(eldact) == TY_PROC && DTY(eldact + 5)) {
@@ -2179,6 +2170,7 @@ chk_arguments(int ext, int count, ITEM *list, char *kwd_str, int paramct,
             else
               eldact = DTYPEG(ss);
           }
+          eldact = DDTG(eldact);
         }
         if (STYPEG(arg) == ST_ARRAY) {
           if (shape == 0) {
@@ -2306,6 +2298,10 @@ chk_arguments(int ext, int count, ITEM *list, char *kwd_str, int paramct,
             (STYPEG(A_SPTRG(actual)) != ST_PROC || FVALG(A_SPTRG(actual))) ||
             STYPEG(arg) != ST_IDENT) {
           if (DTY(elddum) != DTY(eldact)) {
+            if (eldact == 0 && STYPEG(sym_of_ast(actual)) == ST_PROC &&
+                IS_PROC_DUMMYG(arg)) {
+              continue;
+            }
             if (DTY(elddum) == TY_DERIVED && UNLPOLYG(DTY(elddum + 3)))
               continue; /* FS#18004 */
             /* TY_ values are not the same */
@@ -2928,6 +2924,7 @@ iface_intrinsic(int sptr)
   iface = getsymf("...%s", SYMNAME(ss));
   if (STYPEG(iface) != ST_UNKNOWN)
     return iface;
+  CCSYMP(iface, 1);
   STYPEP(iface, ST_PROC);
   ABSTRACTP(iface, 1);
   DTYPEP(iface, dtyper);

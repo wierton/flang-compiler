@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, NVIDIA CORPORATION.  All rights reserved.
+ * Copyright (c) 2010-2018, NVIDIA CORPORATION.  All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -48,20 +48,17 @@ void cprintf(char *s, const char *format, INT *val);
 /*  functions defined in cgmain.c file:  */
 
 void schedule(void);
+void process_global_lifetime_debug(void);
 OPERAND *gen_llvm_expr(int ilix, LL_Type *expected_type);
 void clear_deletable_flags(int ilix);
-TMPS *gen_extract_insert(int, LL_Type *, TMPS *, LL_Type *, TMPS *, LL_Type *,
-                         int);
-OPERAND *gen_call_to_builtin(int, char *, OPERAND *, LL_Type *, INSTR_LIST *,
-                             int, LOGICAL);
 INSTR_LIST *llvm_info_last_instr(void);
 /* Use MSZ_TO_BYTES to detect presence of MSZ */
 #ifdef MSZ_TO_BYTES
 OPERAND *gen_address_operand(int, int, bool, LL_Type *, MSZ);
 DTYPE msz_dtype(MSZ msz);
 #endif
-const char *char_type(int dtype, int sptr);
-void update_external_function_declarations(char *, unsigned int);
+void update_external_function_declarations(const char *, char *, unsigned);
+void cg_fetch_clen_parampos(SPTR *len, int *param, SPTR sptr);
 
 extern LL_Module *cpu_llvm_module;
 
@@ -108,10 +105,6 @@ typedef enum {
 extern char **sptr_array;
 extern LL_Type **sptr_type_array;
 
-char *get_llvm_name(int sptr);		/* see llassem*.c */
-char *get_llvm_sname(int sptr);
-char *get_llvm_mips_sname(int sptr);
-
 void cg_llvm_init(void);
 void cg_llvm_end(void);
 void cg_llvm_fnend(void);
@@ -124,40 +117,20 @@ void llvm_write_ctors(void);
 extern FILE *par_file1;
 extern FILE *par_file2;
 
-int get_return_type(int func_sptr);
-int cg_get_type(int n, int v1, int v2);
-void build_routine_and_parameter_entries(int func_sptr, LL_ABI_Info *abi,
+void build_routine_and_parameter_entries(SPTR func_sptr, LL_ABI_Info *abi,
                                          LL_Module *module);
-int strict_match(LL_Type *, LL_Type *);
+bool strict_match(LL_Type *, LL_Type *);
+bool is_cg_llvm_init(void);
 void process_formal_arguments(LL_ABI_Info *);
 void write_external_function_declarations(int);
 
-void update_external_function_declarations(char *, unsigned int);
-
 OPERAND *mk_alloca_instr(LL_Type *ptrTy);
-void mk_store_instr(OPERAND *val, OPERAND *addr);
+INSTR_LIST *mk_store_instr(OPERAND *val, OPERAND *addr);
 
-int get_return_type(int);
 #ifdef TARGET_LLVM_X8664
 LL_Type *maybe_fixup_x86_abi_return(LL_Type *sig);
 #endif
 
-/* ll_ftn.c */
-void store_llvm_localfptr(void);
-void stb_process_routine_parameters(void);
-LOGICAL has_multiple_entries(int sptr);
-int get_entries_argnum(void);
-void get_local_overlap_size(void);
-void write_master_entry_routine(void);
-char *get_llvm_ifacenm(int sptr);
-int get_iface_sptr(int sptr);
-int is_iso_cptr(int d_dtype);
-void ll_process_routine_parameters(int sptr);
-void fix_llvm_fptriface(void);
-char *get_entret_arg_name(void);
-
-/* vpar.c */
-void llvmRewriteConcurIli(int bbih, int ebih, int display);
-void vpar(void);
+#include "ll_ftn.h"
 
 #endif /* CGLLVM_H__ */

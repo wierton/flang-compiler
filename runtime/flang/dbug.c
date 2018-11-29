@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, NVIDIA CORPORATION.  All rights reserved.
+ * Copyright (c) 1995-2018, NVIDIA CORPORATION.  All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,9 +26,11 @@
 
 #include "fort_vars.h"
 
+#ifndef DESC_I8
 void ENTFTN(SET_TEST, set_test)(__INT_T *t) { __fort_test = *t; }
+#endif
 
-void ENTFTN(ABORT, abort)(DCHAR(msg), F90_Desc *msg_s DCLEN(msg))
+void ENTFTN(ABORTA, aborta)(DCHAR(msg), F90_Desc *msg_s DCLEN64(msg))
 {
   char ch;
   ch = CADR(msg)[CLEN(msg)];
@@ -37,6 +39,13 @@ void ENTFTN(ABORT, abort)(DCHAR(msg), F90_Desc *msg_s DCLEN(msg))
   CADR(msg)[CLEN(msg)] = ch;
 }
 
+/* 32 bit CLEN version */
+void ENTFTN(ABORT, abort)(DCHAR(msg), F90_Desc *msg_s DCLEN(msg))
+{
+  ENTFTN(ABORTA, aborta)(CADR(msg), msg_s, (__CLEN_T)CLEN(msg));
+}
+
+#if !defined(DESC_I8)
 void
 __fort_print_scalar(void *adr, dtype kind)
 {
@@ -124,6 +133,7 @@ __fort_show_scalar(void *adr, dtype kind)
   fprintf(__io_stderr(), "%s=", GET_DIST_TYPENAMES(kind));
   __fort_print_scalar(adr, kind);
 }
+#endif
 
 void I8(__fort_show_index)(__INT_T rank, __INT_T *index)
 {
@@ -178,6 +188,8 @@ static char *dfmtnames[] = {"*",      "BLOCK",     "BLOCK",   "CYCLIC",
                             "CYCLIC", "GEN_BLOCK", "INDIRECT"};
 
 static char *dfmtabbrev[] = {"*", "BLK", "BLKK", "CYC", "CYCK", "GENB", "IND"};
+
+#if !defined(DESC_I8)
 
 void
 __fort_show_flags(__INT_T flags)
@@ -240,6 +252,7 @@ __fort_show_flags(__INT_T flags)
   if (flags & __SEQUENTIAL_SECTION)
     fprintf(__io_stderr(), ", SEQUENTIAL_SECTION");
 }
+#endif
 
 void ENTFTN(SHOW, show)(void *b, F90_Desc *d)
 {
@@ -373,6 +386,7 @@ void ENTF90(SHOW_, show_)(void *b, F90_Desc *d)
   }
   I8(__fort_show_section)(d);
   if (F90_TAG_G(d) != __DESC) {
+    fprintf(__io_stderr(), "\n");
     return;
   }
   fprintf(__io_stderr(), "@%p F90_Desc@%p rank=%d %s len=%d\n", b, d,

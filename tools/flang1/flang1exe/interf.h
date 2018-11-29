@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, NVIDIA CORPORATION.  All rights reserved.
+ * Copyright (c) 1995-2018, NVIDIA CORPORATION.  All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -81,11 +81,17 @@ int get_module_file_name(char *modulename, char *filename, int len);
 #define USE_AREA 11
 #define USE_TREE_AREA 14
 
+/** 
+   When importing a module, to mark whether to import private members
+   or not.
+ */
+typedef enum { INCLUDE_PRIVATES, EXCLUDE_PRIVATES } WantPrivates;
+
 void import_init(void);
 int import_inline(FILE *, char *);
 int import_interproc(FILE *, char *, char *, char *);
 int import_static(FILE *, char *);
-SPTR import_module(FILE *, char *, SPTR, int);
+SPTR import_module(FILE *, char *, SPTR, WantPrivates, int);
 void import_host(FILE *, char *, int, int, int, int, int, int, int);
 void import_module_end(void);
 int imported_directly(char *name, int except);
@@ -108,7 +114,7 @@ void ipa_export_close(void);                 /* exterf.c */
 #define MOD_PG  0x40 /* compilers' own module files */
 
 #undef IVSN
-#define IVSN 32
+#define IVSN 33
 #undef IVSN_24
 #define IVSN_24 24
 #undef IVSN_27
@@ -140,6 +146,7 @@ void ipa_export_close(void);                 /* exterf.c */
  *     31 - Add MP_ATOMICxxx for atomic operations
  *     32 - add compiler own module files flag into platform flag. 
  *          It is set if it is compiler module file.
+ *     33 - Add MP_TASKLOOP[REG] for taskloop
  */
 
 /*

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, NVIDIA CORPORATION.  All rights reserved.
+ * Copyright (c) 1993-2018, NVIDIA CORPORATION.  All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,10 +15,15 @@
  *
  */
 
+#ifndef SEMANT_H_
+#define SEMANT_H_
+
 /**
    \file
-   \brief SCFTN semantic analyzer data definitions.
+   \brief Fortran semantic analyzer data definitions.
  */
+
+#include "symtab.h"
 
 #define S_NULL 0
 #define S_CONST 1
@@ -108,14 +113,14 @@ typedef struct {
 
 typedef struct reduc_sym {
   int shared;  /* shared symbol */
-  int private; /* private copy */
+  int Private; /* private copy */
   struct reduc_sym *next;
 } REDUC_SYM;
 
-typedef struct reduc_tag {/* reduction clause item */
-  int opr;                /* if != 0, OP_xxx value */
-  int intrin;             /* if != 0, sptr to intrinsic */
-  REDUC_SYM *list;        /* list of shared variables & private copies */
+typedef struct reduc_tag { /* reduction clause item */
+  int opr;                 /* if != 0, OP_xxx value */
+  int intrin;              /* if != 0, sptr to intrinsic */
+  REDUC_SYM *list;         /* list of shared variables & private copies */
   struct reduc_tag *next;
 } REDUC;
 
@@ -123,10 +128,10 @@ typedef struct noscope_sym {
   int oldsptr;
   int newsptr;
   int lineno;
-  LOGICAL is_dovar;
+  bool is_dovar;
 } NOSCOPE_SYM;
 
-typedef struct {/* DO-IF stack entries */
+typedef struct { /* DO-IF stack entries */
   int Id;
   int lineno;     /* beginning line# of control structure */
   int nest;       /* bit vector indicating the structures are present
@@ -144,10 +149,10 @@ typedef struct {/* DO-IF stack entries */
                    * the case construct
                    */
   union {
-    struct {/* IF statements */
+    struct { /* IF statements */
       int false_lab;
     } u1;
-    struct {/* DO statements */
+    struct { /* DO statements */
       int do_label;
       int cycle_label;
       DOINFO *doinfo;
@@ -177,20 +182,20 @@ typedef struct {/* DO-IF stack entries */
         int sect_cnt; /* number of SECTION blocks */
         int sect_var; /* where to store section number */
       } v1;
-      struct {              /* parallel do statements */
-        int sched_type;     /* one of DI_SCHxxx if a parallel do */
-        int chunk;          /* When the parallel do is parsed, this
-                     * field is the sptr representing the chunk size
-                     * (0 if not present). When the parallel do's
-                     * corresponding DO statement is processed, this
-                     * field, possibly NULL, is a 'doinfo' record whose
-                     * interpretation depends on the scheduling type:
-                     *     DI_SCH_STATIC - information for iterating
-                     *                     thru a chunk.
-                     *     Other         - information for the outer
-                     *                     scheduling loop.
-                     */
-        LOGICAL is_ordered; /* loop has the ordered attribute */
+      struct {           /* parallel do statements */
+        int sched_type;  /* one of DI_SCHxxx if a parallel do */
+        int chunk;       /* When the parallel do is parsed, this
+                          * field is the sptr representing the chunk size
+                          * (0 if not present). When the parallel do's
+                          * corresponding DO statement is processed, this
+                          * field, possibly NULL, is a 'doinfo' record whose
+                          * interpretation depends on the scheduling type:
+                          *     DI_SCH_STATIC - information for iterating
+                          *                     thru a chunk.
+                          *     Other         - information for the outer
+                          *                     scheduling loop.
+                          */
+        bool is_ordered; /* loop has the ordered attribute */
       } v2;
     } v;
   } omp;
@@ -262,7 +267,7 @@ typedef struct {/* DO-IF stack entries */
   }
 
 /* Define Initializer Variable List */
-typedef struct var_init {/* used for elements of dinit variable list */
+typedef struct VAR { /* used for elements of dinit variable list */
   short id;
 #define Dostart 0
 #define Doend 1
@@ -274,46 +279,44 @@ typedef struct var_init {/* used for elements of dinit variable list */
       int step;
     } dostart;
     struct {
-      struct var_init *dostart;
+      struct VAR *dostart;
     } doend;
     struct {
       /* Semantic stack info for variable reference */
       int id;
       int ptr; /* May be symbol ptr or ilm ptr */
-      int dtype;
+      DTYPE dtype;
       int shape;
     } varref;
   } u;
-  struct var_init *next;
+  struct VAR *next;
 } VAR;
 
 /* Define Initializer Constant Tree */
-typedef struct const_init CONST;
+typedef struct CONST CONST;
 
 typedef struct {
-  int index_var; /* sptr of index variable */
+  SPTR index_var; /* sptr of index variable */
   CONST *initval;
   CONST *limitval;
   CONST *stepval;
 } IDOINFO;
 
-typedef struct _aexpr {
+typedef struct AEXPR {
   int op;
   CONST *lop;
   CONST *rop;
 } AEXPR;
 
-struct const_init {
+struct CONST {
   char id;
-  struct const_init *next;
-  struct const_init *subc;
+  CONST *next;
+  CONST *subc;
   ISZ_T repeatc;
-  int sptr;
-  int mbr; /* will be the sptr of the member when the
-            * initializer is an IDENT (presumbably, a
-            * PARAMETER
-            */
-  int dtype;
+  SPTR sptr;
+  SPTR mbr; /* will be the sptr of the member when the initializer is an IDENT
+             * (presumbably, a PARAMETER) */
+  DTYPE dtype;
   int no_dinitp;
   union {
     INT conval;
@@ -421,7 +424,14 @@ struct const_init {
 #define AC_I_iand 45
 #define AC_I_ior 46
 #define AC_I_ieor 47
-
+#define AC_I_merge 48
+#define AC_I_lshift 49
+#define AC_I_rshift 50
+#define AC_I_maxloc 51
+#define AC_I_maxval 52
+#define AC_I_minloc 53
+#define AC_I_minval 54
+#define AC_I_scale 55
 #define AC_UNARY_OP(e) (e.op == AC_NEG || e.op == AC_CONV)
 
 typedef struct {  /* STRUCTURE stack entries */
@@ -435,7 +445,7 @@ typedef struct {  /* STRUCTURE stack entries */
 /* access entries in STRUCTURE stack; 0 ==> top of stack, 1 ==> 1 back, etc. */
 #define STSK_ENT(i) sem.stsk_base[sem.stsk_depth - (i)-1]
 
-typedef struct equiv_var {/* variable references in EQUIVALENCE statements */
+typedef struct equiv_var { /* variable references in EQUIVALENCE statements */
   int sptr;
   int lineno;
   ITEM *subscripts;
@@ -470,8 +480,8 @@ typedef struct arginfo {
                          */
   int dtype;            /* data type of dummy argument  */
   SFUSE *uses;          /* ptr to list of ITEM records locating the
-                                * the uses of this dummy arg within the ILMS
-                                */
+                         * the uses of this dummy arg within the ILMS
+                         */
   struct arginfo *next; /* next argument info record */
 } ARGINFO;
 
@@ -533,67 +543,67 @@ typedef struct {
 /*  declare global semant variables:  */
 
 typedef struct {
-  LOGICAL wrilms;        /* set to FALSE if don't need to write ILM's */
-  int doif_size;         /* size in records of DOIF stack area.  */
-  DOIF *doif_base;       /* base pointer for DOIF stack area. */
-  int doif_depth;        /* current DO-IF nesting level */
-  EQVV *eqvlist;         /* pointer to head of equivalence list */
-  int flabels;           /* pointer to list of ftn ref'd labels */
-  int nml;               /* pointer to list of namelist symbols */
-  int funcval;           /* pointer to variable for function ret val */
-  int pgphase;           /* statement type seen so far:
-                          *
-                          *  0 - nothing seen yet (initial value)
-                          *  1 - SUBROUTINE, FUNCTION, BLOCKDATA,
-                          *      PROGRAM
-                          *  2 - Specification statements
-                          *  3 - DATA statements or statement function
-                          *      definitions
-                          *  4 - Executable statements
-                          *  5 - END statement
-                          *
-                          *  NOTES:
-                          *     PARAMETER, NAMELIST, and IMPLICIT do not
-                          *     explicitly set pgphase unless pgphase is
-                          *     0 in which case it's set to 1. These are
-                          *     allowed between pgphases 0/1 and 2.
-                          */
-  int gdtype;            /* global data type */
-  int ogdtype;           /* original global data type (i.e. before *n
-                            modification */
-  int gcvlen;            /* global character type size */
-  int atemps;            /* avail counter for array bounds temporaries */
-  int itemps;            /* avail counter for temporaries named 'ixxx' */
-  int ptemps;            /* avail counter for inliner ptr temporaries */
-  LOGICAL savall;        /* SAVE statement w.o. symbols specified */
-  LOGICAL savloc;        /* at least one local variable SAVE'd */
-  LOGICAL none_implicit; /* insure that variables are declared - set
+  bool wrilms;        /* set to FALSE if don't need to write ILM's */
+  int doif_size;      /* size in records of DOIF stack area.  */
+  DOIF *doif_base;    /* base pointer for DOIF stack area. */
+  int doif_depth;     /* current DO-IF nesting level */
+  EQVV *eqvlist;      /* pointer to head of equivalence list */
+  int flabels;        /* pointer to list of ftn ref'd labels */
+  int nml;            /* pointer to list of namelist symbols */
+  int funcval;        /* pointer to variable for function ret val */
+  int pgphase;        /* statement type seen so far:
+                       *
+                       *  0 - nothing seen yet (initial value)
+                       *  1 - SUBROUTINE, FUNCTION, BLOCKDATA,
+                       *      PROGRAM
+                       *  2 - Specification statements
+                       *  3 - DATA statements or statement function
+                       *      definitions
+                       *  4 - Executable statements
+                       *  5 - END statement
+                       *
+                       *  NOTES:
+                       *     PARAMETER, NAMELIST, and IMPLICIT do not
+                       *     explicitly set pgphase unless pgphase is
+                       *     0 in which case it's set to 1. These are
+                       *     allowed between pgphases 0/1 and 2.
+                       */
+  int gdtype;         /* global data type */
+  int ogdtype;        /* original global data type (i.e. before *n
+                         modification */
+  int gcvlen;         /* global character type size */
+  int atemps;         /* avail counter for array bounds temporaries */
+  int itemps;         /* avail counter for temporaries named 'ixxx' */
+  int ptemps;         /* avail counter for inliner ptr temporaries */
+  bool savall;        /* SAVE statement w.o. symbols specified */
+  bool savloc;        /* at least one local variable SAVE'd */
+  bool none_implicit; /* insure that variables are declared - set
                             TRUE if IMPLICIT NONE seen */
-  STSK *stsk_base;       /* base pointer for structure stack area */
-  int stsk_size;         /* size in records of structure stack area */
-  int stsk_depth;        /* current structure depth (i.e. stack top) */
-  int stag_dtype;        /* structure tag dtype pointer */
-  int psfunc;            /* next <var ref> may be lhs of statement func */
-  LOGICAL dinit_error;   /* error flag during DATA stmt processing */
-  int dinit_count;       /* # elements left in current dcl id to init */
-  LOGICAL dinit_data;    /* TRUE if in DATA stmt, FALSE if type dcl or
+  STSK *stsk_base;    /* base pointer for structure stack area */
+  int stsk_size;      /* size in records of structure stack area */
+  int stsk_depth;     /* current structure depth (i.e. stack top) */
+  int stag_dtype;     /* structure tag dtype pointer */
+  int psfunc;         /* next <var ref> may be lhs of statement func */
+  int dinit_error;    /* error flag during DATA stmt processing */
+  int dinit_count;    /* # elements left in current dcl id to init */
+  bool dinit_data;    /* TRUE if in DATA stmt, FALSE if type dcl or
                             structure init stmt */
-  struct {               /* info for variable format expression */
-    int temps;           /*   counter for temporary labels */
-    int labels;          /*   pointer to list of vfe labels */
+  struct {            /* info for variable format expression */
+    int temps;        /*   counter for temporary labels */
+    int labels;       /*   pointer to list of vfe labels */
   } vf_expr;
-  LOGICAL ignore_stmt; /* TRUE => parser is to ignore current stmt */
-  int switch_size;     /* size of switch/CGOTO list area */
-  int switch_avl;      /* next available word in switch list area */
-  int bu_switch_avl;   /* switch_avl for bottom-up Minline */
-  LOGICAL temps_reset; /* TRUE if semant general temps can be resused */
-  LOGICAL in_stfunc;   /* in statement function def */
-  int p_adjarr;        /* pointer to list of based adjustable array-objects */
-  int in_dim;          /* in <dimension list> */
-                       /*
-                        * the following two members (bounds, and arrdim) are filled in
-                        * when semantically processing <dim list> specifiers
-                        */
+  bool ignore_stmt;  /* TRUE => parser is to ignore current stmt */
+  int switch_size;   /* size of switch/CGOTO list area */
+  int switch_avl;    /* next available word in switch list area */
+  int bu_switch_avl; /* switch_avl for bottom-up Minline */
+  bool temps_reset;  /* TRUE if semant general temps can be resused */
+  bool in_stfunc;    /* in statement function def */
+  int p_adjarr;      /* pointer to list of based adjustable array-objects */
+  int in_dim;        /* in <dimension list> */
+                     /*
+                      * the following two members (bounds, and arrdim) are filled in
+                      * when semantically processing <dim list> specifiers
+                      */
   struct {
     int lowtype;
     int uptype;
@@ -615,8 +625,8 @@ typedef struct {
   int tkntyp;        /* token effecting semant reduction */
   struct {           /* atomic */
     int lineno;      /* line number of atomic */
-    LOGICAL seen;    /* atomic directive just seen */
-    LOGICAL pending; /* atomic directive not yet applied */
+    bool seen;       /* atomic directive just seen */
+    bool pending;    /* atomic directive not yet applied */
     int action_type; /* (read|write|update|capture) */
   } atomic;
   int parallel;            /* parallel nesting level - PARALLEL, DOACROSS,
@@ -624,10 +634,10 @@ typedef struct {
                             *  0 - not parallel
                             * >0 - parallel nesting level (1 => outermost)
                             */
-  LOGICAL expect_do;       /* next statement after DOACROSS, PDO, or
+  bool expect_do;          /* next statement after DOACROSS, PDO, or
                             * PARALLELDO needs to be a DO.
                             */
-  LOGICAL close_pdo;       /* A DO loop for a PDO, PARALLELDO, or DOACROSS
+  bool close_pdo;          /* A DO loop for a PDO, PARALLELDO, or DOACROSS
                             * has been processed and its removal from the
                             * DOIF stack is delayed until the next
                             * statement is processed.  For PDO and
@@ -659,13 +669,13 @@ typedef struct {
                             * iteration data structure.
                             */
   int blksymnum;
-  LOGICAL ignore_default_none; /* don't perform the OMP DEFAULT(NONE) check */
-  int collapse;                /* collapse value for the pardo or pdo */
-  int collapse_depth;          /* depth of collapse loop; 1 => innermost */
-  int task;                    /* depth of task
-                                *  0 - not in task
-                                * >0 - task nesting level (1 => outermost)
-                                */
+  bool ignore_default_none; /* don't perform the OMP DEFAULT(NONE) check */
+  int collapse;             /* collapse value for the pardo or pdo */
+  int collapse_depth;       /* depth of collapse loop; 1 => innermost */
+  int task;                 /* depth of task
+                             *  0 - not in task
+                             * >0 - task nesting level (1 => outermost)
+                             */
   /*
    * the following members are initialized to values which reflect the
    * default type for the extents and subscripts of arrays.  The type could
@@ -726,83 +736,98 @@ extern INT cast_types[NTYPE][2][2];
     error(115, 2, gbl.lineno, SYMNAME(sptr), CNULL);
 
 /* if sp == 0, bound is '*' */
-#define ILMBOUND(sp)                            \
-  (((sp) == 0) ? 0 : (STYPEG(sp) == ST_CONST    \
-                          ? ad2ilm(IM_ICON, sp) \
-                          : ad2ilm(IM_ILD, ad2ilm(IM_BASE, sp))))
+#define ILMBOUND(sp)                                   \
+  (((sp) == 0)                                         \
+       ? 0                                             \
+       : (STYPEG(sp) == ST_CONST ? ad2ilm(IM_ICON, sp) \
+                                 : ad2ilm(IM_ILD, ad2ilm(IM_BASE, sp))))
 
 #define DPVAL(a) ad2ilm(IM_DPVAL, a)
 #define DPREF(a) ad2ilm(IM_DPREF, a)
 #define DPSCON(a) ad2ilm(IM_DPSCON, a)
 #define DPNULL ad1ilm(IM_DPNULL)
 
-extern void dmp_const(CONST *acl, int indent);
+void dmp_const(CONST *acl, int indent);
 
 /*  declare external functions called only from within semant: */
 
-extern void emit_epar(void); /* semsmp.c: */
-extern void emit_bcs_ecs(int);
-extern void end_parallel_clause(int);
-extern void add_dflt_allocated(int);
-extern void add_dflt_firstprivate(int, int);
-extern INT chkcon(), const_fold(); /* semutil.c: */
-extern ISZ_T chkcon_to_isz(struct sst *, LOGICAL);
-extern INT chktyp(), chk_scalartyp();
-extern INT chk_arr_extent();
-extern int mkexpr(), chkvar(), add_base(), chksubstr(), get_temp(int),
-    get_itemp(int), mkvarref();
-extern int mklvalue(), mkmember();
-extern int mklabelvar64(int);
-extern LOGICAL is_varref();
-extern void binop(), mklogint4(), link_members(), chkstruct(), assign(),
-    do_begin(DOINFO *, int, int, int), do_parbegin(DOINFO *, int, int, int),
-    do_lastval(DOINFO *, int, int, int), do_end(DOINFO *), cngtyp(),
-    mklogint4(), negate_const();
-extern INT cngcon(INT oldval, int oldtyp, int newtyp);
-extern char *prtsst();
-extern DOINFO *get_doinfo(int);
+void emit_epar(void); /* semsmp.c: */
+void emit_bcs_ecs(int);
+void end_parallel_clause(int);
+void add_dflt_allocated(int);
+void add_dflt_firstprivate(int, int);
+INT chkcon();
+INT const_fold(); /* semutil.c: */
+ISZ_T chkcon_to_isz(struct sst *, bool);
+INT chktyp();
+INT chk_scalartyp();
+INT chk_arr_extent();
+int mkexpr();
+int chkvar();
+int add_base();
+int chksubstr();
+int get_temp(int);
+int get_itemp(int);
+int mkvarref();
+int mklvalue(), mkmember();
+int mklabelvar64(int);
+bool is_varref();
+void binop();
+void mklogint4();
+void link_members();
+void chkstruct();
+void assign();
+void do_begin(DOINFO *, int, int, int);
+void do_parbegin(DOINFO *, int, int, int);
+void do_lastval(DOINFO *, int, int, int);
+void do_end(DOINFO *);
+void cngtyp();
+void mklogint4();
+void negate_const();
+char *prtsst();
+DOINFO *get_doinfo(int);
 
-extern void chk_adjarr(), gen_arrdsc(); /* semutil2.c: */
-extern int mk_arrdsc();
-extern void gen_allocate(int, int, int);
-extern void gen_deallocate(int, int);
-extern int sem_strcmp(char *, char *);
-extern void sem_set_storage_class(int);
-extern int enter_lexical_block(int);
-extern void exit_lexical_block(int);
-extern void dmp_doif(int);
+void chk_adjarr();
+void gen_arrdsc(); /* semutil2.c: */
+int mk_arrdsc();
+void gen_allocate(int, int, int);
+void gen_deallocate(int, int);
+void sem_set_storage_class(int);
+int enter_lexical_block(int);
+void exit_lexical_block(int);
+void dmp_doif(int);
 
-extern int ad1ilm(int), ad2ilm(int, int),
-    ad3ilm(int, int, int), /* ilmutil.c: */
-    ad4ilm(int, int, int, int), ad5ilm(int, int, int, int, int);
-extern void dumpilmtrees(void);
-extern int lnegate();
-extern void wrilms(int), add_ilms(ILM_T *), mkbranch(int, int, int);
-extern void gwrilms(int nilms);
-extern void fini_next_gilm(void);
-extern void init_next_gilm(void);
-extern void swap_next_gilm(void);
-extern int rdilms(void);
-extern void rewindilms(void);
+int ad1ilm(int);
+int ad2ilm(int, int);
+int ad3ilm(int, int, int); /* ilmutil.c: */
+int ad4ilm(int, int, int, int);
+int ad5ilm(int, int, int, int, int);
+void dumpilmtrees(void);
+int lnegate();
+void wrilms(int);
+void add_ilms(ILM_T *);
+void mkbranch(int, int, int);
+void gwrilms(int nilms);
+void fini_next_gilm(void);
+void init_next_gilm(void);
+void swap_next_gilm(void);
+int rdilms(void);
+void rewindilms(void);
 #if DEBUG
 /* FIXME those two functions do the same thing, also see _dumpilms */
-extern void dmpilms();
-extern void dumpilms();
+void dmpilms(void);
+void dumpilms(void);
 #endif
-extern ILM_T *save_ilms(int);
-extern void dinit(); /* dinit.c */
-extern LOGICAL dinit_ok();
-extern void semfin(); /* semfin.c */
-extern int mklogopnd();
-int declref(int, int, int); /* semsym.c */
-int declsym(int, int, LOGICAL);
-int refsym(int, int);
-int getocsym(int, int);
-int newsym(int);
-int ref_ident(int);
+ILM_T *save_ilms(int);
+void dinit(VAR *ivl, CONST *ict); /* dinit.c */
+bool dinit_ok(int);
+void dmp_ivl(VAR *, FILE *);
+void dmp_ict(CONST *, FILE *);
+void semfin(); /* semfin.c */
+int mklogopnd();
 int ref_based_object(int);
 int decl_private_sym(int);
-void par_push_scope(LOGICAL);
+void par_push_scope(bool);
 void par_pop_scope(void);
 int sem_check_scope(int, int);
 
@@ -815,10 +840,12 @@ int ref_stfunc();
 int ref_entry();
 int chkarg();
 int select_gsame(int);
-extern int mkipval(INT);
-extern void subr_call();
+int mkipval(INT);
+void subr_call();
 void define_stfunc();
 
 /* semutil0.c */
 void semant_init(void);
 void semant_reinit(void);
+
+#endif // SEMANT_H_

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, NVIDIA CORPORATION.  All rights reserved.
+ * Copyright (c) 1996-2018, NVIDIA CORPORATION.  All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -108,8 +108,9 @@ __fort_par_open(char *fn, char *par)
 
 /* read from file */
 
-int
-__fort_par_read(int fd, char *adr, int cnt, int str, int typ, int ilen, int own)
+__CLEN_T
+__fort_par_read(int fd, char *adr, __CLEN_T cnt, int str, int typ,
+                __CLEN_T ilen, int own)
 {
   long l;
   int s;
@@ -144,8 +145,9 @@ __fort_par_read(int fd, char *adr, int cnt, int str, int typ, int ilen, int own)
 
 /* write to file */
 
-int
-__fort_par_write(int fd, char *adr, int cnt, int str, int typ, int ilen, int own)
+__CLEN_T
+__fort_par_write(int fd, char *adr, __CLEN_T cnt, int str, int typ,
+                 __CLEN_T ilen, int own)
 {
   int s;
 

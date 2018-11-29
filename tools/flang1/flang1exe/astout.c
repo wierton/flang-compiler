@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, NVIDIA CORPORATION.  All rights reserved.
+ * Copyright (c) 1994-2018, NVIDIA CORPORATION.  All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -58,7 +58,7 @@ static LOGICAL op_space = TRUE;
 
 static LOGICAL altret_spec = FALSE; /* labels are alternate return specifiers */
 
-typedef struct {/* simple queue decl. */
+typedef struct { /* simple queue decl. */
   int first;
   int last;
 } _A_Q;
@@ -76,7 +76,7 @@ static struct {
   _A_Q q_e; /* queue for parameters with expr ast's */
 } params, vx_params = {0};
 
-typedef struct _qsym {/* for queuing syms whose decls are to be printed later*/
+typedef struct _qsym { /* for queuing syms whose decls are to be printed later*/
   struct _qsym *next;
   int sptr;
 } QSYM;
@@ -807,11 +807,20 @@ print_ast(int ast)
     }
     break;
   case A_INTR:
+    optype = A_OPTYPEG(ast);
     if (ast_is_comment) {
-      put_call(ast, 0, NULL, 0);
+      if (A_ISASSIGNLHSG(ast)) {
+        assert(optype == I_ALLOCATED, "unexpected ISASSIGNLHS", ast, ERR_Fatal);
+        put_call(ast, 0, "allocated_lhs", 0);
+      } else if (A_ISASSIGNLHS2G(ast)) {
+        assert(optype == I_ALLOCATED, "unexpected ISASSIGNLHS2", ast,
+               ERR_Fatal);
+        put_call(ast, 0, "allocated_lhs2", 0);
+      } else {
+        put_call(ast, 0, NULL, 0);
+      }
       break;
     }
-    optype = A_OPTYPEG(ast);
     if ((sym = EXTSYMG(intast_sym[optype]))) {
       put_call(ast, 0, SYMNAME(sym), 0);
       break;
@@ -915,7 +924,7 @@ print_ast(int ast)
       break;
     case I_INDEX:
       if (A_ARGCNTG(ast) != 2) {
-        rtlRtn = RTE_index;
+        rtlRtn = RTE_indexa;
         goto make_func_name;
       }
       put_call(ast, 0, NULL, 0);
@@ -933,7 +942,7 @@ print_ast(int ast)
       put_call(ast, 0, NULL, 2);
       break;
     case I_ACHAR:
-      rtlRtn = RTE_achar;
+      rtlRtn = RTE_achara;
       goto make_func_name;
     case I_EXPONENT:
       argt = A_ARGSG(ast);
@@ -949,7 +958,7 @@ print_ast(int ast)
         rtlRtn = RTE_fracd;
       goto make_func_name;
     case I_IACHAR:
-      rtlRtn = RTE_iachar;
+      rtlRtn = RTE_iachara;
       goto make_func_name;
     case I_RRSPACING:
       if (DTY(DDTG(A_DTYPEG(ast))) == TY_REAL)
@@ -984,21 +993,21 @@ print_ast(int ast)
     case I_VERIFY:
       argt = A_ARGSG(ast);
       if (DTY(DDTG(A_DTYPEG(ARGT_ARG(argt, 0)))) == TY_CHAR)
-        rtlRtn = RTE_verify;
+        rtlRtn = RTE_verifya;
       else
         rtlRtn = RTE_nverify;
       goto make_func_name;
     case I_SCAN:
       argt = A_ARGSG(ast);
       if (DTY(DDTG(A_DTYPEG(ARGT_ARG(argt, 0)))) == TY_CHAR)
-        rtlRtn = RTE_scan;
+        rtlRtn = RTE_scana;
       else
         rtlRtn = RTE_nscan;
       goto make_func_name;
     case I_LEN_TRIM:
       argt = A_ARGSG(ast);
       if (DTY(DDTG(A_DTYPEG(ARGT_ARG(argt, 0)))) == TY_CHAR)
-        rtlRtn = RTE_lentrim;
+        rtlRtn = RTE_lentrima;
       else
         rtlRtn = RTE_nlentrim;
       goto make_func_name;
@@ -1123,7 +1132,7 @@ print_ast(int ast)
       if (DTYG(DTYPEG(sym)) != TY_CHAR)
         rtlRtn = cnt == 5 ? RTE_ptr_assign : RTE_ptr_assignx;
       else
-        rtlRtn = cnt == 5 ? RTE_ptr_assign_char : RTE_ptr_assign_charx;
+        rtlRtn = cnt == 5 ? RTE_ptr_assign_chara : RTE_ptr_assign_charxa;
       put_string(mkRteRtnNm(rtlRtn));
       put_char('(');
 
@@ -1179,9 +1188,9 @@ print_ast(int ast)
       argt = A_ARGSG(ast);
       sym = A_SPTRG(ARGT_ARG(argt, 3)); /* pointer */
       if (DTYG(DTYPEG(sym)) != TY_CHAR)
-        rtlRtn = RTE_ptr_in;
+        rtlRtn = RTE_ptr_ina;
       else
-        rtlRtn = RTE_ptr_in_char;
+        rtlRtn = RTE_ptr_in_chara;
       put_l_to_u("call ");
       put_string(mkRteRtnNm(rtlRtn));
       put_char('(');
@@ -1235,7 +1244,7 @@ print_ast(int ast)
       if (DTYG(DTYPEG(sym)) != TY_CHAR)
         rtlRtn = RTE_ptr_out;
       else
-        rtlRtn = RTE_ptr_out_char;
+        rtlRtn = RTE_ptr_out_chara;
       put_string(mkRteRtnNm(rtlRtn));
       put_char('(');
       /*
@@ -1601,6 +1610,8 @@ print_ast(int ast)
     }
     if (A_FIRSTALLOCG(ast))
       put_string(", firstalloc");
+    if (A_DALLOCMEMG(ast))
+      put_string(", dallocmem");
     if (A_DEVSRCG(ast)) {
       put_string(", devsrc=");
       print_ast(A_DEVSRCG(ast));
@@ -1982,7 +1993,7 @@ print_ast(int ast)
     lbuff[0] = '!';
     put_string(astb.atypes[atype]);
     if (A_LOPG(ast)) {
-    put_char(',');
+      put_char(',');
       put_string(" lop:");
       print_ast(A_LOPG(ast));
     }
@@ -2073,8 +2084,67 @@ print_ast(int ast)
       print_ast(A_FINALPARG(ast));
       put_string(")");
     }
+    if (A_PRIORITYG(ast)) {
+      put_string(" priority(");
+      print_ast(A_PRIORITYG(ast));
+      put_string(")");
+    }
     if (A_UNTIEDG(ast)) {
       put_string(",untied");
+    }
+    if (A_EXEIMMG(ast))
+      put_string(",exeimm");
+    if (A_ENDLABG(ast))
+      print_ast(A_ENDLABG(ast));
+    break;
+  case A_MP_TASKLOOPREG:
+    lbuff[0] = '!';
+    put_string(astb.atypes[atype]);
+    if (A_M1G(ast)) {
+      put_string(" lb(");
+      print_ast(A_M1G(ast));
+      put_string(")");
+    }
+    if (A_M2G(ast)) {
+      put_string(" ub(");
+      print_ast(A_M2G(ast));
+      put_string(")");
+    }
+    if (A_M3G(ast)) {
+      put_string(" st(");
+      print_ast(A_M3G(ast));
+      put_string(")");
+    }
+    break;
+  case A_MP_TASKLOOP:
+    lbuff[0] = '!';
+    put_string(astb.atypes[atype]);
+    if (A_IFPARG(ast)) {
+      put_string(" if(");
+      print_ast(A_IFPARG(ast));
+      put_string(")");
+    }
+    if (A_FINALPARG(ast)) {
+      put_string(" final(");
+      print_ast(A_FINALPARG(ast));
+      put_string(")");
+    }
+    if (A_PRIORITYG(ast)) {
+      put_string(" priority(");
+      print_ast(A_PRIORITYG(ast));
+      put_string(")");
+    }
+    if (A_UNTIEDG(ast)) {
+      put_string(",untied");
+    }
+    if (A_NOGROUPG(ast)) {
+      put_string(",nogroup");
+    }
+    if (A_GRAINSIZEG(ast)) {
+      put_string(",grainsize");
+    }
+    if (A_NUM_TASKSG(ast)) {
+      put_string(",num_tasks");
     }
     if (A_EXEIMMG(ast))
       put_string(",exeimm");
@@ -2135,6 +2205,7 @@ print_ast(int ast)
     }
     break;
   case A_MP_TASKREG:
+  case A_MP_TASKDUP:
   case A_MP_ENDTARGET:
   case A_MP_ENDTARGETDATA:
   case A_MP_TEAMS:
@@ -2145,7 +2216,7 @@ print_ast(int ast)
   case A_MP_ETASKGROUP:
   case A_MP_ENDPARALLEL:
   case A_MP_BARRIER:
-  case A_MP_ETASKREG:
+  case A_MP_ETASKDUP:
   case A_MP_TASKWAIT:
   case A_MP_TASKYIELD:
   case A_MP_ENDSECTIONS:
@@ -2165,8 +2236,10 @@ print_ast(int ast)
   case A_MP_BORDERED:
   case A_MP_EORDERED:
   case A_MP_ENDTASK:
+  case A_MP_ETASKLOOP:
   case A_MP_EMPSCOPE:
   case A_MP_FLUSH:
+  case A_MP_ETASKLOOPREG:
     lbuff[0] = '!';
     put_string(astb.atypes[atype]);
     break;
@@ -2310,6 +2383,14 @@ print_ast(int ast)
       acc_pragma(ast);
       put_string("scalar region");
       break;
+    case PR_ACCSERIAL:
+      acc_pragma(ast);
+      put_string("serial");
+      break;
+    case PR_ACCENDSERIAL:
+      acc_pragma(ast);
+      put_string("end serial");
+      break;
     case PR_ACCEL:
       acc_pragma(ast);
       put_string("region");
@@ -2363,6 +2444,10 @@ print_ast(int ast)
     case PR_ACCUPDATE:
       acc_pragma(ast);
       put_string("update");
+      break;
+    case PR_ACCCOMP:
+      acc_pragma(ast);
+      put_string("comp");
       break;
     case PR_ACCWAIT:
       acc_pragma(ast);
@@ -2483,6 +2568,8 @@ print_ast(int ast)
     case PR_ACCPCREATE:
     case PR_ACCPDELETE:
     case PR_ACCDELETE:
+    case PR_ACCATTACH:
+    case PR_ACCDETACH:
     case PR_ACCMIRROR:
     case PR_ACCREFLECT:
     case PR_ACCUPDATEHOST:
@@ -2491,6 +2578,8 @@ print_ast(int ast)
     case PR_ACCUPDATESELFIFP:
     case PR_ACCUPDATEDEVICE:
     case PR_ACCUPDATEDEVICEIFP:
+    case PR_ACCCOMPARE:
+    case PR_PGICOMPARE:
     case PR_KERNEL_NEST:
     case PR_KERNEL_GRID:
     case PR_KERNEL_BLOCK:
@@ -2504,6 +2593,7 @@ print_ast(int ast)
     case PR_ACCNUMGANGS3:
     case PR_ACCVLENGTH:
     case PR_ACCUSEDEVICE:
+    case PR_ACCUSEDEVICEIFP:
     case PR_ACCDEVICERES:
     case PR_ACCLOOPPRIVATE:
     case PR_CUFLOOPPRIVATE:
@@ -2551,6 +2641,12 @@ print_ast(int ast)
       case PR_ACCPDELETE:
         put_string("pdelete(");
         break;
+      case PR_ACCATTACH:
+        put_string("attach(");
+        break;
+      case PR_ACCDETACH:
+        put_string("detach(");
+        break;
       case PR_ACCUPDATEHOST:
         put_string("update host(");
         break;
@@ -2568,6 +2664,12 @@ print_ast(int ast)
         break;
       case PR_ACCUPDATEDEVICEIFP:
         put_string("update if_present device(");
+        break;
+      case PR_ACCCOMPARE:
+        put_string("compare(");
+        break;
+      case PR_PGICOMPARE:
+        put_string("pgi_compare(");
         break;
       case PR_ACCMIRROR:
         put_string("mirror(");
@@ -2623,6 +2725,7 @@ print_ast(int ast)
         put_string("vector_length(");
         break;
       case PR_ACCUSEDEVICE:
+      case PR_ACCUSEDEVICEIFP:
         put_string("use_device(");
         break;
       case PR_ACCDEVICERES:
@@ -2799,9 +2902,25 @@ print_ast(int ast)
       acc_pragma(ast);
       put_string("(kernels) loop");
       break;
+    case PR_ACCTKLOOP:
+      acc_pragma(ast);
+      put_string("(kernels-tight) loop");
+      break;
     case PR_ACCPLOOP:
       acc_pragma(ast);
       put_string("(parallel) loop");
+      break;
+    case PR_ACCTPLOOP:
+      acc_pragma(ast);
+      put_string("(parallel-right) loop");
+      break;
+    case PR_ACCSLOOP:
+      acc_pragma(ast);
+      put_string("(serial) loop");
+      break;
+    case PR_ACCTSLOOP:
+      acc_pragma(ast);
+      put_string("(serial-right) loop");
       break;
     case PR_ACCWAITDIR:
       acc_pragma(ast);
@@ -3100,8 +3219,8 @@ print_sname(int sym)
   case ST_MEMBER:
     break;
   case ST_PROC:
-    if (SCOPEG(sym) && STYPEG(SCOPEG(sym)) == ST_ALIAS &&
-        SCOPEG(SCOPEG(sym)) && STYPEG(SCOPEG(SCOPEG(sym))) == ST_MODULE) {
+    if (SCOPEG(sym) && STYPEG(SCOPEG(sym)) == ST_ALIAS && SCOPEG(SCOPEG(sym)) &&
+        STYPEG(SCOPEG(SCOPEG(sym))) == ST_MODULE) {
       put_string(SYMNAME(SCOPEG(SCOPEG(sym))));
       put_string("::");
       break;
@@ -3124,7 +3243,7 @@ print_sname(int sym)
     if (SCG(sym) == SC_PRIVATE)
       put_string("@");
     else if (SCG(sym) == SC_BASED && MIDNUMG(sym) &&
-              SCG(MIDNUMG(sym)) == SC_PRIVATE)
+             SCG(MIDNUMG(sym)) == SC_PRIVATE)
       put_string("@");
     break;
   default:;
@@ -3225,7 +3344,6 @@ deferred_to_pointer(void)
         SAVEP(sptr, 0); /* based-object cannot be SAVEd */
     }
   }
-
 }
 
 static void
@@ -3441,7 +3559,7 @@ gen_allocate(int object, int stat)
       nelem = astb.i1;
   }
   put_l_to_u("call ");
-  rtlRtn = !ALLOCG(asym) ? RTE_ptr_alloc : RTE_alloc;
+  rtlRtn = !ALLOCG(asym) ? RTE_ptr_alloca : RTE_alloca;
   put_string(mkRteRtnNm(rtlRtn));
   put_char('(');
   save_op_space = op_space;
@@ -3512,7 +3630,6 @@ gen_allocate(int object, int stat)
   }
 
   op_space = save_op_space;
-
 }
 
 /* If the output is 'standard' f77, need to convert the deallocate of an
@@ -3534,7 +3651,7 @@ gen_deallocate(int object, int stat, int asym, int passptr)
   if (passptr) {
     put_string(mkRteRtnNm(RTE_deallocx));
   } else {
-    put_string(mkRteRtnNm(RTE_dealloc));
+    put_string(mkRteRtnNm(RTE_dealloca));
   }
   put_char('(');
   if (stat)
@@ -3578,7 +3695,6 @@ gen_deallocate(int object, int stat, int asym, int passptr)
     if (!NO_PTR || !XBIT(70, 8) || STYPEG(asym) != ST_MEMBER)
       gen_nullify(object, asym, passptr);
   }
-
 }
 
 static void
@@ -3616,7 +3732,7 @@ gen_nullify(int ast, int sym, int passptr)
   }
   put_l_to_u("call ");
   if (DTYG(DTYPEG(sym)) == TY_CHAR) {
-    rtlRtn = RTE_nullify_char;
+    rtlRtn = RTE_nullify_chara;
   } else if (passptr) {
     rtlRtn = RTE_nullifyx;
   } else {
@@ -4108,7 +4224,6 @@ char_to_text(int ch)
     sprintf(b, "\\%03o", c);
     put_string(b);
   }
-
 }
 
 /* emit name when it's known to contain uppercase letters;
@@ -4131,7 +4246,6 @@ put_u_to_l(char *name)
       col++;
     }
   }
-
 }
 
 /* emit name when it's known to contain lowercase letters, e.g., keywords.
@@ -4141,7 +4255,6 @@ static void
 put_l_to_u(char *name)
 {
   put_string(name);
-
 }
 
 static int just_did_sharpline = 0;
@@ -4259,7 +4372,6 @@ add_param(int sptr)
   q->last = sptr;
   SYMLKP(sptr, 0);
   ENDP(sptr, 0);
-
 }
 
 /** \brief Since a separate list is created for each parameter combination of
@@ -4290,7 +4402,7 @@ pghpf_entry(int func)
   /* pghpf_function_entry(line,nlines,function,file) */
 
   put_l_to_u("call ");
-  put_string(mkRteRtnNm(RTE_function_entry));
+  put_string(mkRteRtnNm(RTE_function_entrya));
   put_char('(');
   fl = FUNCLINEG(func);
   put_int(fl);

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, NVIDIA CORPORATION.  All rights reserved.
+ * Copyright (c) 1995-2018, NVIDIA CORPORATION.  All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -39,15 +39,15 @@
 
 /* ModuleId is an index into usedb.base[] */
 typedef enum {
-  NO_MODULE         = 0,
-  FIRST_MODULE      = 3,            /* 1 and 2 are not used */
-  ISO_C_MOD         = FIRST_MODULE, /* iso_c_binding module */
-  IEEE_ARITH_MOD,                   /* ieee_arithmetic module */
-  IEEE_FEATURES_MOD,                /* ieee_features module */
-  ISO_FORTRAN_ENV,                  /* iso_fortan_env module */
-  NML_MOD,                          /* namelist */
-  FIRST_USER_MODULE,                /* beginning of use modules */
-  MODULE_ID_MAX     = 0x7fffffff,
+  NO_MODULE = 0,
+  FIRST_MODULE = 3,         /* 1 and 2 are not used */
+  ISO_C_MOD = FIRST_MODULE, /* iso_c_binding module */
+  IEEE_ARITH_MOD,           /* ieee_arithmetic module */
+  IEEE_FEATURES_MOD,        /* ieee_features module */
+  ISO_FORTRAN_ENV,          /* iso_fortan_env module */
+  NML_MOD,                  /* namelist */
+  FIRST_USER_MODULE,        /* beginning of use modules */
+  MODULE_ID_MAX = 0x7fffffff,
 } MODULE_ID;
 
 /* The index into usedb of the module of the current USE statement.
@@ -74,6 +74,7 @@ typedef struct _rename {
 typedef struct {
   SPTR module;          /* the name of the module in the USE statement */
   LOGICAL unrestricted; /* entire module file is read */
+  LOGICAL submodule;    /* use of module by submodule */
   RENAME *rename;
   char *fullname; /* full path name of the module file */
 } USED;
@@ -108,7 +109,6 @@ static void export_all(void);
 static void make_rte_descriptor(int obj, char *suffix);
 static SPTR get_submod_sym(SPTR ancestor_module, SPTR submodule);
 static void dbg_dump(const char *, int);
-
 /* ------------------------------------------------------------------ */
 /*   USE statement  */
 
@@ -247,6 +247,15 @@ add_use_stmt()
   usedb.base[module_id].unrestricted = TRUE;
 }
 
+/* Use module from submodule */
+void
+add_submodule_use(void)
+{
+  assert(module_id != NO_MODULE, "module_id must be set", 0, ERR_Fatal);
+  usedb.base[module_id].unrestricted = TRUE;
+  usedb.base[module_id].submodule = TRUE;
+}
+
 #define VALID_RENAME_SYM(sptr)                            \
   (sptr > stb.firstusym &&                                \
    (ST_ISVAR(STYPEG(sptr)) || STYPEG(sptr) == ST_ALIAS || \
@@ -283,9 +292,9 @@ add_use_rename(SPTR local, SPTR global, LOGICAL is_operator)
    */
   if (!VALID_RENAME_SYM(global)) {
     SPTR sptr;
-    for (sptr = first_hash(global); sptr;
-         sptr = HASHLKG(sptr)) {
-      if (NMPTRG(sptr) == NMPTRG(global) && VALID_RENAME_SYM(sptr)) {
+    for (sptr = first_hash(global); sptr; sptr = HASHLKG(sptr)) {
+      if (NMPTRG(sptr) == NMPTRG(global) && SCOPEG(sptr) == SCOPEG(global) &&
+          VALID_RENAME_SYM(sptr)) {
         if (ST_ISVAR(sptr) && SYMLKG(sptr) &&
             STYPEG(SYMLKG(sptr)) == ST_ALIAS &&
             SCOPEG(SYMLKG(sptr)) == usedb.base[module_id].module) {
@@ -578,8 +587,9 @@ apply_use(MODULE_ID m_id)
   /* save this so we can tell what new symbols were added below */
   save_sem_scope_level = sem.scope_level;
   SCOPEP(used->module, 0);
-  used->module =
-      import_module(use_fd, use_file_name, used->module, save_sem_scope_level);
+  /* Use INCLUDE_PRIVATES, parent privates are visible to inherited submodules.*/
+  used->module = import_module(use_fd, use_file_name, used->module,
+                               INCLUDE_PRIVATES, save_sem_scope_level);
   DINITP(used->module, TRUE);
   dbg_dump("apply_use", 0x2000);
 
@@ -715,7 +725,7 @@ apply_use(MODULE_ID m_id)
     while ((scope = next_scope(scope)) != 0 &&
            get_scope_level(scope) >= save_sem_scope_level) {
       int o, nexto;
-      scope->private = TRUE;
+      scope->Private = TRUE;
       for (o = onlylist; o; o = nexto) {
         nexto = SYMI_NEXT(o);
         if (SCOPEG(SYMI_SPTR(o)) == scope->sptr) {
@@ -898,6 +908,7 @@ open_module(SPTR use)
   fullname = getitem(8, MAX_FNAME_LEN + 1);
   modu_file_name = getitem(8, strlen(name) + strlen(MOD_SUFFIX) + 1);
   strcpy(modu_file_name, name);
+  convert_2dollar_signs_to_hyphen(modu_file_name);
   strcat(modu_file_name, MOD_SUFFIX);
   if (!get_module_file_name(modu_file_name, fullname, MAX_FNAME_LEN)) {
     set_exitcode(19);
@@ -926,6 +937,7 @@ open_module(SPTR use)
   NEED(usedb.avl, usedb.base, USED, usedb.sz, usedb.sz + 8);
   usedb.base[module_id].module = use;
   usedb.base[module_id].unrestricted = FALSE;
+  usedb.base[module_id].submodule = FALSE;
   usedb.base[module_id].rename = NULL;
   usedb.base[module_id].fullname = fullname;
 
@@ -1089,6 +1101,7 @@ begin_module(SPTR id)
 SPTR
 begin_submodule(SPTR id, SPTR ancestor_mod, SPTR parent_submod, SPTR *parent)
 {
+  SPTR submod;
   if (parent_submod <= NOSYM) {
     *parent = ancestor_mod;
   } else {
@@ -1097,8 +1110,11 @@ begin_submodule(SPTR id, SPTR ancestor_mod, SPTR parent_submod, SPTR *parent)
             SYMNAME(id));
     }
     *parent = get_submod_sym(ancestor_mod, parent_submod);
+    ANCESTORP(*parent, ancestor_mod);
   }
-  return begin_module(get_submod_sym(ancestor_mod, id));
+  submod = begin_module(get_submod_sym(ancestor_mod, id));
+  ANCESTORP(submod, ancestor_mod);
+  return submod;
 }
 
 /* Return the symbol for a submodule. It is qualified with the name of
@@ -1129,7 +1145,6 @@ mod_implicit(int firstc, int lastc, int dtype)
   impl.base[i].firstc = firstc;
   impl.base[i].lastc = lastc;
   impl.base[i].dtype = dtype;
-
 }
 
 static void
@@ -1460,7 +1475,7 @@ MOD_CMN_IDX(int xpriv, int xchar, int xlong, int xinitd, int thrd_priv,
 #define N_MOD_CMN sizeof(mod_cmn) / sizeof(int)
 static int mod_cmn_naln[N_MOD_CMN];
 
-typedef struct itemx {/* generic item record */
+typedef struct itemx { /* generic item record */
   int val;
   struct itemx *next;
 } ITEMX;
@@ -1782,8 +1797,9 @@ fix_module_common(void)
         }
         dty = DTYG(dtype);
         if ((dty == TY_CHAR || dty == TY_NCHAR) && ADJLENG(sptr)) {
-          error(310, 3, gbl.lineno, "Adjustable-length character variables are "
-                                    "not allowed in a MODULE -",
+          error(310, 3, gbl.lineno,
+                "Adjustable-length character variables are "
+                "not allowed in a MODULE -",
                 SYMNAME(sptr));
           err = 1;
         }
@@ -1799,8 +1815,9 @@ fix_module_common(void)
         dtype = DTYPEG(sptr);
         dty = DTYG(dtype);
         if ((dty == TY_CHAR || dty == TY_NCHAR) && ADJLENG(sptr)) {
-          error(310, 3, gbl.lineno, "Adjustable-length character variables are "
-                                    "not allowed in a MODULE -",
+          error(310, 3, gbl.lineno,
+                "Adjustable-length character variables are "
+                "not allowed in a MODULE -",
                 SYMNAME(sptr));
           err = 1;
         }
@@ -1945,6 +1962,7 @@ export_all(void)
       strcat(t_nm, modu_name);
     }
   }
+  convert_2dollar_signs_to_hyphen(t_nm);
   strcat(t_nm, MOD_SUFFIX);
   outfile = fopen(t_nm, "w+");
   if (outfile == NULL) {
@@ -2276,13 +2294,13 @@ mod_init()
   init_use_tree();
   restore_module_state();
   limitsptr = stb.stg_avail;
-  if (exportb.hmark.maxast >= astb.avl) {
+  if (exportb.hmark.maxast >= astb.stg_avail) {
     /*
      * The max ast read from the module file is greater than the
      * the last ast created; allocate asts so that the available
      * ast # is 1 larger than the max ast read.
      */
-    int i = exportb.hmark.maxast - astb.avl;
+    int i = exportb.hmark.maxast - astb.stg_avail;
     do {
       (void)new_node(A_ID);
     } while (--i >= 0);
@@ -2296,6 +2314,7 @@ mod_add_subprogram(int subp)
 {
   int new_sb;
   int i;
+  SPTR s;
   LOGICAL any_impl;
 
   /*
@@ -2339,13 +2358,19 @@ mod_add_subprogram(int subp)
   DPDSCP(subp, 0);
   PARAMCTP(subp, 0);
   FUNCLINEP(subp, 0);
-#ifdef EXTRP
-  EXTRP(subp, 0);
-#endif
   FVALP(subp, 0);
   SYMLKP(subp, new_sb);
   INMODULEP(new_sb, 1);
-  SCOPEP(subp, gbl.currmod);
+  if (ISSUBMODULEG(new_sb)) {
+    for (s = HASHLKG(subp); s; s = HASHLKG(s)) {
+      if (NMPTRG(s) == NMPTRG(subp) && STYPEG(s) == ST_PROC) {
+        SCOPEP(subp, SCOPEG(s));
+      }
+    }
+  } else {
+    SCOPEP(subp, gbl.currmod);
+  }
+
   if (sem.mod_dllexport) {
     DLLP(subp, DLL_EXPORT);
     DLLP(new_sb, DLL_EXPORT);
@@ -2381,10 +2406,10 @@ mod_add_subprogram(int subp)
       i++;
     }
   }
-  if (XBIT(52,0x80)) {
+  if (XBIT(52, 0x80)) {
     char linkage_name[2048];
-    snprintf(linkage_name, sizeof(linkage_name),
-             ".%s.%s", modu_name, SYMNAME(new_sb));
+    snprintf(linkage_name, sizeof(linkage_name), ".%s.%s", modu_name,
+             SYMNAME(new_sb));
     ALTNAMEP(new_sb, getstring(linkage_name, strlen(linkage_name)));
   }
   return new_sb;
@@ -2404,7 +2429,7 @@ export_public_used_modules(int scopelevel)
   if (sem.mod_public_flag && sem.scope_stack) {
     SCOPESTACK *scope = get_scope(scopelevel);
     for (; scope != 0; scope = next_scope(scope)) {
-      if (scope->kind == SCOPE_USE && !scope->private) {
+      if (scope->kind == SCOPE_USE && !scope->Private) {
         export_public_module(scope->sptr, scope->except);
       }
     }
@@ -2523,3 +2548,19 @@ dbg_dump(const char *name, int dbgbit)
   }
 #endif
 }
+
+#if DEBUG
+void
+dusedb()
+{
+  MODULE_ID id;
+  fprintf(stderr, "--- usedb: sz=%d\n", usedb.sz);
+  for (id = FIRST_USER_MODULE; id < usedb.avl; id++) {
+    USED used = usedb.base[id];
+    fprintf(stderr, "%d: sym=%d:%s", id, used.module, SYMNAME(used.module));
+    if (used.unrestricted) fprintf(stderr, " unrestricted");
+    if (used.submodule) fprintf(stderr, " submodule");
+    if (used.rename) fprintf(stderr, " rename=%s", used.rename);
+  }
+}
+#endif

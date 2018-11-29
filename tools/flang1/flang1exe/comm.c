@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, NVIDIA CORPORATION.  All rights reserved.
+ * Copyright (c) 1994-2018, NVIDIA CORPORATION.  All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -157,18 +157,16 @@ comm_analyze(void)
         set_descriptor_sc(SC_LOCAL);
       }
       break;
-    case A_MP_TASKREG:
-      set_descriptor_sc(SC_PRIVATE);
-      break;
-    case A_MP_ETASKREG:
-      if (parallel_depth == 0 && task_depth <= 1) {
-        set_descriptor_sc(SC_LOCAL);
-      }
+    case A_MP_TASKLOOPREG:
+    case A_MP_ETASKLOOPREG:
       break;
     case A_MP_TASK:
+    case A_MP_TASKLOOP:
       ++task_depth;
+      set_descriptor_sc(SC_PRIVATE);
       break;
     case A_MP_ENDTASK:
+    case A_MP_ETASKLOOP:
       --task_depth;
       if (parallel_depth == 0 && task_depth == 0) {
         set_descriptor_sc(SC_LOCAL);
@@ -1453,10 +1451,8 @@ again:
     /* No array descriptor for procedure name target in a
      * procedure pointer assignment.
      */
-  } else
-
-      if (ptr_reshape_dest && bnds_remap_list(ptr_reshape_dest) &&
-          simply_contiguous(src)) {
+  } else if (ptr_reshape_dest && bnds_remap_list(ptr_reshape_dest) &&
+             simply_contiguous(src)) {
     emit_alnd_secd(dest_sptr, dest, TRUE, std, ptr_reshape_dest);
   } else if (A_TYPEG(sectast) == A_SUBSCR && A_SHAPEG(sectast) != 0) {
     int d;
@@ -1511,10 +1507,16 @@ again:
   ARGT_ARG(newargt, 0) = ARGT_ARG(argt, 0);
   /* this will need some changes when dest_sptr is a derived type member */
   if ((STYPEG(dest_sptr) == ST_VAR || STYPEG(dest_sptr) == ST_ARRAY) &&
-      DSCASTG(dest_sptr))
+      DSCASTG(dest_sptr)) {
     ARGT_ARG(newargt, 1) = DSCASTG(dest_sptr);
-  else
-    ARGT_ARG(newargt, 1) = check_member(dest, mk_id(SDSCG(dest_sptr)));
+  } else {
+    SPTR sdsc = SDSCG(dest_sptr);
+    if (sdsc) {
+      ARGT_ARG(newargt, 1) = check_member(dest, mk_id(sdsc));
+    } else {
+      ARGT_ARG(newargt, 1) = astb.bnd.zero;
+    }
+  }
   ARGT_ARG(newargt, 2) = newsrc;
   if (array_desc)
     ARGT_ARG(newargt, 3) = array_desc;
@@ -4070,6 +4072,11 @@ canonical_conversion(int ast)
   int lhs, lhsd, sptr, dim;
   int align;
 
+
+  /* Don't replace the subscript if we intend it that way */
+  if (!XBIT(58,0x1000000) && A_CONSTBNDG(ast))
+    return 0;
+
   list = A_LISTG(ast);
   ifexpr = A_IFEXPRG(ast);
   asn = A_IFSTMTG(ast);
@@ -4125,6 +4132,7 @@ canonical_conversion(int ast)
       }
     }
   }
+
 
   for (i = 0; i < ndim; i++) {
     subs[i] = ASD_SUBS(asd, i);

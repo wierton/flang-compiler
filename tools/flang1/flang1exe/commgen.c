@@ -2111,9 +2111,14 @@ pointer_squeezer(int ast)
   case A_MP_COPYPRIVATE:
   case A_MP_ECOPYPRIVATE:
   case A_MP_TASK:
+  case A_MP_TASKLOOP:
   case A_MP_TASKREG:
-  case A_MP_ETASKREG:
+  case A_MP_TASKDUP:
+  case A_MP_TASKLOOPREG:
+  case A_MP_ETASKDUP:
+  case A_MP_ETASKLOOPREG:
   case A_MP_ENDTASK:
+  case A_MP_ETASKLOOP:
   case A_MP_BMPSCOPE:
   case A_MP_EMPSCOPE:
   case A_MP_BORDERED:

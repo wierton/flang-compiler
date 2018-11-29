@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, NVIDIA CORPORATION.  All rights reserved.
+ * Copyright (c) 1994-2018, NVIDIA CORPORATION.  All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,6 +14,9 @@
  * limitations under the License.
  *
  */
+
+#ifndef GLOBAL_H_
+#define GLOBAL_H_
 
 /** \file global.h
     \brief Fortran global variables and flags.
@@ -37,6 +40,7 @@ static inline void operator++(SPTR &s)
 typedef enum {
   RU_SUBR = 1,
   RU_FUNC,
+  RU_PROC,
   RU_PROG,
   RU_BDATA,
 } RU_TYPE;
@@ -218,3 +222,5 @@ typedef struct {
 } FLG;
 
 extern FLG flg;
+
+#endif

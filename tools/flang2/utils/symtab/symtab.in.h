@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, NVIDIA CORPORATION.  All rights reserved.
+ * Copyright (c) 1994-2018, NVIDIA CORPORATION.  All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,10 +15,14 @@
  *
  */
 
+#ifndef SYMTAB_H_
+#define SYMTAB_H_
+
 /** \file
  *  \brief symbol table for Fortran backend
  */
 
+#include "global.h"
 #include <stdarg.h>
 
 /* clang-format off */
@@ -27,14 +31,14 @@
 .ST
 /* the following macro depends on stype ordering */
 #define ST_ISVAR(s) ((s) >= ST_VAR && (s) <= ST_UNION)
- 
+
 .TY
 
 #define DT_FLOAT DT_REAL
 #define TY_FLOAT TY_REAL
 #define DT_CPTR DT_ADDR
 
-#define DTY(dt) (stb.dt_base[dt])
+#define DTY(d) (stb.dt.stg_base[d])
 
 /* for fast DT checking -- define table indexed by TY_ */
 extern short dttypes[TY_MAX+1];
@@ -78,7 +82,7 @@ extern short dttypes[TY_MAX+1];
 
 #define SC_AUTO SC_LOCAL
 #define SC_ISCMBLK(p)  (p == SC_CMBLK)
- 
+
 .SE
 
 /* redo & add a few macros when BIGOBJects are allowed.
@@ -148,10 +152,10 @@ extern short dttypes[TY_MAX+1];
 #define CUDA_DEVICE		0x02
 #define CUDA_GLOBAL		0x04
 #define CUDA_BUILTIN		0x08
-#define CUDA_CONSTRUCTOR	0x10
-#define CUDA_STUB		0x20
-#define CUDA_STUB_SAFE		0x40
-#define CUDA_STUB_UNSAFE	0x80
+#define CUDA_GRID		0x10
+#define CUDA_CONSTRUCTOR	0x20
+#define CUDA_STUB		0x40
+ /* b4G and b4P can only be up to 0xFF */
 #endif
 
 #define SYMNAME(p)        (stb.n_base + NMPTRG(p))
@@ -163,9 +167,9 @@ extern short dttypes[TY_MAX+1];
 #define RETADJP(s,v)    (( stb.stg_base)[s].w10 = (v))
 #define XREFLKG(s)      (( stb.stg_base)[s].w16)
 #define XREFLKP(s,v)    (( stb.stg_base)[s].w16 = (v))
-#define NOSYM 1
+#define NOSYM ((SPTR)1)
 
-typedef enum{
+typedef enum etls_levels {
     ETLS_PROCESS,
     ETLS_TASK,
     ETLS_THREAD,
@@ -185,8 +189,8 @@ typedef enum{
 #define DLL_NONE   0x0
 #define DLL_EXPORT 0x1
 #define DLL_IMPORT 0x2
- 
-typedef struct {
+
+typedef struct ADSC {
     int    numdim;
     int    scheck;
     int    zbase;
@@ -211,35 +215,37 @@ typedef struct {
 #define AD_UPBD(p, i)  ((p)->b[i].upbd)
 #define AD_NUMELM(p)  ((p)->b[AD_NUMDIM(p)].mlpyr)
 
-typedef struct {
-    ISZ_T           stack_addr; /* available address on run-time stack  */
-    int             ent_save;	/* sptr:
+typedef struct ENTRY {
+  ISZ_T           stack_addr; /* available address on run-time stack  */
+  SPTR          ent_save;	/* sptr:
     				 * o  n10 - to cc array to hold saved ar's and
    				 *    excstat
 				 * o  x86 - to cc scalar if multiple entries.
 				 */
-    short           first_dr;	/* first data reg used as global  */
-    short           first_ar;	/* first address reg used as global  */
-    short           first_sp;	/* first float reg used as global  */
-    short           first_dp;	/* first double reg used as global  */
-    int             auto_array; /* static array used for auto vars, else 0 */
-    int             ret_var;   	/* sym of return value if passed as arg */
-    int             memarg_ptr; /* sym where memarg ptr is saved upon entry */
-    int             gr_area;    /* sym of where to save global regs */
-    INT             flags;	/* misc. target dependent flags */
-    char           *arasgn;	/* local ar (base pointer) ARASGN records */
-    char           *regset;	/* target dependent register set info */
-    char           *argset;	/* target dependent register set info */
-    int             display;    /* sptr to an internal procedure's display
-				 * (i.e., the host procedure's stack frame).
-				 */
-    int             uplevel;    /* sptr to an outlined function contains
-                                 * addresses of uplevel variables /
-                                 */
-    int             cgr;	/* index into the simplfied call graph info */
+  short           first_dr;	/* first data reg used as global  */
+  short           first_ar;	/* first address reg used as global  */
+  short           first_sp;	/* first float reg used as global  */
+  short           first_dp;	/* first double reg used as global  */
+  int             auto_array; /* static array used for auto vars, else 0 */
+  int             ret_var;   	/* sym of return value if passed as arg */
+  int             memarg_ptr; /* sym where memarg ptr is saved upon entry */
+  int             gr_area;    /* sym of where to save global regs */
+  INT             flags;	/* misc. target dependent flags */
+  char           *arasgn;	/* local ar (base pointer) ARASGN records */
+  char           *regset;	/* target dependent register set info */
+  char           *argset;	/* target dependent register set info */
+  SPTR            display;    /* sptr to an internal procedure's display
+                               * (i.e., the host procedure's stack frame).
+                               */
+  SPTR         uplevel;    /* sptr to an outlined function contains
+                            * addresses of uplevel variables /
+                            */
+  int             cgr;	/* index into the simplfied call graph info */
+  int     launch_maxthread, launch_minctasm;
+                        /* launch_bounds for CUDA Fortran. 0 means not set. */
 } ENTRY;
 
-typedef struct {
+typedef struct NMLDSC {
     int   sptr;
     int   next;
     int   lineno;
@@ -251,7 +257,7 @@ typedef struct {
 
 /*****  Symbol List Item  *****/
 
-typedef struct {
+typedef struct SYMI {
     int   sptr;
     int   next;
 } SYMI;
@@ -260,15 +266,15 @@ typedef struct {
 #define SYMI_NEXT(i) aux.symi_base[i].next
 
 
-typedef struct {
+typedef struct DVL {
     int    sptr;
     INT    conval;
 } DVL;
 
 #define DVL_SPTR(i)   aux.dvl_base[i].sptr
 #define DVL_CONVAL(i) aux.dvl_base[i].conval
- 
-typedef struct {
+
+typedef struct AUX {
    int    *dpdsc_base;
    int     dpdsc_size;
    int     dpdsc_avl;
@@ -300,11 +306,11 @@ typedef struct {
 } AUX;
 
 #define VCON_CONVAL(i) aux.vcon_base[i]
- 
+
 #include "symacc.h"
 
 /*   symbol table data declarations:  */
- 
+
 extern AUX aux;
 
 /* pointer-sized integer */
@@ -313,7 +319,7 @@ extern AUX aux;
 
 /*  declarations required to access switch statement or computed goto lists: */
 
-typedef struct {
+typedef struct SWEL {
     INT  val;
     SPTR clabel;
     int  next;
@@ -321,102 +327,273 @@ typedef struct {
 
 extern SWEL *switch_base;
 
-/*   declare external functions from symtab.c and dtypeutil.c:  */
+/**
+   \brief ...
+ */
+ISZ_T get_isz_cval(int con);
 
-extern void     sym_init (void);
-extern void     implicit_int (int);
-extern SPTR     getsym(const char *, int);
-extern SPTR     getsymbol (const char *);
-extern SPTR     getcon (INT *, DTYPE);
-extern SPTR     get_acon (SPTR, ISZ_T);
-extern SPTR     get_acon3 (SPTR, ISZ_T, DTYPE);
-extern int      get_vcon (INT *, int);
-extern int      get_vcon0 (int);
-extern int      get_vcon1 (int);
-extern int      get_vconm0 (int);
-extern int      get_vcon_scalar (INT, int);
-extern ISZ_T    get_isz_cval(int);
-extern INT      sign_extend(INT, int);
-extern int      getstring (char *, int);
-extern void     newimplicit (int, int, int);
-extern void     setimplicit (int);
-extern void     reapply_implicit (void);
-extern char    *parmprint (int);
-extern char    *getprint (int);
-extern void     symdentry (FILE *, int);
-extern void     symdmp (FILE *, int);
-extern void     dmp_socs (int, FILE *);
-extern int      adddupsym(int);
-extern int      getnewccsym (int, int, int);
-extern int      getccsym (int, int, SYMTYPE);
-extern int      getccsym_sc (int, int, int, int);
-extern int      getcctemp_sc (char *, int, int);
-extern int      getccssym (char *, int, int);
-extern int      getccssym_sc (char *, int, int, int);
-extern int	getccsym_copy(int);
-extern int      insert_sym (int);
-extern int      insert_sym_first(int);
-extern int      getlab (void);
-extern int      get_entry_item(void);
-extern void     pop_scope (void);
-extern void     pop_sym (int);
-extern SPTR     mkfunc (const char *);
-extern SPTR     mkfunc_cncall(const char *);
-/* Private symbol adjustment, works differently (has two separate versions) for
- * native and LLVM backends */
-extern void     fix_private_sym(int);
+/**
+   \brief ...
+ */
+char *getprint(int sptr);
 
-int mk_prototype(char *, char *, DTYPE, int, ...);
-int mk_prototype_llvm(char *, char *, DTYPE, int, ...);
+/**
+   \brief ...
+ */
+char *parmprint(int sptr);
 
-extern int      add_symitem(int , int);
-extern int      dbg_symdentry (int);
-extern int      get_semaphore(void);
-extern char    *getsname(int);		/*****  defined in assem.c  *****/
-extern char    *getsname2(int);		/*****  defined in assem.c  *****/
-extern void     sym_is_refd(int);	/*****  defined in assem.c  *****/
+/**
+   \brief Add a new symbol with same name as an existing symbol
+   \param oldsptr symbol to duplicate
+ */
+SPTR adddupsym(SPTR oldsptr);
 
-extern ISZ_T    size_of (DTYPE);
-extern ISZ_T    size_of_sym (SPTR);
-extern int      alignment (DTYPE);
-extern int      align_unconstrained(DTYPE);
-extern int      alignment_sym (SPTR);
-extern void     init_chartab (void);
-extern DTYPE    get_type (int, TY_KIND, int);
-extern DTYPE    get_array_dtype (int, DTYPE);
-extern DTYPE    get_vector_type (DTYPE, int);
-extern int      cmpat_func (int, int);
-extern void     getdtype (DTYPE, char *);
-extern ISZ_T    extent_of (DTYPE);
-extern ISZ_T    ad_val_of(int);
-extern int      get_bnd_con(ISZ_T);
-extern ISZ_T    get_bnd_cval(int con);
-extern void     dmp_dtype (void);
-extern int      dmp_dent (int);
-extern int      scale_of (int, INT *);
-extern int      Scale_Of (int, ISZ_T *);
-extern int      fval_of (int);
-extern int      kanji_len (unsigned char *, int);
-extern int      kanji_char (unsigned char *, int, int *);
-extern int      kanji_prefix (unsigned char *, int, int);
-extern int      addnewsym(char*);
+/**
+   \brief Add a new symbol with given name
+   \param name  the symbol's name
+ */
+SPTR addnewsym(const char *name);
 
-/* dtypeutl.c */
-LOGICAL is_empty_typedef(DTYPE dtype);
-ISZ_T zsize_of(DTYPE dtype);
-int align_of(int dtype);
-extern LOGICAL no_data_components(int);
-extern void Save_Chartab(FILE *);
-extern void Restore_Chartab(FILE *);
+/**
+   \brief ...
+ */
+int add_symitem(int sptr, int nxt);
 
-/* xref.c */
-void xrefinit(void);
-void xref(void);
-void xrefput(int symptr, int usage);
+/**
+   \brief ...
+ */
+int dbg_symdentry(int sptr);
 
-/* llassem.h - should this be moved? */
-int runtime_alignment(int syma);
+/**
+   \brief Create (or possibly reuse) a compiler created symbol whose name is of
+   the form . <pfx> dddd where dddd is the decimal representation of n.
+ */
+SPTR getccssym(char *pfx, int n, SYMTYPE stype);
 
-int mk_swtab(INT n, SWEL *swhdr, int deflab, int doinit);
-int mk_swtab_ll(INT n, SWEL *swhdr, int deflab, int doinit);
-int mk_swlist(INT n, SWEL *swhdr, int doinit);
+/**
+   \brief Similar to getccssym, but storage class is an argument. Calls
+   getccssym if the storage class is not private; if private, a 'p' is appended
+   to the name.
+ */
+SPTR getccssym_sc(char *pfx, int n, SYMTYPE stype, SC_KIND sc);
+
+/**
+   \brief ...
+ */
+SPTR getccsym_copy(SPTR oldsptr);
+
+/**
+   \brief create (or possibly reuse) a compiler created symbol whose name is of
+   the form . <letter> dddd where dddd is the decimal representation of n.
+ */
+SPTR getccsym(int letter, int n, SYMTYPE stype);
+
+/**
+   \brief Similar to getccsym, but storage class is an argument. Calls
+   getccsym if the storage class is not private; if private, a 'p' is
+   appended to the name.
+ */
+SPTR getccsym_sc(int letter, int n, SYMTYPE stype, SC_KIND sc);
+
+/**
+   \brief Create (or possibly reuse) a compiler created temporary where the
+   caller constructs the name and passes the storage class as an argument.
+ */
+SPTR getcctemp_sc(char *name, SYMTYPE stype, SC_KIND sc);
+
+/**
+   \brief ...
+ */
+int get_entry_item(void);
+
+/**
+   \brief ...
+ */
+SPTR getlab(void);
+
+/**
+   \brief Create (never reuse) a compiler created symbol whose name is of the
+   form . <letter> dddd where dddd is the decimal representation of n.
+ */
+SPTR getnewccsym(int letter, int n, SYMTYPE stype);
+
+/**
+   \brief ...
+ */
+SPTR get_semaphore(void);
+
+/**
+   \brief Enter character constant into symbol table
+   \param value is the character string value
+   \param length is the length of character string
+   \return a pointer to the character constant in the symbol table.
+
+   If the constant was already in the table, returns a pointer to the existing
+   entry instead.
+ */
+SPTR getstring(char *value, int length);
+
+/**
+   \brief Similar to getstring except the character string is null terminated
+ */
+SPTR getntstring(char *value);
+
+SPTR getstringaddr(SPTR sptr);
+
+/**
+   \brief ...
+ */
+int get_vcon0(DTYPE dtype);
+
+/**
+   \brief ...
+ */
+int get_vcon1(DTYPE dtype);
+
+/**
+   \brief ...
+ */
+SPTR get_vcon(INT *value, DTYPE dtype);
+
+/**
+   \brief get a vector constant of a zero which suits the element type
+ */
+int get_vconm0(DTYPE dtype);
+
+/**
+   \brief ...
+ */
+SPTR get_vcon_scalar(INT sclr, DTYPE dtype);
+
+/**
+   \brief ...
+ */
+SPTR insert_sym_first(SPTR first);
+
+/**
+   \brief ...
+ */
+SPTR insert_sym(SPTR first);
+
+/**
+   \brief ...
+ */
+SPTR mk_prototype(char *name, char *attr, DTYPE resdt, int nargs, ...);
+
+/**
+   \brief ...
+ */
+SPTR mk_prototype_llvm(char *name, char *attr, DTYPE resdt, int nargs, ...);
+
+/**
+   \brief ...
+ */
+INT sign_extend(INT val, int width);
+
+/**
+   \brief ...
+ */
+int tr_conval2g(char *fn, int ln, int s);
+
+/**
+   \brief ...
+ */
+int tr_conval2p(char *fn, int ln, int s, int v);
+
+/**
+   \brief ...
+ */
+SPTR get_acon3(SPTR sym, ISZ_T off, DTYPE dtype);
+
+/**
+   \brief ...
+ */
+SPTR get_acon(SPTR sym, ISZ_T off);
+
+/**
+   \brief ...
+ */
+SPTR getcon(INT *value, DTYPE dtype);
+
+/**
+   \brief ...
+ */
+SPTR getsymbol(const char *name);
+
+/**
+   \brief ...
+ */
+SPTR getsym(const char *name, int olength);
+
+/**
+   \brief ...
+ */
+SPTR mkfunc(const char *nmptr);
+
+/**
+   \brief ...
+ */
+void dmp_socs(int sptr, FILE *file);
+
+/**
+   \brief ...
+ */
+void implicit_int(DTYPE default_int);
+
+/**
+   \brief Change settings for implicit variable types, character lengths
+   \param firstc   characters delimiting range
+   \param lastc    characters delimiting range
+   \param dtype    new value assigned to range
+ */
+void newimplicit(int firstc, int lastc, DTYPE dtype);
+
+/**
+   \brief ...
+ */
+void pop_scope(void);
+
+/**
+   \brief ...
+ */
+void pop_sym(int sptr);
+
+/**
+   \brief ...
+ */
+void reapply_implicit(void);
+
+/**
+   \brief ...
+ */
+void setimplicit(int sptr);
+
+/**
+   \brief ...
+ */
+void symdentry(FILE *file, int sptr);
+
+/**
+   \brief ...
+ */
+void symdmp(FILE *dfil, bool full);
+
+/**
+   \brief ...
+ */
+void sym_init(void);
+
+#ifdef __cplusplus
+// FIXME - these are hacks to allow addition on DTYPEs
+inline DTYPE operator+=(DTYPE d, int c)
+{
+  return static_cast<DTYPE>(static_cast<int>(d) + c);
+}
+
+inline int operator+(DTYPE d, int c)
+{
+  return static_cast<int>(d) + c;
+}
+#endif
+
+#endif

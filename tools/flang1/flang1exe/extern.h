@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, NVIDIA CORPORATION.  All rights reserved.
+ * Copyright (c) 1994-2018, NVIDIA CORPORATION.  All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,7 +22,6 @@
 
 void enter_local_mode(int std);            /* outconv.c */
 void exit_local_mode(int std);             /* outconv.c */
-void distributed_scalar(int);              /* transfrm.c */
 void convert_forall(void);                 /* outconv.c */
 int conv_forall(int std);                  /* outconv.c */
 void forall_dependency_analyze(void);      /* outconv.c */
@@ -60,10 +59,6 @@ void free_brtbl(void);                /* commopt.c */
 void init_rmtbl(void);                /* commopt.c */
 int get_rmtbl(void);                  /* commopt.c */
 void free_rmtbl(void);                /* commopt.c */
-void init_tbl(void);                  /* transfrm.c */
-int get_tbl(void);                    /* transfrm.c */
-void free_tbl(void);                  /* transfrm.c */
-int vector_member(int memast);
 void reset_init_idx(void);
 LOGICAL getbit(int, int);                             /* dpm_out.c */
 LOGICAL is_vector_subscript(int, int);                /* vsub.c */
@@ -73,10 +68,11 @@ LOGICAL is_no_comm_expr(int, int);                    /* vsub.c */
 LOGICAL is_no_rcomm_expr(int, int);                   /* vsub.c */
 int insert_comm_before(int, int, LOGICAL *, LOGICAL); /* rest.c */
 int localize_for_cyclic_expr_sub(int, int);           /* rest.c */
-void copy_surrogate_to_bnds_vars(int sptrdest, int sptrsrc, int std);
+void copy_surrogate_to_bnds_vars(DTYPE, int, DTYPE, int, int);
 void copy_desc_to_bnds_vars(int sptrdest, int desc, int memdesc, int std);
 void emit_fl(void);                       /* dpm_out.c */
 void init_sdsc_from_dtype(int sptr, DTYPE, int before_std); /* dpm_out.c */
+void make_temp_descriptor(int, SPTR, SPTR, int); /* dpm_out.c */
 int init_sdsc(int sptr, DTYPE dtype, int before_std, int parent_sptr);	/* semutil2.c */
 void ipa_restore_dtb(char *line);         /* dpm_out.c */
 void transform_call(int, int);
@@ -94,8 +90,6 @@ void init_ftb(void);
 void init_bnd(void);
 LOGICAL is_ordered(int, int, int, int[7], int *);
 LOGICAL is_duplicate(int, int);
-int get_finfo(int, int);
-int get_finfo_type(int, int, int);
 int delete_astli(int list, int);
 void forall_lhs_indirection(int);
 void forall_rhs_indirection(int);
@@ -138,10 +132,7 @@ void guard_forall(int);
 void delete_stmt(int);
 void search_idx(int ast, int list, int *astli, int *base, int *stride);
 void rewrite_calls(void);
-int make_forall(int, int, int, int); /* transfrm.c */
-int normalize_forall(int, int, int);
 int trans_getbound(int, int);
-int search_arr(int);
 void rewrite_forall(void);
 void rewrite_forall_pure(void);
 LOGICAL is_dependent(int lhs, int rhs, int forall, int, int);
@@ -171,13 +162,12 @@ void dpm_out_fe_gend(void);
 void set_assumsz_bound(int arg, int entry);
 void set_assumed_bounds(int arg, int entry, int actual);
 int my_pe(void);                       /* shmem.c */
-LOGICAL is_bad_dtype(int);             /* transfrm.c */
 void extr_f77_local(int std, int ast); /* dpm_out.c */
 LOGICAL pta_conflict(int ptrstdx, int ptrsptr, int targetstdx, int targetsptr,
                      int targetpointer, int targettarget);     /* pointsto.c */
 int pta_target(int ptrstdx, int ptrsptr, int *ptag, int *pid); /* pointsto.c */
 LOGICAL pta_aligned(int ptrstdx, int ptrsptr);                 /* pointsto.c */
-LOGICAL pta_stride1(int ptrstdx, int ptrsptr);                 /* pointsto.c */
+bool pta_stride1(int ptrstdx, int ptrsptr);                 /* pointsto.c */
 
 struct arg_gbl {
   int std;

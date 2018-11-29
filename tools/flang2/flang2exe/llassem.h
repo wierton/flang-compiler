@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, NVIDIA CORPORATION.  All rights reserved.
+ * Copyright (c) 2015-2018, NVIDIA CORPORATION.  All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,6 +18,9 @@
 #ifndef LLASSEM_H_
 #define LLASSEM_H_
 
+#include "gbldefs.h"
+#include "global.h"
+#include "symtab.h"
 #include "llutil.h"
 
 typedef struct argdtlist DTLIST;
@@ -38,7 +41,7 @@ struct argdtlist {
 
 typedef struct uplevelpair {
   int oldsptr; /* sptr from ilm file */
-  int newsptr; /* newsptr - from symbolxref[oldsptr] */
+  SPTR newsptr; /* newsptr - from symbolxref[oldsptr] */
   int newmem;  /* sptr member of struct for newsptr */
 } UPLEVEL_PAIR;
 
@@ -57,46 +60,22 @@ typedef struct uplevelpair {
  * a sorted list of dinit items for a given common block or local
  * variable.
  */
-typedef struct DSRT_TAG {
-  int sptr;     /* sym being init'd (could be structure) */
-  ISZ_T offset; /* byte offset of item init'd */
-
-  int sectionindex; /* Fortran - section index */
-  long filepos;     /* Fortran dinit file position for item's dinit(s) */
-  int func_count;   /* Fortran save/restore func_count */
-
-  int dtype;    /* used for C */
-  int len;      /* used for C - character */
-  ISZ_T conval; /* used for C */
-
-  struct DSRT_TAG *next; /* next in list (sorted in ascending offset) */
-  struct DSRT_TAG *ladd; /* item last added - not used in C */
+typedef struct DSRT {
+  SPTR sptr;    ///< sym being init'd (could be structure)
+  ISZ_T offset; ///< byte offset of item init'd
+  int sectionindex; ///< Fortran - section index
+  long filepos; ///< Fortran dinit file position for item's dinit(s)
+  int func_count;   ///< Fortran save/restore func_count
+  DTYPE dtype;    ///< used for C
+  int len;      ///< used for C - character
+  ISZ_T conval; ///< used for C
+  struct DSRT *next; ///< next in list (sorted in ascending offset)
+  struct DSRT *ladd; ///< item last added - not used in C
 } DSRT;
 
-extern int master_sptr;
-char *get_string_constant(int);
 char *get_local_overlap_var(void);
-int get_ag_argdtlist_length(int gblsym);
-LOGICAL get_byval_from_argdtlist(const char *argdtlist);
-int get_sptr_from_argdtlist(char *argdtlist);
-int get_sptr_uplevel_address(int sptr);
-LOGICAL is_llvmag_entry(int gblsym);
-void set_llvmag_entry(int gblsym);
-void set_ag_argdtlist_is_valid(int gblsym);
-void llvm_funcptr_store(int sptr, char *ag_name);
-int add_ag_typename(int gblsym, char *typename);
-int ll_shallow_copy_uplevel(int hostsptr, int olsptr);
-int runtime_alignment(int syma);
-void assem_put_linux_trace(int);
-
 char *put_next_member(char *ptr);
-ISZ_T put_skip(ISZ_T old, ISZ_T new);
-void emit_init(int tdtype, ISZ_T tconval, ISZ_T *addr, ISZ_T *repeat_cnt,
-               ISZ_T loc_base, ISZ_T *i8cnt, int *ptrcnt, char **cptr);
-
-void create_static_name(char *name, int usestatic, int num);
-void create_static_base(int num);
-void hostsym_is_refd(int sptr);
+ISZ_T put_skip(ISZ_T old, ISZ_T New);
 
 /*
  * macros to get and put DSRT pointers in symbol table entry - this
@@ -148,6 +127,7 @@ void hostsym_is_refd(int sptr);
 #define AG_ARGDTLIST(s) agb.s_base[s].argdtlist
 #define AG_ARGDTLIST_LENGTH(s) agb.s_base[s].n_argdtlist
 #define AG_ARGDTLIST_IS_VALID(s) agb.s_base[s].argdtlist_is_set
+#define AG_OBJTODBGLIST(s) agb.s_base[s].cmblk_mem_mdnode_list
 
 #define FPTR_HASHLK(s) fptr_local.s_base[s].hashlk
 #define FPTR_IFACENMPTR(s) fptr_local.s_base[s].ifacenmptr
@@ -155,8 +135,6 @@ void hostsym_is_refd(int sptr);
 #define FPTR_NMPTR(s) fptr_local.s_base[s].nmptr
 #define FPTR_NAME(s) fptr_local.n_base + fptr_local.s_base[s].nmptr
 #define FPTR_SYMLK(s) fptr_local.s_base[s].symlk
-
-#define DEFINE_STRUCT
 
 LL_Value *gen_ptr_offset_val(int, LL_Type *, char *);
 
@@ -179,7 +157,7 @@ typedef struct {
                       bss area (only for AGL ag-local) */
   int dtypesc;     /**< dtype scope */
   int n_argdtlist; /**< Number of items in argdtlist */
-  LOGICAL argdtlist_is_set; /**< Argdtlist has built, perhaps with 0 args */
+  bool argdtlist_is_set; /**< Argdtlist has built, perhaps with 0 args */
   char stype;               /**< ST_ of global */
   char sc;                  /**< SC_ of global */
   char alloc;               /**< ALLOCATABLE flag */
@@ -187,6 +165,7 @@ typedef struct {
   LL_Type *lltype;          /**< LLVM representation of the ag symbol */
   LL_Type *ret_lltype;      /**< If this is a func this is the return type */
   DTLIST *argdtlist;        /**< linked listed of argument lltype */
+  LL_ObjToDbgList *cmblk_mem_mdnode_list;    /**< linked listed of cmem mdnode */
   int uplevel_avl;
   int uplevel_sz;
   UPLEVEL_PAIR *uplist;  /**< uplevel list for internal procecure */
@@ -215,11 +194,7 @@ typedef struct AGB_t {
   int hashtb[AG_HASHSZ];
 } AGB_t;
 
-DEFINE_STRUCT AGB_t agb;
-
-void set_ag_return_lltype(int gblsym, LL_Type *llt);
-LL_Type *get_ag_return_lltype(int gblsym);
-void set_ag_lltype(int gblsym, LL_Type *llt);
+extern AGB_t agb;
 
 /** similar to AG struct but smaller */
 typedef struct {
@@ -230,7 +205,7 @@ typedef struct {
 } FPTRSYM;
 
 /** storage for function pointer */
-DEFINE_STRUCT struct {
+typedef struct fptr_local_t {
   FPTRSYM *s_base;
   int s_size;
   int s_avl;
@@ -238,15 +213,17 @@ DEFINE_STRUCT struct {
   int n_size;
   int n_avl;
   int hashtb[AG_HASHSZ];
-} fptr_local;
+} fptr_local_t;
 
-DEFINE_STRUCT DSRT *lcl_inits;     /* head list of DSRT's for local variables */
-DEFINE_STRUCT DSRT *section_inits; /* head list of DSRT's for initialized
+extern fptr_local_t fptr_local;
+
+extern DSRT *lcl_inits;     /* head list of DSRT's for local variables */
+extern DSRT *section_inits; /* head list of DSRT's for initialized
                                       variables in named sections */
-DEFINE_STRUCT DSRT *extern_inits;  /* head list of DSRT's for BIND(C) module
+extern DSRT *extern_inits;  /* head list of DSRT's for BIND(C) module
                                       variables */
-DEFINE_STRUCT char static_name[MXIDLN]; /* name of STATIC area for a function */
-DEFINE_STRUCT int first_data;
+extern char static_name[MXIDLN]; /* name of STATIC area for a function */
+extern int first_data;
 
 struct sec_t {
   const char *name;
@@ -254,60 +231,26 @@ struct sec_t {
 };
 
 /* ag entries */
-DEFINE_STRUCT int ag_cmblks; /* list of common blocks in file */
-DEFINE_STRUCT int ag_procs;  /* list of procs in file */
-DEFINE_STRUCT int ag_other;  /* list of other externals in file */
-DEFINE_STRUCT int ag_global; /* list of symbols that need to be declared
+extern int ag_cmblks; /* list of common blocks in file */
+extern int ag_procs;  /* list of procs in file */
+extern int ag_other;  /* list of other externals in file */
+extern int ag_global; /* list of symbols that need to be declared
                                 global */
-DEFINE_STRUCT int ag_typedef; /* list of derived type that need to be
+extern int ag_typedef; /* list of derived type that need to be
                                  declared  */
-DEFINE_STRUCT int ag_static; /* keep name and type of static */
-DEFINE_STRUCT int ag_intrin; /* intrinsic list generated by the bridge and
+extern int ag_static; /* keep name and type of static */
+extern int ag_intrin; /* intrinsic list generated by the bridge and
                                 has no sptr */
-DEFINE_STRUCT int ag_local; /* dummy arguments which is a subroutine -
+extern int ag_local; /* dummy arguments which is a subroutine -
                                need its signature and type */
-DEFINE_STRUCT int ag_funcptr; /* list of function pointer - should be a member
+extern int ag_funcptr; /* list of function pointer - should be a member
                                  of user defined type. Currently keep both
                                  LOCAL(any?) and STATIC in same list */
 
-int find_ag(const char *ag_name);
-int get_typedef_ag(char *ag_name, char *typename);
-int get_ftn_typedesc_dtype(int sptr);
-
 void put_i32(int);
-void put_addr(int, ISZ_T, int);
 void put_string_n(char *, ISZ_T, int);
 void put_short(int);
 void put_int4(INT);
-
-/* AG table accessors and mutators */
-int get_llvm_funcptr_ag(int sptr,
-                        char *ag_name); /* TODO: rename for consistency */
-
-int get_private_size(void);
-int local_funcptr_sptr_to_gblsym(int sptr);
-
-union {
-  unsigned short i8;
-  unsigned char byte[2];
-} i8bit;
-
-union {
-  unsigned short i16;
-  unsigned char byte[2];
-} i16bit;
-
-union {
-  unsigned int i32;
-  float r4;
-  unsigned char byte[4];
-} i32bit;
-
-union {
-  unsigned long i64; /* need to make sure this is 64 bit */
-  double r8;
-  unsigned char byte[8];
-} i64bit;
 
 #if defined(TARGET_LLVM_X8664) || defined(TARGET_LLVM_POWER) || defined(TARGET_LLVM_ARM64)
 #define DIR_LONG_SIZE 64
@@ -317,38 +260,19 @@ union {
 
 #define MAXARGLEN 256
 
-void put_fstr(int sptr, int add_null);
-int runtime_32_byte_alignment(int acon_sptr);
-int is_cache_aligned(int syma);
-int get_dummy_ag(int sptr);
-char *getextfuncname(int sptr);
-char *get_ag_name(int);
 void ll_override_type_string(LL_Type *llt, const char *str);
-
 int alignment(DTYPE);
-char *gen_llvm_vconstant(const char *, int, int, int);
-int get_int_dtype_from_size(int);
 int add_member_for_llvm(int, int, DTYPE, ISZ_T);
-int mk_struct_for_llvm_init(const char *name, int size);
 LL_Type *update_llvm_typedef(DTYPE dtype, int sptr, int rank);
 int llvm_get_unique_sym(void);
-
-void assemble(void);
-void assem_data(void);
-void assemble_end(void);
-void assem_init(void);
-void assem_dinit(void);
-void assemble_init(int, char *[], char *);
-void put_section(int sect);
-void assem_emit_align(int n);
 void align_func(void);
 void put_global(char *name);
 void put_func_name(int sptr);
-char *getsname(int sptr);
 void put_type(int sptr);
 void init_huge_tlb(void);
 void init_flushz(void);
 void init_daz(void);
+void init_ktrap(void);
 char *getdname(int sptr);
 ISZ_T get_socptr_offset(int);
 #if defined(PG0CL)
@@ -356,23 +280,428 @@ ISZ_T get_socptr_offset(int);
 #else
 #define llassem_end_func(arg1, arg2) lldbg_function_end(arg1, arg2)
 #endif
-void arg_is_refd(int);
 
-void assem_end(void);
-int get_ag(int sptr);
-int get_hollerith_size(int sptr);
-void _fixup_llvm_uplevel_symbol(void);
-void _add_llvm_uplevel_symbol(int sptr);
-void add_aguplevel_oldsptr(void);
-char *get_main_progname(void);
-LL_Type *get_lltype_from_argdtlist(char *argdtlist);
-void addag_llvm_argdtlist(int gblsym, int arg_num, int arg_sptr, LL_Type *);
-int get_master_sptr(void);
-int generic_dummy_dtype(void);
 LL_Type *make_generic_dummy_lltype(void);
-void set_llvm_iface_oldname(int, char *);
-LL_ABI_Info *process_ll_abi_func_ftn(int, LOGICAL);
 LL_Type *get_local_overlap_vartype(void);
+
+/**
+   \brief ...
+ */
+bool get_byval_from_argdtlist(const char *argdtlist);
+
+/**
+   \brief ...
+ */
+bool has_typedef_ag(int gblsym);
+
+/**
+   \brief ...
+ */
+bool is_llvmag_entry(int gblsym);
+
+/**
+   \brief ...
+ */
+bool is_llvmag_iface(int gblsym);
+
+/**
+   \brief ...
+ */
+bool is_typedesc_defd(SPTR sptr);
+
+/**
+   \brief ...
+ */
+char *getaddrdebug(SPTR sptr);
+
+/**
+   \brief ...
+ */
+char *get_ag_name(int gblsym);
+
+/**
+   \brief ...
+ */
+char *get_ag_typename(int gblsym);
+
+/**
+   \brief ...
+ */
+char *get_argdtlist(int gblsym);
+
+/**
+   \brief return external name for procedure
+ */
+char *getextfuncname(SPTR sptr);
+
+/**
+   \brief ...
+ */
+char *get_llvm_name(SPTR sptr);
+
+/**
+   \brief ...
+ */
+char *get_main_progname(void);
+
+/**
+   \brief ...
+ */
+char *get_next_argdtlist(char *argdtlist);
+
+/**
+   \brief ...
+ */
+char *getsname(SPTR sptr);
+
+/**
+   \brief ...
+ */
+char *get_string_constant(int sptr);
+
+/**
+   \brief ...
+ */
+DTYPE get_ftn_typedesc_dtype(SPTR sptr);
+
+/**
+   \brief ...
+ */
+int add_ag_typename(int gblsym, const char *typeName);
+
+/**
+   \brief ...
+ */
+SPTR find_ag(const char *ag_name);
+
+/**
+   \brief ...
+ */
+int find_funcptr_name(SPTR sptr);
+
+/**
+   \brief ...
+ */
+int get_ag_argdtlist_length(int gblsym);
+
+/**
+   \brief ...
+ */
+SPTR get_ag(SPTR sptr);
+
+/**
+   \brief ...
+ */
+int get_bss_addr(void);
+
+/**
+   \brief ...
+ */
+int get_dummy_ag(SPTR sptr);
+
+/**
+   \brief ...
+ */
+int get_hollerith_size(int sptr);
+
+/**
+   \brief ...
+ */
+SPTR get_intrin_ag(char *ag_name, DTYPE dtype);
+
+/**
+   \brief ...
+ */
+SPTR get_llvm_funcptr_ag(SPTR sptr, char *ag_name);
+
+/**
+   \brief ...
+ */
+int get_private_size(void);
+
+/**
+   \brief ...
+ */
+int get_sptr_from_argdtlist(char *argdtlist);
+
+/**
+   \brief ...
+ */
+int get_sptr_uplevel_address(int sptr);
+
+/**
+   \brief ...
+ */
+int get_stack_size(void);
+
+/**
+   \brief ...
+ */
+SPTR get_typedef_ag(char *ag_name, char *typeName);
+
+/**
+   \brief ...
+ */
+int get_uplevel_address_size(void);
+
+/**
+   \brief ...
+ */
+int has_valid_ag_argdtlist(int gblsym);
+
+/**
+   \brief determine if the address represented by \p syma, an address constant,
+   is cache aligned.
+ */
+int is_cache_aligned(SPTR syma);
+
+/**
+   \brief ...
+ */
+int ll_shallow_copy_uplevel(SPTR hostsptr, SPTR olsptr);
+
+/**
+   \brief ...
+ */
+int local_funcptr_sptr_to_gblsym(SPTR sptr);
+
+/**
+   \brief ...
+ */
+DTYPE make_uplevel_arg_struct(void);
+
+/**
+   \brief the 32-byte alignment of the address constant \p acon_sptr 
+   \param acon_sptr
+   \return the alignment or -1 if it's unknown.
+ */
+int runtime_32_byte_alignment(SPTR acon_sptr);
+
+/**
+   \brief determine the alignment of the address represented by syma, an address
+   constant, within a cache-aligned container
+
+   \return -1 if unknown or the byte boundary of the address
+ 
+   For example, given a single precision quantity and a container which is
+   16-byte aligned the following values are possible:
+   \li 0   aligned with the beginning of the container.
+   \li 4   multiple of 4 bytes from the beginning of the container.
+   \li 8   multiple of 8 bytes from the beginning of the container.
+   \li 12  multiple of 12 bytes from the beginning of the container.
+ */
+int runtime_alignment(SPTR syma);
+
+/**
+   \brief ...
+ */
 LL_ObjToDbgList **llassem_get_objtodbg_list(SPTR sptr);
+
+/**
+   \brief ...
+ */
+LL_Type *get_ag_lltype(int gblsym);
+
+/**
+   \brief ...
+ */
+LL_Type *get_ag_return_lltype(int gblsym);
+
+/**
+   \brief ...
+ */
+LL_Type *get_lltype_from_argdtlist(char *argdtlist);
+
+/**
+   \brief ...
+ */
+unsigned align_of_var(SPTR sptr);
+
+/**
+   \brief ...
+ */
+void addag_llvm_argdtlist(SPTR gblsym, int arg_num, int arg_sptr,
+                          LL_Type *lltype);
+
+/**
+   \brief ...
+ */
+void add_aguplevel_oldsptr(void);
+
+/**
+   \brief ...
+ */
+void _add_llvm_uplevel_symbol(int oldsptr);
+
+/**
+   \brief ...
+ */
+void add_uplevel_to_host(int *ptr, int cnt);
+
+/**
+   \brief ...
+ */
+void arg_is_refd(int sptr);
+
+/**
+   \brief ...
+ */
+void assem_begin_func(SPTR sptr);
+
+/**
+   \brief ...
+ */
+void assemble_end(void);
+
+/**
+   \brief ...
+ */
+void assemble_init(int argc, char *argv[], char *cmdline);
+
+/**
+   \brief ...
+ */
+void assemble(void);
+
+/**
+   \brief ...
+ */
+void assem_data(void);
+
+/**
+   \brief ...
+ */
+void assem_dinit(void);
+
+/**
+   \brief ...
+ */
+void assem_emit_align(int n);
+
+/**
+   \brief ...
+ */
+void assem_emit_file_line(int findex, int lineno);
+
+/**
+   \brief ...
+ */
+void assem_emit_line(int findex, int lineno);
+
+/**
+   \brief ...
+ */
+void assem_end(void);
+
+/**
+   \brief ...
+ */
+void assem_init(void);
+
+/**
+   \brief ...
+ */
+void assem_put_linux_trace(int sptr);
+
+/**
+   \brief ...
+ */
+void create_static_base(int num);
+
+/**
+   \brief ...
+ */
+void create_static_name(char *name, int usestatic, int num);
+
+/**
+   \brief ...
+ */
+void deleteag_llvm_argdtlist(int gblsym);
+
+/**
+   \brief ...
+ */
+void fix_equiv_locals(SPTR loc_list, ISZ_T loc_addr);
+
+/**
+   \brief ...
+ */
+void fix_equiv_statics(SPTR loc_list, ISZ_T loc_addr, bool dinitflg);
+
+/**
+   \brief ...
+ */
+void fix_private_sym(int sptr);
+
+/**
+   \brief ...
+ */
+void _fixup_llvm_uplevel_symbol(void);
+
+/**
+   \brief ...
+ */
+void hostsym_is_refd(SPTR sptr);
+
+/**
+   \brief ...
+ */
+void llvm_funcptr_store(SPTR sptr, char *ag_name);
+
+/**
+   \brief ...
+ */
+void load_uplevel_addresses(SPTR display_temp);
+
+/**
+   \brief ...
+ */
+void put_fstr(SPTR sptr, int add_null);
+
+/**
+   \brief ...
+ */
+void put_section(int sect);
+
+/**
+   \brief ...
+ */
+void set_ag_argdtlist_is_valid(int gblsym);
+
+/**
+   \brief ...
+ */
+void set_ag_lltype(int gblsym, LL_Type *llt);
+
+/**
+   \brief ...
+ */
+void set_ag_return_lltype(int gblsym, LL_Type *llt);
+
+/**
+   \brief ...
+ */
+void set_bss_addr(int size);
+
+/**
+   \brief ...
+ */
+void set_llvmag_entry(int gblsym);
+
+/**
+   \brief ...
+ */
+void set_llvm_iface_oldname(int gblsym, char *nm);
+
+/**
+   \brief ...
+ */
+void set_private_size(ISZ_T sz);
+
+/**
+   \brief ...
+ */
+void sym_is_refd(SPTR sptr);
+
 
 #endif

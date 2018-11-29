@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, NVIDIA CORPORATION.  All rights reserved.
+ * Copyright (c) 1994-2018, NVIDIA CORPORATION.  All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -41,6 +41,7 @@
 #include "llmputil.h"
 #include "rtlRtns.h"
 #include <stdarg.h>
+
 
 /* During IPA recompilations, compiler-generated temporary names
  * need to be distinct from the names that were used on the first
@@ -85,9 +86,10 @@ sym_init(void)
 
   init_chartab(); /* see dtypeutl.c */
 
+  STG_RESET(stb.dt);
+  STG_NEXT_SIZE(stb.dt, DT_MAX);
   for (i = 0; i <= DT_MAX; ++i)
-    stb.dt_base[i] = pd_dtype[i];
-  stb.dt_avail = DT_MAX + 1;
+    DTY(i) = pd_dtype[i];
 
   if (XBIT(49, 0x800000)) {
     DT_REAL = DT_REAL8;
@@ -142,6 +144,7 @@ sym_init(void)
 #endif
   BCOPY(stb.stg_base, init_sym, SYM, INIT_SYMTAB_SIZE);
   stb.stg_avail = INIT_SYMTAB_SIZE;
+  stb.stg_cleared = INIT_SYMTAB_SIZE;
 #if DEBUG
   assert(stb.n_size >= INIT_NAMES_SIZE, "sym_init:INIT_NAMES_SIZE",
          INIT_NAMES_SIZE, 0);
@@ -1094,65 +1097,6 @@ getprint(int sptr)
 
 /*--------------------------------------------------------------------------*/
 
-#ifdef EXTRG
-/**
-   \brief dump symbol table information for symbol sptr.
- */
-void
-extrinsic_string(int extr, char *str)
-{
-  switch (extr & EXTR_LANG_MASK) {
-  case EXTR_LANG_HPF:
-    strcpy(str, "HPF");
-    break;
-  case EXTR_LANG_F90:
-    strcpy(str, "F90");
-    break;
-  case EXTR_LANG_F77:
-    strcpy(str, "F77");
-    break;
-  case EXTR_LANG_C:
-    strcpy(str, "C");
-    break;
-  default:
-    strcpy(str, "?");
-    break;
-  }
-  switch (extr & EXTR_MODEL_MASK) {
-  case EXTR_MODEL_GLOBAL:
-    strcat(str, "_GLOBAL");
-    break;
-  case EXTR_MODEL_LOCAL:
-    strcat(str, "_LOCAL");
-    break;
-  case EXTR_MODEL_SERIAL:
-    strcat(str, "_SERIAL");
-    break;
-  case EXTR_MODEL_CRAFT:
-    strcat(str, "_CRAFT");
-    break;
-  default:
-    strcpy(str, "?");
-    break;
-  }
-} /* extrinsic_string */
-
-/**
-   \param sptr symbol currently being dumped
- */
-static void
-pr_extrinsic(FILE *dfil, int sptr)
-{
-  char extrs[20];
-  extrinsic_string(EXTRG(sptr), extrs);
-  fprintf(dfil, extrs);
-  if (extrs[0] == '?') {
-    interr("symdmp: bad extrinsic value", sptr, 1);
-    fprintf(dfil, "UNK(%d)", EXTRG(sptr));
-  }
-}
-#endif
-
 #undef _PFG
 #define _PFG(cond, str) \
   if (cond)             \
@@ -1181,7 +1125,8 @@ symdentry(FILE *file, int sptr)
   /* write first line containing symbol name, dtype, and stype: */
 
   if (stype == ST_CMBLK || stype == ST_LABEL || stype == ST_GENERIC ||
-      stype == ST_NML || stype == ST_USERGENERIC || stype == ST_PD) {
+      stype == ST_NML || stype == ST_USERGENERIC || stype == ST_PD
+  ) {
     fprintf(dfil, "\n%-40.40s %s\n", buff, stb.stypes[stype]);
   } else {
     *typeb = '\0';
@@ -1593,7 +1538,6 @@ symdentry(FILE *file, int sptr)
             SYMLKG(sptr), (int)SFDSCG(sptr), (int)DTY(DTYPEG(sptr) + 1),
             SFASTG(sptr));
     break;
-
   case ST_PARAM:
     if (TY_ISWORD(DTY(dtype))) {
       /* fprintf(dfil, "conval1: 0x%lx\n", CONVAL1G(sptr)); */
@@ -2420,7 +2364,7 @@ LOGICAL
 is_procedure_ptr(int sptr)
 {
   sptr = resolve_sym_aliases(sptr);
-  if (sptr > NOSYM && POINTERG(sptr)) {
+  if (sptr > NOSYM && (POINTERG(sptr) || IS_PROC_DUMMYG(sptr))) {
     switch (STYPEG(sptr)) {
     case ST_PROC:
     case ST_ENTRY:
@@ -2509,16 +2453,32 @@ proc_arginfo(int sptr, int *paramct, int *dpdsc, int *iface)
 }
 
 /**
- * Compares two symbols by returning 1 if they both have equivalent
- * interfaces. Otherwise, return 0. If flag is set, then we also make sure that
- * sym1 and sym2 have the same symbol name.
+ * \brief Compares two symbols by returning true if they both have equivalent
+ * interfaces. Otherwise, return false. 
+ *
+ * If flag is set, then we also make sure that sym1 and sym2 have the same
+ * symbol name.
  */
-int
+bool
 cmp_interfaces(int sym1, int sym2, int flag)
 {
 
   int i, paramct, paramct2, dpdsc, dpdsc2, psptr, psptr2;
   int iface1, iface2;
+
+  if (sym1 <= NOSYM)
+    return false;
+ 
+  /* It's OK for the argument procedure pointer to point to NOSYM as long as 
+   * the formal procedure pointer points to a valid symtab entry.
+   * 
+   * We assume the following:
+   *
+   * sym1 is the formal procedure pointer dummy argument
+   * sym2 is the actual procedure pointer argument
+   */
+  if (sym2 <= NOSYM)
+    return true;
 
   if (STYPEG(sym1) != ST_PROC) {
     int scope, alt_iface;
@@ -2563,98 +2523,233 @@ cmp_interfaces(int sym1, int sym2, int flag)
   proc_arginfo(sym1, &paramct2, &dpdsc2, &iface1);
   proc_arginfo(sym2, &paramct, &dpdsc, &iface2);
   if (!iface1 || !iface2)
-    return 0;
+    return false;
   if (flag && strcmp(SYMNAME(iface1), SYMNAME(iface2)) != 0)
-    return 0;
+    return false;
   if (paramct != paramct2)
-    return 0;
+    return false;
   if (iface1 && iface1 == iface2)
-    return 1;
+    return true;
   if (!eq_dtype2(DTYPEG(FVALG(iface1)), DTYPEG(FVALG(iface2)), 0))
-    return 0; /* result types differ */
+    return false; /* result types differ */
   for (i = 0; i < paramct; ++dpdsc, ++dpdsc2, ++i) {
     psptr2 = *(aux.dpdsc_base + dpdsc2);
     psptr = *(aux.dpdsc_base + dpdsc);
     if (!psptr || !psptr2 || STYPEG(psptr) != STYPEG(psptr2) ||
         strcmp(SYMNAME(psptr), SYMNAME(psptr2)) != 0)
-      return 0;
+      return false;
     if (STYPEG(psptr) == ST_PROC && STYPEG(psptr2) == ST_PROC) {
-      if (cmp_interfaces(psptr, psptr2, flag) == 0) {
-        return 0;
+      if (!cmp_interfaces(psptr, psptr2, flag)) {
+        return false;
       }
     } else if (!eq_dtype2(DTYPEG(psptr), DTYPEG(psptr2), 0)) {
-      return 0;
+      return false;
     }
   }
-  return 1;
+  return true;
 }
 
 /**
- * Same as cmp_interfaces() except we also compare the characteristics as
- * defined in "12.2 Characteristics of procedures" in F2003 Spec.
+ * \brief Tests the characteristics between two interfaces.
+ *
+ * \param psptr is the first interface.
+ *
+ * \param pstr2 is the second interface.
+ * 
+ * \param flag is a bit mask that enforces/relaxes certain checks (see
+ *        cmp_interface_flags enum in symtab.c). 
+ *
+ * \return true if the two characteristics are compatible, else false.
  */
-int
-cmp_interfaces_strict(int sym1, int sym2, int flag)
+bool 
+compatible_characteristics(int psptr, int psptr2, cmp_interface_flags flag)
 {
-  int i, paramct, paramct2, dpdsc, dpdsc2, psptr, psptr2;
-  int iface1, iface2;
 
-  iface1 = iface2 = paramct = paramct2 = dpdsc = dpdsc2 = 0;
-  proc_arginfo(sym1, &paramct2, &dpdsc2, &iface1);
-  proc_arginfo(sym2, &paramct, &dpdsc, &iface2);
-
-  if (paramct != paramct2 || (FVALG(sym1) && !FVALG(sym2)) ||
-      (FVALG(sym2) && !FVALG(sym1)) || PUREG(sym1) != PUREG(sym2) ||
-      IMPUREG(sym1) != IMPUREG(sym2) || ELEMENTALG(sym1) != ELEMENTALG(sym2) ||
-      CFUNCG(sym1) != CFUNCG(sym2)) {
-    return 0;
-  } else if (FVALG(sym1) && FVALG(sym2)) {
-    psptr = FVALG(sym1);
-    psptr2 = FVALG(sym2);
-    if (CLASSG(psptr) != CLASSG(psptr2) ||
-        ALLOCATTRG(psptr) != ALLOCATTRG(psptr2) ||
-        POINTERG(psptr) != POINTERG(psptr2)) {
-      return 0;
-    } else if (!eq_dtype2(DTYPEG(psptr), DTYPEG(psptr2), 0)) {
-      return 0;
+    if (!psptr || !psptr2) {
+      return false;
     }
-  }
 
-  if (!iface1 || !iface2)
-    return 0;
-  if (flag && strcmp(SYMNAME(iface1), SYMNAME(iface2)) != 0)
-    return 0;
-  if (paramct != paramct2)
-    return 0;
-  if (iface1 && iface1 == iface2)
-    return 1;
-  if (!eq_dtype2(DTYPEG(FVALG(iface1)), DTYPEG(FVALG(iface2)), 0))
-    return 0; /* result types differ */
-  for (i = 0; i < paramct; ++dpdsc, ++dpdsc2, ++i) {
-    psptr2 = *(aux.dpdsc_base + dpdsc2);
-    psptr = *(aux.dpdsc_base + dpdsc);
-    if (INTENTG(psptr) != INTENTG(psptr2) ||
-        OPTARGG(psptr) != OPTARGG(psptr2) ||
+    if ( (((flag & RELAX_INTENT_CHK) == 0) && 
+            INTENTG(psptr) != INTENTG(psptr2)) ||
+        (((flag & CMP_OPTARG) != 0) && OPTARGG(psptr) != OPTARGG(psptr2)) ||
         ALLOCATTRG(psptr) != ALLOCATTRG(psptr2) ||
         PASSBYVALG(psptr) != PASSBYVALG(psptr2) ||
         ASYNCG(psptr) != ASYNCG(psptr2) || VOLG(psptr) != VOLG(psptr2) ||
         CLASSG(psptr) != CLASSG(psptr2) ||
-        POINTERG(psptr) != POINTERG(psptr2) ||
-        TARGETG(psptr) != TARGETG(psptr2)) {
-      return 0;
+        (((flag & RELAX_POINTER_CHK) == 0) && 
+           POINTERG(psptr) != POINTERG(psptr2)) ||
+        TARGETG(psptr) != TARGETG(psptr2) ||
+        CONTIGATTRG(psptr) != CONTIGATTRG(psptr2)) {
+	
+        return false;
     }
-    if (!psptr || !psptr2 || STYPEG(psptr) != STYPEG(psptr2) ||
-        strcmp(SYMNAME(psptr), SYMNAME(psptr2)) != 0)
-      return 0;
+
+    if ((flag & RELAX_STYPE_CHK) == 0 && STYPEG(psptr) != STYPEG(psptr2)) {
+      return false;
+    }
+
+    if ((flag & IGNORE_ARG_NAMES) == 0 && strcmp(SYMNAME(psptr), 
+         SYMNAME(psptr2)) != 0) {
+      return false;
+    }
+
     if (STYPEG(psptr) == ST_PROC && STYPEG(psptr2) == ST_PROC) {
-      if (cmp_interfaces_strict(psptr, psptr2, flag) == 0) {
-        return 0;
+      if (!cmp_interfaces_strict(psptr, psptr2, (flag | CMP_OPTARG))) {
+        return false;
       }
+    } else if (DTY(DTYPEG(psptr)) == DTY(DTYPEG(psptr2)) && 
+               (DTY(DTYPEG(psptr)) == TY_CHAR
+               || DTY(DTYPEG(psptr)) == TY_NCHAR
+               )) {
+               /* check character objects only when they both 
+                * have constant lengths or at least one is assumed shape.
+                */
+               int d1 = DTYPEG(psptr);
+               int a1 = DTY(d1+1);
+               int d2 = DTYPEG(psptr2);
+               int a2 = DTY(d2+1);
+               if ((a1 == 0 || a2 == 0 || 
+                   (A_TYPEG(a1) == A_CNST && A_TYPEG(a2) == A_CNST)) &&
+                   !eq_dtype2(d1, d2, 0)) {
+                   return FALSE;
+               }
     } else if (!eq_dtype2(DTYPEG(psptr), DTYPEG(psptr2), 0)) {
-      return 0;
+      return FALSE;
+    } else if (DTY(DTYPEG(psptr)) == TY_ARRAY && 
+               DTY(DTYPEG(psptr2)) == TY_ARRAY) {
+        /* Check extents of array dimensions. Note: the call to eq_dtype2()
+         * above checks type and rank.
+         */
+        ADSC *ad, *ad2;
+        int i, ast, ast2, numdim;
+
+        ad = AD_DPTR(DTYPEG(psptr));
+        numdim = AD_NUMDIM(ad);
+
+        ad2 = AD_DPTR(DTYPEG(psptr2));
+
+	for(i=0; i < numdim; ++i) {
+          ast = AD_EXTNTAST(ad, i);
+          ast2 = AD_EXTNTAST(ad2, i);
+          if (A_TYPEG(ast) == A_CNST && A_TYPEG(ast2) == A_CNST &&
+              CONVAL2G(A_SPTRG(ast)) != CONVAL2G(A_SPTRG(ast2))) {
+              return false;
+          }
+        }
+    }
+   
+    return true;
+}
+
+/**
+ * \brief Same as cmp_interfaces() except we also compare the characteristics as
+ * defined in "12.2 Characteristics of procedures" in F2003 Spec. 
+ */
+bool
+cmp_interfaces_strict(SPTR sym1, SPTR sym2, cmp_interface_flags flag)
+{
+  int i, paramct, paramct2, dpdsc, dpdsc2, psptr, psptr2;
+  int iface1, iface2, chk_stype, j;
+
+  iface1 = iface2 = paramct = paramct2 = dpdsc = dpdsc2 = 0;
+  proc_arginfo(sym1, &paramct, &dpdsc, &iface1);
+  proc_arginfo(sym2, &paramct2, &dpdsc2, &iface2);
+
+  if (FVALG(sym1) && FVALG(sym2) && dpdsc > 0 && dpdsc2 > 0) {
+    /* Check characteristics of results if applicable. We do this here
+     * to handle the case where one symbol will have its result in argument
+     * 1 and another symbol will not. This occurs when one symbol is a
+     * function and another symbol is a function interface (i.e., we do not
+     * put the function result into argument 1 for interfaces). We then
+     * adjust parameter counts and argument descriptors when the result is
+     * in an argument so parameter counts are consistent between the two
+     * symbols.
+     */
+    if (paramct > 0) {
+      psptr = aux.dpdsc_base[dpdsc];
+      if (FVALG(sym1) == psptr) {
+          paramct--;
+          dpdsc++;
+       }
+    }
+    if (paramct2 > 0) {
+      psptr2 = aux.dpdsc_base[dpdsc2];
+      if (FVALG(sym2) == psptr2) {
+        paramct2--;
+        dpdsc2++;
+      }
+     }
+     psptr = FVALG(sym1);
+     psptr2 = FVALG(sym2);
+     if (!compatible_characteristics(psptr, psptr2, flag)) {
+       return false;
+     }
+  }
+
+  /* we may have added descriptors such as type descriptors to the
+   * argument descriptor. Do not count them.
+   */
+
+  for (j = i = 0; i < paramct; ++i) {
+    psptr = aux.dpdsc_base[dpdsc + i];
+    if (CCSYMG(psptr)) {
+      ++j;
     }
   }
-  return 1;
+  paramct -= j;
+
+  for (j = i = 0; i < paramct2; ++i) {
+    psptr2 = aux.dpdsc_base[dpdsc2 + i];
+    if (CCSYMG(psptr2)) {
+      ++j;
+    }
+  }
+  paramct2 -= j;
+
+  if (PUREG(sym1) != PUREG(sym2) || IMPUREG(sym1) != IMPUREG(sym2)) {
+    
+    bool relax1 = (flag & RELAX_PURE_CHK_1) != 0;
+    bool relax2 = (flag & RELAX_PURE_CHK_2) != 0;
+
+    if (!relax1 && !relax2) {
+      /* both arguments must have matching pure/impure attributes */
+      return false;
+    }
+    if (relax1 != relax2 && PUREG(sym1) != PUREG(sym2)) {
+      if (!relax1 && PUREG(sym1)) {
+        /* argument 1 has pure but argument 2 does not. */
+        return false;
+      }
+      if (!relax2 && PUREG(sym2)) {
+        /* argument 2 has pure but argument 1 does not */
+        return false;
+      }
+    }  
+  }
+  if (paramct != paramct2 || (FVALG(sym1) && !FVALG(sym2)) ||
+      (FVALG(sym2) && !FVALG(sym1)) || ELEMENTALG(sym1) != ELEMENTALG(sym2) ||
+      CFUNCG(sym1) != CFUNCG(sym2)) {
+    return false;
+  }
+
+  if (!iface1 || !iface2)
+    return false;
+  if ( ((flag & CMP_IFACE_NAMES) != 0) && strcmp(SYMNAME(iface1), 
+       SYMNAME(iface2)) != 0)
+    return false;
+  if (iface1 && iface1 == iface2)
+    return true;
+
+  for (i = 0; i < paramct; ++dpdsc, ++dpdsc2, ++i) {
+    psptr2 = aux.dpdsc_base[dpdsc2];
+    psptr = aux.dpdsc_base[dpdsc];
+
+    if (!compatible_characteristics(psptr, psptr2, flag)) {
+      return false;
+    }
+ 
+  }
+  return true;
 }
 
 /**
@@ -2682,6 +2777,126 @@ insert_dup_sym(int sptr)
   int new_sptr = insert_sym(sptr);
   dup_sym(new_sptr, &stb.stg_base[sptr]);
   return new_sptr;
+}
+
+/** If mod is a submodule, return the module it is a submodule of.
+ *  If it's a module, return mod. Otherwise 0.
+ */
+SPTR
+get_ancestor_module(SPTR mod)
+{
+  if (mod == 0 || STYPEG(mod) != ST_MODULE)
+    return 0;
+  for (;;) {
+    SPTR parent = PARENTG(mod);
+    if (parent == 0)
+      return mod;
+    mod = parent;
+  }
+}
+
+/** return the symbol of the explicit interface of the ST_PROC
+ */
+SPTR find_explicit_interface(SPTR s) {
+  SPTR sptr;
+  for (sptr = HASHLKG(s); sptr; sptr = HASHLKG(sptr)) {
+    /* skip noise sptr with same string name*/
+    if (NMPTRG(sptr) != NMPTRG(s))
+      continue;
+
+    if (!INMODULEG(sptr))
+      break;
+    if (SEPARATEMPG(sptr))
+      return sptr;
+  }
+
+  return 0;
+}
+
+/** \brief Instantiate a copy of a separate module subprogram's 
+           declared interface as part of the MODULE PROCEDURE's 
+           definition (i.e., implement what would have taken place 
+           had the subprogram been defined with a MODULE SUBROUTINE
+           or MODULE FUNCTION with a compatible interface).
+ */
+SPTR
+instantiate_interface(SPTR iface)
+{
+  int dummies;
+  SPTR fval, hashlk_sptr, proc; 
+  proc = insert_dup_sym(iface);
+  gbl.currsub = proc;
+
+  SCOPEP(proc, SCOPEG(find_explicit_interface(proc)));
+
+  dummies = PARAMCTG(iface);
+  fval = NOSYM;
+
+  STYPEP(proc, ST_ENTRY);
+  INMODULEP(proc, TRUE);
+
+  if (FVALG(iface) > NOSYM) {
+    fval = insert_sym_first(FVALG(iface));
+    dup_sym(fval, &stb.stg_base[FVALG(iface)]);
+
+    /* Needs to disable hidden attribute to enable proc to 
+     * access derived type members
+     */
+    HIDDENP(fval, 0);
+    IGNOREP(fval, 0);
+
+    SCOPEP(fval, proc);
+    if (ENCLFUNCG(FVALG(iface)) == iface) {
+      ENCLFUNCP(fval, proc);
+    }
+    FVALP(proc, fval);
+    ++aux.dpdsc_avl; /* always reserve one for fval */
+  }
+
+  if (dummies > 0 || fval > NOSYM) {
+    int iface_dpdsc = DPDSCG(iface);
+    int proc_dpdsc = aux.dpdsc_avl;
+    int j, newdsc;
+
+    aux.dpdsc_avl += dummies;
+    NEED(aux.dpdsc_avl, aux.dpdsc_base, int, aux.dpdsc_size,
+         aux.dpdsc_size + dummies + 100);
+    DPDSCP(proc, proc_dpdsc);
+    if (fval > NOSYM) {
+      aux.dpdsc_base[proc_dpdsc - 1] = fval;
+    }
+    for (j = 0; j < dummies; ++j) {
+      SPTR arg = aux.dpdsc_base[iface_dpdsc + j];
+      if (arg > NOSYM) {
+        arg = insert_dup_sym(arg);
+        SCOPEP(arg, proc);
+        if (DTY(DTYPEG(arg)) == TY_ARRAY && ASSUMSHPG(arg)) {
+          DTYPE elem_dt = array_element_dtype(DTYPEG(arg));
+          int arr_dsc = mk_arrdsc();
+          DTY(arr_dsc + 1) = elem_dt;
+          DTYPEP(arg, arr_dsc);
+          trans_mkdescr(arg);
+          ALLOCP(arg, TRUE);
+          /* needs to tie the array descritor with the symbol arg here*/
+          get_static_descriptor(arg);
+        }
+        if (ALLOCATTRG(arg) || POINTERG(arg)) {
+          newdsc = sym_get_arg_sec(arg);          
+          SDSCP(arg, newdsc);
+          SCP(newdsc, SC_DUMMY);
+          SCOPEP(newdsc, proc);
+        }
+
+        HIDDENP(arg, 0);
+        IGNOREP(arg, 0);
+        if (ENCLFUNCG(arg) == iface) {
+          ENCLFUNCP(arg, proc);
+        }
+      }
+      aux.dpdsc_base[proc_dpdsc + j] = arg;
+    }
+  }
+  return proc;
 }
 
 /**
@@ -2902,6 +3117,7 @@ void rw_sym_state(RW_ROUTINE, RW_FILE)
   RW_FD(stb.hashtb, stb.hashtb, 1);
   RW_SCALAR(stb.firstusym);
   RW_SCALAR(stb.stg_avail);
+  RW_SCALAR(stb.stg_cleared);
   RW_FD(stb.stg_base, SYM, stb.stg_avail);
 
   RW_SCALAR(stb.namavl);
@@ -2949,8 +3165,7 @@ symtab_fini(void)
   stb.stg_size = 0;
   FREE(stb.n_base);
   stb.n_size = 0;
-  FREE(stb.dt_base);
-  stb.dt_size = 0;
+  STG_DELETE(stb.dt);
   FREE(stb.w_base);
   stb.w_size = 0;
   fini_chartab();
@@ -3127,4 +3342,33 @@ map_initsym(int oldsym, int old_firstosym)
   }
   interr("map_initsym: bad osym", old_firstosym, 0);
   return 0;
+}
+
+/** \brief Convert two dollar signs to a hyphen. Especially used for the
+           submodule *.mod file renaming:
+           ancestor$$submod.mod -> ancestor-submod.mod
+ */
+void 
+convert_2dollar_signs_to_hyphen(char *name) {
+  char *p, *q;
+  p = q = name;
+  while (*q) {
+    if (*q == '$' && *(q+1) == '$') {
+      q = q + 2;
+      *p++ = '-';
+    }
+    *p++ = *q++;
+  }
+  *p = *q;
+}
+
+/** \brief Used for check whether sym2 used inside the scope of sym1 is defined in 
+           parent modules (SCOPEG(sym2)) and used by inherited submodules 
+           ENCLFUNCG(sym1).
+ */
+bool 
+is_used_by_submod(SPTR sym1, SPTR sym2) {
+  return STYPEG(ENCLFUNCG(sym1)) == ST_MODULE && 
+         STYPEG(SCOPEG(sym2)) == ST_MODULE &&
+         SCOPEG(sym2) == ANCESTORG(ENCLFUNCG(sym1));
 }

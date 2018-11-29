@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, NVIDIA CORPORATION.  All rights reserved.
+ * Copyright (c) 2015-2018, NVIDIA CORPORATION.  All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,6 +14,9 @@
  * limitations under the License.
  *
  */
+
+#ifndef MTH_H_
+#define MTH_H_
 
 /*  mth.h - 'parameterize' the names of the __mth_i/__fmth_i ... functions.
  *          Macros are not used for the new naming conventions, i.e.,
@@ -54,10 +57,8 @@ sinh
 cosh
 tanh
 atan2
+div
  */
-
-#ifndef __MTH_H
-#define __MTH_H
 
 typedef enum MTH_FN {
   MTH_acos,
@@ -78,13 +79,11 @@ typedef enum MTH_FN {
   MTH_sin,
   MTH_sincos,
   MTH_sinh,
+  MTH_sqrt,
   MTH_tan,
   MTH_tanh,
-  MTH_mod
+  MTH_mod,
 } MTH_FN;
-
-extern char *make_math_name(MTH_FN, int, LOGICAL, DTYPE);
-extern char *make_math(MTH_FN, SPTR *, int, LOGICAL, DTYPE, int, int, ...);
 
 #define MTH_I_DFIXK "__mth_i_dfixk"
 
@@ -246,4 +245,4 @@ extern char *make_math(MTH_FN, SPTR *, int, LOGICAL, DTYPE, int, int, ...);
 #define MTH_I_KBTEST "ftn_i_bktest"
 #define MTH_I_KBCLR "ftn_i_kibclr"
 
-#endif /* __MTH_H */
+#endif // MTH_H_

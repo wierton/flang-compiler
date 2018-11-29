@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, NVIDIA CORPORATION.  All rights reserved.
+ * Copyright (c) 1994-2018, NVIDIA CORPORATION.  All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -32,16 +32,17 @@
 
 /* FIXME: This file is compiled with different gbldefs.h included
    depending on in which part of the build it is recompiled. */
-#include "scutil.h"
-#include "gbldefs.h"
-#include "global.h"
+#include "symacc.h"
 #include "error.h"
-#include "symtab.h"
 #include <stdarg.h>
 
 #ifndef STANDARD_MAXIDLEN
 #define STANDARD_MAXIDLEN MAXIDLEN
 #endif
+
+extern STB stb;
+extern GBL gbl;
+static char buff[132];
 
 void
 sym_init_first(void)
@@ -49,30 +50,31 @@ sym_init_first(void)
   int i;
 
   int sizeof_SYM = sizeof(SYM) / sizeof(INT);
-  assert(sizeof_SYM == 44, "bad SYM size", sizeof_SYM, 4);
+  assert(sizeof_SYM == 44, "bad SYM size", sizeof_SYM, ERR_Fatal);
 
   if (stb.stg_base == NULL) {
-    stb.stg_size = 1000;
-    NEW(stb.stg_base, SYM, stb.stg_size);
-    BZERO(stb.stg_base, SYM, stb.stg_size);
-    assert(stb.stg_base, "sym_init: no room for symtab", stb.stg_size, 4);
+    STG_ALLOC(stb, 1000);
+    assert(stb.stg_base, "sym_init: no room for symtab", stb.stg_size,
+           ERR_Fatal);
     stb.n_size = 5024;
     NEW(stb.n_base, char, stb.n_size);
-    assert(stb.n_base, "sym_init: no room for namtab", stb.n_size, 4);
+    assert(stb.n_base, "sym_init: no room for namtab", stb.n_size, ERR_Fatal);
     stb.n_base[0] = 0;
-    stb.dt_size = 400;
-    NEW(stb.dt_base, ISZ_T, stb.dt_size);
-    assert(stb.dt_base, "sym_init: no room for dtypes", stb.dt_size, 4);
+    STG_ALLOC(stb.dt, 400);
+    assert(stb.dt.stg_base, "sym_init: no room for dtypes", stb.dt.stg_size,
+           ERR_Fatal);
+    /* basically, this is sidecar of dt_base */
+
     stb.w_size = 32;
     NEW(stb.w_base, INT, stb.w_size);
-    assert(stb.w_base, "sym_init: no room for wtab", stb.w_size, 4);
+    assert(stb.w_base, "sym_init: no room for wtab", stb.w_size, ERR_Fatal);
   }
+  /* allocate  deepcopy info */
 
-  stb.stg_avail = 1;
   stb.namavl = 1;
   stb.wrdavl = 0;
   for (i = 0; i <= HASHSIZE; i++)
-    stb.hashtb[i] = 0;
+    stb.hashtb[i] = SPTR_NULL;
 
   DT_INT = DT_INT4;
   DT_REAL = DT_REAL4;
@@ -90,7 +92,6 @@ sym_init_first(void)
 void
 realloc_sym_storage()
 {
-  unsigned n;
   DEBUG_ASSERT(stb.stg_avail > stb.stg_size,
                "realloc_sym_storage: call only if necessary");
   if (stb.stg_avail > SPTR_MAX + 1 || stb.stg_base == NULL)
@@ -98,16 +99,13 @@ realloc_sym_storage()
   /* Use unsigned arithmetic to avoid risk of overflow. */
   DEBUG_ASSERT(stb.stg_size > 0,
                "realloc_sym_storage: symbol storage not initialized?");
-  n = 2u * stb.stg_size;
-  if (n > SPTR_MAX + 1)
-    n = SPTR_MAX + 1;
-  NEED(stb.stg_avail, stb.stg_base, SYM, stb.stg_size, n);
-  DEBUG_ASSERT(stb.stg_avail <= stb.stg_size, "realloc_sym_storage: internal error");
+  STG_NEED(stb);
+  DEBUG_ASSERT(stb.stg_avail <= stb.stg_size,
+               "realloc_sym_storage: internal error");
 }
 
 /**
    \brief Look up symbol with indicated name.
-
    \return If there is already such a symbol, the pointer to the
    existing symbol table entry; or 0 if a symbol doesn't exist.
    \param name is a symbol name.
@@ -117,9 +115,8 @@ SPTR
 lookupsym(const char *name, int olength)
 {
   int length;
-  SPTR sptr;     /* pointer to symbol table entry */
-  INT hashval;   /* index into hashtb. */
-  char *np, *sp; /* pointer to symbol name characters */
+  SPTR sptr;   /* pointer to symbol table entry */
+  INT hashval; /* index into hashtb. */
 
   /*
    * Loop thru the appropriate hash link list to see if symbol is
@@ -142,8 +139,7 @@ lookupsym(const char *name, int olength)
 
     return sptr;
   }
-
-  return 0;
+  return SPTR_NULL;
 } /* lookupsym */
 
 /** \brief Issue diagnostic for identifer that is too long.
@@ -215,11 +211,10 @@ SPTR
 installsym_ex(const char *name, int olength, IS_MODE mode)
 {
   int length;
-  SPTR sptr;     /* pointer to symbol table entry */
-  INT hashval;   /* index into hashtb. */
-  char *np, *sp; /* pointer to symbol name characters */
+  SPTR sptr;   /* pointer to symbol table entry */
+  INT hashval; /* index into hashtb. */
   bool toolong;
-  int i, nmptr;
+  int nmptr;
   static int max_idlen = MAXIDLEN;
 
   /*
@@ -241,11 +236,8 @@ installsym_ex(const char *name, int olength, IS_MODE mode)
      * Loop thru the appropriate hash link list to see if symbol is
      * already in the table.
      */
-    int prev;
     HASH_ID(hashval, name, length);
-    prev = 0;
-    for (sptr = stb.hashtb[hashval]; sptr != 0;
-         prev = sptr, sptr = HASHLKG(sptr)) {
+    for (sptr = stb.hashtb[hashval]; sptr != 0; sptr = HASHLKG(sptr)) {
       const char *sname;
       int np = NMPTRG(sptr);
       if (np + length >= stb.namavl)
@@ -409,97 +401,91 @@ add_fp_constants(void)
 #endif
 }
 
-LOGICAL
+bool
 is_flt0(SPTR sptr)
 {
   if (sptr == stb.flt0 || sptr == stb.fltm0)
-    return TRUE;
-  return FALSE;
+    return true;
+  return false;
 }
 
-LOGICAL
+bool
 is_dbl0(SPTR sptr)
 {
   if (sptr == stb.dbl0 || sptr == stb.dblm0)
-    return TRUE;
-  return FALSE;
+    return true;
+  return false;
 }
 
-LOGICAL
+bool
 is_quad0(SPTR sptr)
 {
   if (sptr == stb.quad0 || sptr == stb.quadm0)
-    return TRUE;
-  return FALSE;
+    return true;
+  return false;
 }
 
 #ifdef LONG_DOUBLE_FLOAT128
+bool
 is_float128_0(SPTR sptr)
 {
   return sptr == stb.float128_0 || sptr == stb.float128_m0;
 }
 #endif /* LONG_DOUBLE_FLOAT128 */
 
-LOGICAL
+bool
 is_cmplx_flt0(SPTR sptr)
 {
   if (CONVAL1G(sptr) == CONVAL2G(stb.flt0) ||
       CONVAL1G(sptr) == CONVAL2G(stb.fltm0)) {
     if (CONVAL2G(sptr) == CONVAL2G(stb.flt0) ||
         CONVAL2G(sptr) == CONVAL2G(stb.fltm0)) {
-      return TRUE;
+      return true;
     }
   }
-  return FALSE;
+  return false;
 }
 
-LOGICAL
+bool
 is_creal_flt0(SPTR sptr)
 {
   if (CONVAL1G(sptr) == CONVAL2G(stb.flt0) ||
       CONVAL1G(sptr) == CONVAL2G(stb.fltm0))
-    return TRUE;
-  return FALSE;
+    return true;
+  return false;
 }
 
-LOGICAL
+bool
 is_cimag_flt0(SPTR sptr)
 {
   if (CONVAL2G(sptr) == CONVAL2G(stb.flt0) ||
       CONVAL2G(sptr) == CONVAL2G(stb.fltm0))
-    return TRUE;
-  return FALSE;
+    return true;
+  return false;
 }
 
-LOGICAL
+bool
 is_cmplx_dbl0(SPTR sptr)
 {
-  if (is_dbl0(CONVAL1G(sptr)) && is_dbl0(CONVAL2G(sptr)))
-    return TRUE;
-  return FALSE;
+  return is_dbl0(SymConval1(sptr)) && is_dbl0(SymConval2(sptr));
 }
 
-LOGICAL
+bool
 is_cmplx_quad0(SPTR sptr)
 {
-  if (is_quad0(CONVAL1G(sptr)) && is_quad0(CONVAL2G(sptr)))
-    return TRUE;
-  return FALSE;
+  return is_quad0(SymConval1(sptr)) && is_quad0(SymConval2(sptr));
 }
 
-STB stb;
-GBL gbl;
-static char buff[132];
 void
 symini_errfatal(int n)
 {
-  errfatal(n);
+  errfatal((error_code_t)n);
 }
 
 void
 symini_error(int n, int s, int l, const char *c1, const char *c2)
 {
-  error(n, s, l, c1, c2);
+  error((error_code_t)n, (enum error_severity)s, l, c1, c2);
 }
 
 void
@@ -510,3 +496,4 @@ symini_interr(const char *txt, int val, int sev)
   sprintf(buff, "%7d", val);
   symini_error(0, sev, gbl.lineno, txt, buff);
 }
+

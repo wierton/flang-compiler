@@ -1,5 +1,5 @@
 .\"/*
-.\" * Copyright (c) 2017, NVIDIA CORPORATION.  All rights reserved.
+.\" * Copyright (c) 1994-2018, NVIDIA CORPORATION.  All rights reserved.
 .\" *
 .\" * Licensed under the Apache License, Version 2.0 (the "License");
 .\" * you may not use this file except in compliance with the License.
@@ -740,8 +740,6 @@ This line began with the HPF sentinel !hpf$, the OpenMP sentinel !$omp,
 the memory sentinel !$mem, the accelerator sentinel !$acc,
 the DEC sentinel !dec$, or the PGI sentinel !pgi$,
 but the statement or directive keyword was missing or not recognized.
-.MS W 289 "HPF directives are ignored in HPF_SERIAL subprograms - $"
-Subprograms with the EXTRINSIC(HPF_SERIAL) attribute do not use HPF directives.
 .MS E 290 "Unexpected continuation line"
 This may be caused by a continuation line following a directive line.
 .MS E 291 "Non-comment character after '&'"
@@ -1132,8 +1130,6 @@ If the array is sequential, then Fortran sequence and storage association rules 
 If the array is not sequential, then Fortran sequence and storage association rules do not apply.
 .MS W 473 "$ must have the PURE attribute"
 A PURE subprogram can only call other PURE subprograms.
-.MS F 474 "This type EXTRINSIC is not yet implemented - $"
-Contact PGI to ask when this EXTRINSIC type will be implemented.
 .MS E 475 "A dummy argument may not be distributed in a PURE interface - $"
 A dummy argument to a routine defined with a PURE interface may not have the DISTRIBUTE attribute.
 .MS E 476 "A dummy argument may only be aligned with another dummy in a PURE interface - $"
@@ -1172,9 +1168,8 @@ An actual argument that is an array element cannot be passed to a REFLECTED dumm
 .MS E 487 "Index variable $ does not appear in a subscript on the left hand side of the FORALL assignment"
 In a FORALL statement, each index variable in the FORALL must appear in some subscript of the left hand side of the FORALL assignment.
 Otherwise, the FORALL will assign the same left hand side elements for different values of that index.
-.MS E 488 "The function call in the FORALL does not have the PURE attribute - $"
-In a FORALL statement, all functions used must be PURE or ELEMENTAL.
-Otherwise, they cannot be called in parallel.
+.MS S 488 "$ is not PURE - $"
+DO CONCURRENT and FORALL subprogram calls must be PURE or ELEMENTAL.
 .MS I 489 "An ALLOCATE of a POINTER with transcriptive or inherited distribution causes replication - $"
 When an array with the POINTER attribute and with a distributed that is transcriptive or inherited is allocated,
 the alignment and distribution are ignored and the array pointer is treated as replicated,
@@ -1182,14 +1177,8 @@ since there is no symbol from which to inherit a distribution.
 .MS E 490 "An array section of $ is passed to the REFLECTED argument $, which is not supported"
 When an actual argument is an array section, the dummy argument must not have
 the REFLECTED argument.
-.MS W 491 "EXTRINSIC($) subprograms require an explicit interface - $"
-An EXTRINSIC subprogram with the LOCAL or SERIAL attributes require an explicit
-interface, either through an INTERFACE block, or by being in the same MODULE
-as the caller, or being in a MODULE that is referenced with a USE statement.
 .MS E 492 "DYNAMIC distribution is only supported in HPF_GLOBAL subprograms - $"
-Variables with DYNAMIC distribution are not supported in
-EXTRINSIC(F77_LOCAL), EXTRINSIC(F77_SERIAL), EXTRINSIC(F90_LOCAL), EXTRINSIC(F90_SERIAL),
-EXTRINSIC(HPF_LOCAL) or EXTRINSIC(HPF_SERIAL) subprograms.
+Variables with DYNAMIC distribution are not supported.
 .MS E 493 "$ arrays may not be aligned with ALLOCATABLE arrays - $"
 Static local array, common arrays, and dummy argument arrays may not be aligned
 with arrays that have the ALLOCATABLE attribute, since the allocatable alignee
@@ -1202,9 +1191,6 @@ distributed with the CYCLIC distribution is ignored.
 .MS I 496 "A $ of an unused template is eliminated"
 The HPF executable REDISTRIBUTE or REALIGN directive appeared specifying an HPF TEMPLATE
 that is not used; the REDISTRIBUTE or REALIGN is eliminated.
-.MS E 497 "EXTRINSIC(F77_LOCAL) does not support distributed symbols of this datatype - $"
-This HPF implementation does not support distributed symbols of character or
-derived type in EXTRINSIC(F77_LOCAL) subprograms.
 .MS E 498 "Alignment cycle involving two or more arguments - $"
 This dummy argument appears in an HPF ALIGN directive specifying alignment to another
 dummy argument that is then aligned to this argument, or aligned to another dummy
@@ -1346,6 +1332,17 @@ This OpenMP feature is not yet implemented.
 An unlimited repetition count (*) is allowed by the Fortran 2008 standard
 only on a parenthesized list of edit descriptors that appears as the the last
 (or only) item at the top level of a FORMAT.
+.MS E 550 "Allocatable device array is not in c_f_pointer with -Mallocatable=03 - $."
+The second argument in c_f_pointer may not be an allocatable device array
+with -Mallocatable=03 semantics.  A device pointer may be used,
+or the program may be compiled with the -Mallocatable=95 compiler flag.
+.MS E 551 "LAUNCH_BOUNDS() must follow ATTRIBUTES(GLOBAL)"
+The LAUNCH_BOUNDS specification must follow a ATTRIBUTES(GLOBAL)
+or ATTRIBUTES(GRID_GLOBAL) specification.
+LAUNCH_BOUNDS is now allowed on ATTRIBUTES(DEVICE) or host subprograms.
+.MS E 552 "LAUNCH_BOUNDS() values must be positive"
+The LAUNCH_BOUNDS maximum number of threads and minimum grid size must
+be positive integer values.
 .MS S 901 "#elif after #else"
 A preprocessor #elif directive was found after a #else directive; only
 #endif is allowed in this context.
@@ -1465,5 +1462,11 @@ Argument to macro is a null value.
 .MS F 968 " "
 .MS S 969 "_Pragma $"
 Pragma operator errors.
-.MS W 970 "The $ is deprecated; use $ instead"
-.MS W 971 "The $ is deprecated; no OpenACC equivalent"
+.MS S 1008 "Interface mismatch in procedure pointer assignment $"
+.MS S 1009 "Interface mismatch between actual argument $ and dummy argument $"
+.MS S 1010 "Illegal use of an elemental interface with procedure pointer $"
+.MS S 1011 "Device variable cannot be THREADPRIVATE - $"
+.MS S 1012 "Threadprivate variables are not supported in acc routine - $"
+.MS S 1013 "Static Threadprivate variables are not supported - $"
+.MS S 1014 "Global Threadprivate variables are not supported - $"
+.MS S 1015 "Cannot access private intrinsic - $"

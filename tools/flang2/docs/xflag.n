@@ -1,5 +1,5 @@
 .\"/*
-.\" * Copyright (c) 2017, NVIDIA CORPORATION.  All rights reserved.
+.\" * Copyright (c) 1997-2018, NVIDIA CORPORATION.  All rights reserved.
 .\" *
 .\" * Licensed under the Apache License, Version 2.0 (the "License");
 .\" * you may not use this file except in compliance with the License.
@@ -150,9 +150,9 @@ number, <filename>(n,m). In all cases the line number is required.
 L-suffixed constants (dev pgc only).
 
 .XF "1:"
-Used to turn on producing negative information (stderr):
+Used to turn on producing negative and other information (stderr):
 .XB 0x01:
-AVAILABLE
+Enable enhanced error messages.
 .XB 0x02:
 general information on loop optimizations not performed
 .XB 0x04:
@@ -230,6 +230,8 @@ don't use SMOVEI/SMOVES instead of SMOVE in exp_rte.c
 F90 pointer optimizations.
 .XB 0x800000
 Use GSMOVE in exp_rte.c
+.XB 0x1000000
+Don't expand SMOVEs (struct moves) in a single IL_SMOVEI/IL_SMOVES
 
 .XF "3:" 
 Used to turn on/off various dual-op/dual-inst/pipelined ops.
@@ -615,6 +617,8 @@ Turn off CG checking of Fortran inlined SC_BASED variable dependency
 checking.
 .XB 0x04:
 used in inliner.c
+.XB 0x08:
+Suppress accelerator error messages with -Mextract.
 .XB 0x10:
 Only available in the dev (under #if DEBUG)
 calls inline_mulh to inline IMULH UIMULH KMULH UKMULH calls into the appropriate
@@ -1011,13 +1015,16 @@ Turn on beta-level experimental optimizer features.
 Turn on beta-level experimental code generation.
 
 .XF "26:"
-AVAILABLE; was pipe flushing (deprecated)
+Modify ILI. Was pipe flushing (deprecated)
 .XB 0x01:
-TEMPORARAY - enable new math names for complex divide and exp
+TEMPORARY - enable new math names for complex routines under development
 (XBIT(164,0x800000) must also be set.
-Flush pipes in minimal fashion.
+Was "Flush pipes in minimal fashion" (deprecated)
 .XB 0x02:
-Full flush of all pipes.
+When using the new math naming scheme for scalar routines, follow the 'vector'
+ABI instead of the C ABI.  On x64, this will alter passing a complex double
+scalar.
+Was "Full flush of all pipes" (deprecated)
 .XB 0x04:
 used in cgutil.c for n10
 .XB 0x08:
@@ -1175,6 +1182,8 @@ Inhibit the induction branch optimization if a call occurs.
 Inhibit creating countable loops from pointer-controlled loops; does not apply
 when the loop-end condition is a known 'distance' away from the initial value
 of the pointer
+.XB 0x400
+Disable scalar replacement for invariant array references within loops.
 
 .XF "30-39"
 Reserved for low-level vectorizer.
@@ -1278,6 +1287,10 @@ cost of vectorising the loop using smaller vector registers.  For
 example this enhancement gives a speed-up for applu by preventing LRE
 from being performed on the loop at line 1673 of applu.f, for which it
 only removes 2% of the operations.
+.XB 0x40000000
+Allow conditional vectorization containing reductions (experimental)
+.XB 0x80000000
+Disable LLVM vectorization containing SELECT 
 
 .XF "35:"
 Low-level vectorizer - maximum loop iteration count; 0 means
@@ -1295,6 +1308,12 @@ In parallel loops, allocate static area for the vcache.
 (860 only).
 .XB 0x04:
 Beta fast- and/or relaxed- math scalar/vector versions of certain intrinsics.
+.XB 0x08:
+LLVM - disable extended scalar analysis in conditional loops with a
+definition on only one side of the conditional. 
+.XB 0x10:
+LLVM - disable extended conditional vectorization in all loops where the
+predicate size is different than the computational size.
 
 .XF "37":
 .XB 0x01:
@@ -1713,7 +1732,7 @@ Disable propagation of certain IPA pointer information from actual arguments
 to ..inline temporaries when a call-site is inlined.
 
 .XF "54:" 
-More pgfortran behavior modification
+More Flang behavior modification
 .XB 0x01:
 Enable full Fortran 2003 allocatable attribute regularization 
 .XB 0x02:
@@ -1724,12 +1743,17 @@ No 2003 allocatable assignment semantics for allocatable components
 Allocate automatic arrays on the stack instead of the heap by using
 an alloca-like method (affects the frontend)
 .XB 0x10:
+Fortran Back-End only:
 Where possible, Implement the alloca-like method by inlining alloca;
 otherwise, call our 'builtin' alloca routine (affects the backend).
 Note that XBIT(54,0x08) must be set.
 .XB 0x10:
+Fortran Front-End only:
 Use pre-F2008 STOP command semantics; do not return integer values 
 from STOP commands as the program exit status.
+.XB 0x20:
+Assume that dummy arguments declared EXTERNAL are Fortran routines
+that were compiled with Flang.
 
 .XF "55:" 
 .XB 0x01:
@@ -1739,7 +1763,9 @@ reserved
 .XB 0x04:
 AVAILABLE
 .XB 0x80:
-AVAILABLE
+Don't call update_shape_info() when assumed-shape array is marked target.
+.XB 0x100:
+Try to reduce array copies in argument passing 
 .XB 0x200:
 AVAILABLE
 
@@ -1758,11 +1784,29 @@ Disable putting term to the end of each group in factoring_tm()
 when breaking them into 2 groups to keep them in the same order as 
 before as much as possible in algetrans.c.
 .XB 0x40
-Disable 256-bit wide vectorization; only allow 128-bit wide vectorization.
+This x-flag is set by the command-line option -Mvect=simd:128.  It
+restricts vectorisation to a vector length of 128 bits even if the
+target processor supports larger vector lengths.
 .XB 0x80
 Enable multiple outer loop unroll_and_jam.
 .XB 0x100
-Force 256-bit wide vectorization with AVX.
+This x-flag is set by the command-line option -Mvect=simd:256.  It
+asserts that the target processor supports SIMD instructions with a
+vector length of at least 256 bits and restricts vectorisation to 256
+bits even if the target processor supports larger vector lengths.
+.XB 0x200
+Do not replace a scalar expression of the form (+-(a * b) +- c) or
+(c +- (a * b)) by a scalar FMA instruction if the product (a * b) has
+more than one use.
+.XB 0x400
+Do not replace a vectorised expression of the form 
+(+-(a(i) * b(i)) +- c(i)) or (c(i) +- (a(i) * b(i))) by a vector FMA
+instruction if the product (a(i) * b(i)) has more than one use.
+.XB 0x800
+This x-flag is set by the command-line option -Mvect=simd:512.  It
+asserts that the target processor supports SIMD instructions with a
+vector length of at least 512 bits and restricts vectorisation to 512
+bits even if the target processor supports larger vector lengths.
 .XB 0x80000000
 If a user-written prefetch inhibits vectorization, do not attempt to replace
 its address expression with the address of a matching array reference.
@@ -1925,13 +1969,17 @@ do not prepend an underscore.
 .XB 0x100000:
 Compiler owned module.
 .XB 0x200000:
-AVAILABLE
+Revert to previous behavior of including module name in link name of bind(C) routine.
 .XB 0x400000:
-AVAILABLE
+Don't make a copy of assumed-shape array arguments if the callee has it marked
+as target.
 .XB 0x800000:
 Don't attempt to call the descriptor-less read/write I/O function of an array.
 .XB 0x1000000:
-AVAILABLE
+Disable the use of rhs constant bound for forall loop:-
+When converting array assignment to forall if lhs bound is not constant,
+check array on rhs if it has constant bound and use to make forall
+loop bound.
 .XB 0x2000000:
 AVAILABLE
 .XB 0x4000000:
@@ -2005,8 +2053,7 @@ are stored directly within ili template.
 Generate position-independent code
 
 .XF "63"
--Mtda,value, -Msda,value DSP (ST100) options; default tda/sda
-placement.
+Used to pass opt level to CUDA back end code generator.
 
 .XF "64"
 Controls code straightener;
@@ -2020,8 +2067,6 @@ straighten out, that is, the block size which is more profitable to
 leave in place (perhaps to predicate) that to avoid branching over.
 
 .XF "65"
-Used in dsp inline function expansion; gives a maximum size of function
-to expand.
 
 .XF "66"
 Used by DSP function expansion, ipa, etc.
@@ -2102,7 +2147,7 @@ Eliminates serially nested redundant conditionals.
 .XB 0x02
 Performs structure transposition optimization.
 .XB 0x04
-Performs loop peeling optimization.
+Performs loop peeling and loop index splitting optimizations.
 .XB 0x08
 Performs more branch elimination optimization.
 .XB 0x10
@@ -2149,7 +2194,7 @@ auto-privatized at the ETLS_TASK level.
 .XB 0x20
 Fortran character length for 64-bit target is integer*8 by default.
 .XB 0x40
-Use TLS to implemement OpenMP threaprivates instead of TP vectors. Has no
+Use TLS to implemement OpenMP threadprivates instead of TP vectors. Has no
 effect if the ETLS switch is set.
 
 .XF "69:"
@@ -2185,8 +2230,9 @@ linux 64 C++ : revert to .rodata sections, instead of linkonce.r sections for
 jump tables in weak(templated) functions
 .XB 0x1000:
 Disable new OpenMP atomic and reduction implementation.
+Currently new OpenMP atomic is enabled with LLVM target only.
 .XB 0x2000:
-Temporary disable collapse clause for distribute parallel loop in Fortran
+Available
 .XB 0x4000:
 Available
 .XB 0x8000:
@@ -2199,7 +2245,8 @@ Unconditionally generate prtcnt.
 Execute tasks immediately 
 .XB 0x80000:
 In the outliner used for KPMC openmp regions, when filling the argument
-structure, fill in the struct members for the NME entries.
+.XB 0x100000:
+Enable nodepchk for simd construct/clause.
 
 .XF "70-79:"
 RESERVED FOR ALTERNATE CODE GENERATION
@@ -3775,6 +3822,8 @@ Allow character strings in CUDA Fortran
 Allow some formatted print statements in CUDA Fortran, EXPERIMENTAL
 .XB 0x20000:
 Don't allow statements between the DO loops of a cuf kernels do construct
+.XB 0x40000:
+reserved
 
 .XF "138:"
 vect prefetch limit
@@ -4441,7 +4490,7 @@ This is for debugging bad cache memory references.
 .XB 0x20000
 Disable loop test replacement
 .XB 0x40000
-regularize the compares
+don't regularize the compare operations (which changes a<b ==> b>a, and so forth).
 .XB 0x80000
 use the old loop unroller
 .XB 0x100000
@@ -4671,7 +4720,7 @@ Copy-in all formal arguments into the function's stack -- appears that
 llc has a problem with generating dwarf location expressions for arguments
 which are passed on the stack
 .XB 0x10:
-Enable llvm inlining by disabling marking all llvm routines as 'noinline'.
+(Fortran only) Enable LLVM inlining by not marking all routines with the LLVM attribute 'noinline'.
 .XB 0x20:
 Disable cse load optimization and dead instr removal in LLVM bridge
 .XB 0x40:
@@ -4723,6 +4772,10 @@ size from integer power elements
 Switch definition of "long double" on Power from "double double" to __float128
 .XB 0x4000000:
 Disable generation of !llvm.loop metadata
+.XB 0x8000000:
+(C/C++ only) Disable the LLVM inliner by marking all routines with the LLVM attribute 'noinline'.
+.XB 0x10000000:
+Enable arithmetic widening on address arithmetic.
 
 .XF "184:"
 ARM modifications
@@ -4836,7 +4889,19 @@ Acclinopt: compute earliest computation points at edges.
 .XB 0x20000:
 Disable finding single-entry/single-exit regions in acclinopt.
 .XB 0x100000:
-Override default for GPU code: llvm version
+Override default for GPU code: llvm version 3.5
+.XB 0x200000:
+Override default for GPU code: llvm version 3.6
+.XB 0x400000:
+Override default for GPU code: llvm version 3.7
+.XB 0x800000:
+Override default for GPU code: llvm version 3.8
+.XB 0x1000000:
+Override default for GPU code: llvm version 3.9
+.XB 0x2000000:
+Override default for GPU code: llvm version 4.0
+.XB 0x4000000:
+Override default for GPU code: llvm version 5.0
 
 .XF "188:"
 The default OpenACC vector length
@@ -4905,7 +4970,6 @@ Implicit 'present_or_' on all data clauses
 .XB 0x20000000
 Don't implicitly collapse outer parallel loops
 .XB 0x40000000
-Compare mode
 .XB 0x80000000
 only two nested gang loops
 
@@ -5055,23 +5119,7 @@ Recognize libm functions even if we don't know they are libm
 For CUDA output, generate --devdebug flag to generate dwarf for cuda C
 
 .XF "195:"
-Accelerator optimizer disable flags
-.XB 0x08:
-Disable unrolling
-.XB 0x10:
-Disable fmaopt
-.XB 0x20:
-Disable find_safe_ptr (C only)
-.XB 0x40:
-Prefer to cache scalars that are shared across vector lanes or workers
-.XB 0x80:
-Split memory loads when printing assignments.
-.XB 0x100:
-If a planned loop contains no vector syncs, then generate optimized loop branch code.
-.XB 0x200:
-Rigid mode: planner must only use the parallelism specified, unless explicitly 'auto'
-.XB 0x400:
-Ignore data movement directives
+reserved
 
 .XF "196:"
 Threshhold value for conditional vectorization short circuiting.
@@ -5183,6 +5231,12 @@ Disable vector-32 entirely
 .XB 0x20000:
 .XB 0x40000:
 Set accelerator CG loop index variables as 'noforward'
+.XB 0x80000:
+Print array assignments using pointer arithmetic always.
+.XB 0x100000:
+Don't demote address KMUL operations
+.XB 0x200000:
+in LLVM output, don't output the instruction info (lilix index, opcode)
 
 .XF "202:"
 Set number of bigbuffers for multi-buffer memory management for AMD GPU.
@@ -5222,6 +5276,10 @@ Remove unused induction variable assignments
 don't optimize away unused private variable assignments
 .XB 0x08:
 enable tracing with -ta=multicore.
+.XB 0x10:
+Enable master-thread task distribution model.
+.XB 0x20:
+Generate "guided" schedule by default for OpenACC multicore with the LLVM backend.
 
 .XF "211:"
 Enable various accelerator CG optimizations
@@ -5296,30 +5354,35 @@ Conditional removal based on min/max value determination
 Enable induction variable analysis across the memsize*subscript 
 multiply for an array reference.
 .XB 0x400000:
-Don't limit induction families to constant-offset from the base value.
-Also, don't mark IL_IKMV as induction variable
+When combining induction variables to families with the same step,
+do or don't (default) limit to those with constant-offsets from the base value.
+.XB 0x800000:
+Mark IL_IKMV as induction variable
 .XB 0x1000000:
 Optimize branches based on finding min/max values of variables and expressions.
+.XB 0x2000000:
+When combining induction variables to families with the same step,
+do or don't (default) limit to those with constant-offsets and maybe a constant
+multiple of threadIdx, blockIdx, blockDim or gridDim from the base value.
 
 .XF "214:"
 Disable O2 accelerator CG optimizations. The bits here are the same
 as for flag 213.  Disable overrides Enable.
 
 .XF "215:"
-More accelerator flags
-.XB 0x01:
-Windows compilation flag -ot12 was used, pass it on to pgnvd so as to use OpenTools 12.
-.XB 0x02:
-Deep copy of complex data structures.
-.XB 0x04:
-Array members and subscription address demoting when Mlarge_arrays is enabled.
-.XB 0x10:
-Dynamic scheduling for gangs.
+reserved
 
 .XF "216:"
 FLANG flags
 .XB 0x01:
 The -ffast-math command-line option is present.
+.XB 0x02:
+Disable fast math attribute on floating-point addition.
+
+.XF "217:"
+POWER Modifications
+.XB 0x01:
+Enable auto initialization of stack memory to 64bit signaling NaNs.
 
 .XF "220:"
 Enable tuning code for -Minline.

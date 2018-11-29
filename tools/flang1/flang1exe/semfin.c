@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, NVIDIA CORPORATION.  All rights reserved.
+ * Copyright (c) 1994-2018, NVIDIA CORPORATION.  All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -275,7 +275,8 @@ add_class_arg_descr_arg(int func_sptr, int arg_sptr, int new_arg_position)
       DTYPEP(new_arg_sptr, dtype);
       inject_arg(func_sptr, new_arg_sptr, new_arg_position);
       PARENTP(arg_sptr, new_arg_sptr);
-      /*OPTARGP(new_arg_sptr, TRUE);*/ /* FS#17571 */
+      if (PARREFG(arg_sptr))
+        set_parref_flag2(new_arg_sptr, arg_sptr, 0);
       return TRUE;
     }
     if (!SDSCG(arg_sptr)) {
@@ -529,7 +530,8 @@ semfin(void)
         for (i = 0; i < paramct; ++i) {
           int arg;
           arg = aux.dpdsc_base[dpdsc + i];
-          if (ASSUMSHPG(arg) && !XBIT(54, 2)) {
+          if (ASSUMSHPG(arg) && !XBIT(54, 2) &&
+              !(XBIT(58, 0x400000) && TARGETG(arg))) {
             SDSCS1P(arg, 1);
           }
         }
@@ -569,6 +571,10 @@ semfin(void)
     /* fixup argument area for array-valued functions */
 
     for (sptr = aux.list[ST_PROC]; sptr != NOSYM; sptr = SLNKG(sptr)) {
+#if DEBUG
+      /* aux.list[ST_PROC] must be terminated with NOSYM, not 0 */
+      assert(sptr > 0, "semfin: corrupted aux.list[ST_PROC]", sptr, 4);
+#endif
       dtype = DTYPEG(sptr);
       if (PARAMCTG(sptr)) {
         fix_args(sptr, dtype != DT_NONE);
@@ -620,8 +626,10 @@ semfin(void)
             FUNCP(iface, 0);
             DTYPEP(iface, DT_NONE);
           }
-          DTY(procdt + 3) = DTY(procdt + 3) + 1; /* PARAMCT */
-          DTY(procdt + 4) = DTY(procdt + 4) - 1; /* DPDSC */
+          /* insert function result -- there is a space reserved for it */
+          DTY(procdt + 3) += 1; /* PARAMCT */
+          DTY(procdt + 4) -= 1; /* DPDSC */
+          aux.dpdsc_base[DTY(procdt + 4)] = fval;
         }
       }
     }
@@ -1085,8 +1093,12 @@ fix_args(int sptr, LOGICAL is_func)
         if (ELEMENTALG(sptr)) {
           errsev(463);
         }
-        if (FUNCG(arg) == 0)
+        if (FUNCG(arg) == 0) {
+          if (!SDSCG(arg) && IS_PROC_DUMMYG(arg)) {
+           get_static_descriptor(arg);
+          }
           continue;
+        }
         break;
       default:
         break;
@@ -1100,7 +1112,9 @@ fix_args(int sptr, LOGICAL is_func)
           INTENTG(arg) == INTENT_OUT) {
         gen_conditional_dealloc_for_sym(arg, ENTSTDG(sptr));
       }
-      if (POINTERG(arg)) {
+      if (!SDSCG(arg) && IS_PROC_DUMMYG(arg)) { 
+        get_static_descriptor(arg);
+      } else if (POINTERG(arg)) {
         if (ELEMENTALG(sptr)) {
           errsev(462);
         }
@@ -1278,6 +1292,14 @@ do_access(void)
       if (in_module) {
         if (sem.none_implicit) {
           /* can't be a variable, wouldn't be an unknown */
+          SPTR sptr2 = findByNameStypeScope(SYMNAME(sptr), ST_INTRIN, 0);
+          if (sptr2 > NOSYM && sptr != sptr2) {
+            STYPEP(sptr, ST_ALIAS);
+            PRIVATEP(sptr, accessp->type == 'v');
+            SYMLKP(sptr, sptr2);
+            SCOPEP(sptr, stb.curr_scope);
+            break;
+          }
           STYPEP(sptr, ST_MODPROC);
         } else {
           /* assume it's a variable to start out with */
@@ -3095,7 +3117,7 @@ search_for_auto(int ast, int *auto_found)
   if (A_TYPEG(ast) == A_ID) {
     sptr = A_SPTRG(ast);
     if (sptr && SCG(sptr) == SC_LOCAL && SCOPEG(sptr) == gbl.currsub &&
-        !HCCSYMG(sptr) && !PASSBYVALG(sptr)) {
+        DT_ISINT(DTYPEG(sptr)) && !HCCSYMG(sptr) && !PASSBYVALG(sptr)) {
       *auto_found = TRUE;
     }
   }
@@ -3109,7 +3131,7 @@ search_for_auto(int ast, int *auto_found)
       }
     }
   }
-  return (*auto_found ? FALSE : TRUE);
+  return *auto_found;
 }
 
 static LOGICAL
@@ -3224,7 +3246,7 @@ misc_checks(void)
       if (STYPEG(sptr) == ST_ARRAY && !IGNOREG(sptr) && !HCCSYMG(sptr) &&
           !DEVICEG(sptr) && (SCG(sptr) == SC_NONE || SCG(sptr) == SC_LOCAL) &&
           bounds_contain_automatics(sptr)) {
-        error(310, 3, gbl.lineno,
+        error(310, 3, LINENOG(sptr),
               "Adjustable array can not have automatic bounds specifiers -",
               SYMNAME(sptr));
       }
@@ -3284,7 +3306,7 @@ misc_checks(void)
            */
           break;
         }
-        if (SCG(sptr) == SC_NONE && !REFG(sptr) && 
+        if (SCG(sptr) == SC_NONE && !REFG(sptr) &&
             has_finalized_component(sptr)) {
             /* unreferenced derived type with final component needs to be
              * initialized since its final subroutine will still get called.
@@ -3310,6 +3332,24 @@ misc_checks(void)
         int ast;
         ast = add_nullify_ast(mk_id(sptr));
         (void)add_stmt_after(ast, 0);
+      }
+      // force implicitly save for local threadprivate
+      if (gbl.rutype == RU_PROG && sem.which_pass && THREADG(sptr)) {
+        int midnum = 0;
+        if (SCG(sptr) == SC_BASED) {
+           midnum = MIDNUMG(sptr);
+        }
+        if (midnum && SCG(midnum) == SC_LOCAL) {
+          int sdsc = SDSCG(sptr);
+          int ptroff = PTROFFG(sptr);
+          SAVEP(midnum, 1);
+          if (sdsc) {
+            SAVEP(sdsc, 1);
+          }
+          if (ptroff) {
+            SAVEP(ptroff, 1);
+          }
+        }
       }
       if (gbl.rutype != RU_PROG && sem.which_pass && THREADG(sptr) &&
           !CCSYMG(sptr)) {
@@ -3543,10 +3583,12 @@ init_derived_type(SPTR sptr, int parent_ast, int wherestd)
       if (descr_ast > 0) {
         int func_ast = mk_id(sym_mkfunc_nodesc(mkRteRtnNm(RTE_init_from_desc),
                                                DT_NONE));
-        int argt = mk_argt(2);
-        new_ast = mk_func_node(A_CALL, func_ast, 2, argt);
+        int argt = mk_argt(3);
+        new_ast = mk_func_node(A_CALL, func_ast, 3, argt);
         ARGT_ARG(argt, 0) = mk_id(sptr);
         ARGT_ARG(argt, 1) = descr_ast;
+        ARGT_ARG(argt, 2) =
+          mk_unop(OP_VAL, mk_cval(rank_of_sym(sptr), DT_INT4), DT_INT4);
       }
     }
 

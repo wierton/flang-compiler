@@ -44,6 +44,9 @@
 
 #if   defined(TARGET_OSX)
 #include <crt_externs.h>
+#elif defined(__win32)
+/* OPENTOOLS14 has changed the name.  wrap _environ for all of windowws */
+char **__io_environ();
 #else
 WIN_MSVCRT_IMP char **environ;
 #endif
@@ -386,6 +389,8 @@ __fort_initarg()
   }
 #if   defined(TARGET_OSX)
   env = *_NSGetEnviron();
+#elif defined(__WIN32)
+  env = __io_environ();
 #else
   env = environ;
 #endif
@@ -847,9 +852,7 @@ f90_compiled_arg()
 
 
 void
-#if defined(TARGET_LLVM)
 __attribute__((constructor))
-#endif
 f90_compiled()
 {
 #ifndef TARGET_LINUX_ARM
@@ -865,14 +868,5 @@ f90_compiled()
     atexit(term); /* register term */
     inited.atexit = 1;
   }
-}
-
-#ifndef PGLANG
-/* Wrapper function to maintain compatibility with previous PGI products */
-void
-pgf90_compiled()
-{
-  f90_compiled();
-#endif
 }
 

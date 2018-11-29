@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, NVIDIA CORPORATION.  All rights reserved.
+ * Copyright (c) 1995-2018, NVIDIA CORPORATION.  All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -119,7 +119,7 @@ static struct optabstruct {
  *
  *  \return true if we should (re)generate generic tbp bindings, else false.
  */
-static bool 
+static bool
 queue_generic_tbp_once(SPTR gnr)
 {
   if (GNCNTG(gnr) == 0 || gbl.internal > 1) {
@@ -641,6 +641,14 @@ tkr_match(int formal, SST *opnd, int actual, int elemental)
   int mng_match;
   LOGICAL formal_assumesz = FALSE;
 
+  if (!ignore_tkr(formal, IGNORE_M) && ast_is_sym(actual)) {
+    sptr = memsym_of_ast(actual);
+    if ( (ALLOCATTRG(formal) && !ALLOCATTRG(sptr)) ||
+         (POINTERG(formal) && !POINTERG(sptr)) ) {
+      return INF_DISTANCE;
+    }
+  }
+
   mng_match = 0;
   ddum = DTYPEG(formal);
   elddum = DDTG(ddum);
@@ -660,6 +668,11 @@ tkr_match(int formal, SST *opnd, int actual, int elemental)
     if (STYPEG(sptr) != ST_PROC && STYPEG(sptr) != ST_ENTRY &&
         !IS_INTRINSIC(STYPEG(sptr)))
       return INF_DISTANCE;
+  } else if (A_TYPEG(actual) == A_ID && (STYPEG(A_SPTRG(actual)) == ST_PROC || 
+             STYPEG(A_SPTRG(actual)) == ST_ENTRY) && 
+             !IS_INTRINSIC(STYPEG(A_SPTRG(actual)))) {
+        /* formal is not an ST_PROC, so return INF_DISTANCE */
+        return INF_DISTANCE;
   }
   if (!ignore_tkr(formal, IGNORE_R)) {
     if (DTY(ddum) == TY_ARRAY) {
@@ -960,6 +973,7 @@ find_operator(int opr, SST *lop, SST *rop, LOGICAL elemental)
       if (STYPEG(func) == ST_ALIAS)
         func = SYMLKG(func);
       paramct = PARAMCTG(func);
+
       if (paramct != opnd_cnt) {
         if (!bind) {
           continue;
@@ -1109,7 +1123,7 @@ is_intrinsic_opr(int val, SST *stktop, SST *lop, SST *rop, int tkn_alias)
         inv = 0;
       }
       list = make_list(lop, rop);
-      if (inv == 1 || inv == 2) {
+      if (rop != NULL && (inv == 1 || inv == 2)) {
         if (SST_IDG(rop) == S_SCONST) {
           /* Support operator look up with structure
            * constructor argument on RHS.
@@ -1860,14 +1874,13 @@ copy_specifics(int fromsptr, int tosptr)
 {
   int symi_src;
 
-  assert((STYPEG(fromsptr) == ST_OPERATOR && STYPEG(tosptr) == ST_OPERATOR) ||
-             (STYPEG(fromsptr) == ST_USERGENERIC &&
-              STYPEG(tosptr) == ST_USERGENERIC),
+  assert((STYPEG(fromsptr) == ST_OPERATOR || STYPEG(fromsptr) == ST_USERGENERIC) &&
+         (STYPEG(tosptr) == ST_OPERATOR || STYPEG(tosptr) == ST_USERGENERIC),
          "copy_specifics src or dest not user generic or operator", 0, 3);
 
   for (symi_src = GNDSCG(fromsptr); symi_src; symi_src = SYMI_NEXT(symi_src)) {
     /* don't copy if the specific is already in the generic's list */
-    /* TODO: is comparision of sptr's good enough or is comparision
+    /* TODO: is comparison of sptrs good enough or is comparison
      * of nmptr and signature necessary?
      */
     int src = SYMI_SPTR(symi_src);

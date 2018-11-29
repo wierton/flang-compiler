@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, NVIDIA CORPORATION.  All rights reserved.
+ * Copyright (c) 1994-2018, NVIDIA CORPORATION.  All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,6 +14,16 @@
  * limitations under the License.
  *
  */
+
+#ifndef SYMACC_H_
+#define SYMACC_H_
+
+#include "scutil.h"
+#include "gbldefs.h"
+#include "global.h"
+struct SYM;
+#include "symtab.h"
+#include "sharedefs.h"
 
 /**
  * \file
@@ -36,9 +46,9 @@ public:
      to minimize accidental use outside macro NEED.  It would
      be better that "operator void*" have the explicit keyword, but
      Microsoft 10.0 Open Tools does not support that C++11 feature. */
-  operator void *() const
+  operator char*() const
   {
-    return rep;
+    return reinterpret_cast<char*>(rep);
   }
   void operator=(T *ptr)
   {
@@ -50,7 +60,7 @@ public:
   }
   void *operator+(int offset) const
   {
-    return (void *)(rep + offset);
+    return reinterpret_cast<void *>(rep + offset);
   }
 };
 
@@ -59,9 +69,10 @@ public:
 #define INDEX_BY(T, Index) T *
 #endif
 
-#ifdef __cplusplus
+#if defined(__cplusplus)
 extern "C" {
 #endif
+
 /* FIXME: down the file there are declarations that depend on ST_MAX
    etc. and not guarded by #ifdef INIT.  Either INIT is always
    defined or there exist alternative definitions for these values
@@ -89,10 +100,7 @@ void realloc_sym_storage();
 
 /* symbol creation macros */
 #define NEWSYM(sptr)         \
-  sptr = (SPTR)stb.stg_avail++; \
-  if (sptr >= stb.stg_size)    \
-    realloc_sym_storage();   \
-  BZERO(&stb.stg_base[sptr], char, sizeof(SYM))
+  sptr = (SPTR)STG_NEXT(stb);
 
 #define LINKSYM(sptr, hashval)        \
   HASHLKP(sptr, stb.hashtb[hashval]); \
@@ -104,7 +112,7 @@ void realloc_sym_storage();
 
 /*  symbol table typedef declarations */
 
-typedef struct {
+typedef struct SYM {
   SYMTYPE stype : 8;
   SC_KIND sc : 8;
   unsigned b3 : 8;
@@ -165,22 +173,20 @@ typedef struct {
   const char *ocnames[OC_MAX + 1];
   const char *scnames[SC_MAX + 1];
   const char *tynames[TY_MAX + 1];
-  int i0, i1;
+  SPTR i0, i1;
   int k0, k1;
   SPTR flt0, dbl0, quad0;
   SPTR fltm0, dblm0, quadm0; /* floating point minus 0 */
   SPTR flt1, dbl1, quad1;
   SPTR flt2, dbl2, quad2;
   SPTR flthalf, dblhalf, quadhalf;
-  INDEX_BY(ISZ_T, DTYPE) dt_base;
-  int dt_size;
-  int dt_avail;
+  struct{
+    STG_MEMBERS(ISZ_T);
+  }dt;
   int curr_scope;
   SPTR hashtb[HASHSIZE + 1];
   SPTR firstusym, firstosym;
-  INDEX_BY(SYM, SPTR) stg_base;
-  int stg_size;
-  int stg_avail;
+  STG_MEMBERS(SYM);
   char *n_base;
   int n_size;
   int namavl;
@@ -197,6 +203,18 @@ typedef struct {
 } STB;
 
 extern STB stb;
+
+#ifdef __cplusplus
+inline SPTR SymConval1(SPTR sptr) {
+  return static_cast<SPTR>(CONVAL1G(sptr));
+}
+inline SPTR SymConval2(SPTR sptr) {
+  return static_cast<SPTR>(CONVAL2G(sptr));
+}
+#else
+#define SymConval1 CONVAL1G
+#define SymConval2 CONVAL2G
+#endif
 
 /** mode parameter for installsym_ex. */
 typedef enum IS_MODE {
@@ -215,18 +233,18 @@ SPTR installsym_ex(const char *name, int olength, IS_MODE mode);
 int putsname(const char *, int);
 char *local_sname(char *);
 void add_fp_constants(void);
-LOGICAL is_flt0(int);
-LOGICAL is_dbl0(int);
-LOGICAL is_quad0(int);
-LOGICAL is_x87_0(int);
-LOGICAL is_doubledouble_0(int);
-LOGICAL is_cmplx_flt0(int);
-LOGICAL is_creal_flt0(int);
-LOGICAL is_cimag_flt0(int);
-LOGICAL is_cmplx_dbl0(int);
-LOGICAL is_cmplx_quad0(int);
-LOGICAL is_cmplx_x87_0(int);
-LOGICAL is_cmplx_doubledouble_0(int);
+bool is_flt0(SPTR sptr);
+bool is_dbl0(SPTR sptr);
+bool is_quad0(SPTR sptr);
+bool is_x87_0(SPTR sptr);
+bool is_doubledouble_0(SPTR sptr);
+bool is_cmplx_flt0(SPTR sptr);
+bool is_creal_flt0(SPTR sptr);
+bool is_cimag_flt0(SPTR sptr);
+bool is_cmplx_dbl0(SPTR sptr);
+bool is_cmplx_quad0(SPTR sptr);
+bool is_cmplx_x87_0(SPTR sptr);
+bool is_cmplx_doubledouble_0(SPTR sptr);
 
 void put_err(int sev, const char *txt);
 
@@ -234,6 +252,8 @@ void symini_errfatal(int n);
 void symini_error(int n, int s, int l, const char *c1, const char *c2);
 void symini_interr(const char *txt, int val, int sev);
 
-#ifdef __cplusplus
+#if defined(__cplusplus)
 }
 #endif
+
+#endif // SYMACC_H_
