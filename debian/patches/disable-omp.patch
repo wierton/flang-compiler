@@ -1,0 +1,18 @@
+Description: OpenMP lib fails to compile under gfortran. Leave out omp support for now.
+Author: Alastair McKinstry <mckinstry@debian.org>
+Forwarded: no
+Last-Updated: 2018-11-29
+
+Index: flang-flang_20180921/runtime/flang/CMakeLists.txt
+===================================================================
+--- flang-flang_20180921.orig/runtime/flang/CMakeLists.txt
++++ flang-flang_20180921/runtime/flang/CMakeLists.txt
+@@ -147,7 +147,7 @@ SET(FTN_INTRINSICS_DESC_INDEP
+   merge.c
+   mvbits3f.c
+   nargs3f.c
+-  omp_lib.F95
++#  omp_lib.F95
+   outstr3f.c
+   packtimeqq3f.c
+   perror3f.c

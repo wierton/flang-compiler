@@ -3,7 +3,8 @@ Section: devel
 Priority: optional
 Maintainer: LLVM Packaging Team <pkg-llvm-team@lists.alioth.debian.org>
 Uploaders: Alastair McKinstry <mckinstry@debian.org>
-Build-Depends:  debhelper,
+Build-Depends:  debhelper (>= 10),
+  dh-fortran-mod,
   llvm-7,
   llvm-7-dev,
   libomp-7-dev,
@@ -15,7 +16,27 @@ Vcs-Browser: https://salsa.debian.org:/mckinstry/flang.git
 Vcs-Git: https://salsa.debian.org:/mckinstry/flang.git
 
 Package: flang-7
-Architecture: amd64, ppc64el, arm64
-Depends: ${misc:Depends}, ${shlib:Depends}
+Architecture: amd64 ppc64el arm64
+Provides: fortran-compiler
+Depends: ${misc:Depends}, ${shlib:Depends}, libflang0d-7
 Description: Fortran compiler front-end for LLVM
- This is a Fortran compiler using LLVM
+ This is a Fortran compiler using LLVM.
+
+Package: libflang0d-7
+Section: libs
+Architecture:  amd64 ppc64el arm64
+Depends: ${misc:Depends}, ${shlib:Depends}
+Description: Runtime libraries for the flang Fortran compiler
+ Flang is a Fortran compiler for the LLVM toolchain.
+ .
+ This provides the flang runtime libraries.
+
+Package: libflang-dev
+Section: libdevel
+Architecture:  amd64 ppc64el arm64
+Depends: ${misc:Depends}, ${shlib:Depends}, libflang0d-7
+Description: flang library - Development package.
+ Flang is a Fortran compiler for the LLVM toolchain.
+ .
+ This provides the static libraries and headers for Extension writing.
+

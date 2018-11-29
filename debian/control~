@@ -1,6 +1,0 @@
-
-BVuild-dep;
-  llvm-7,
-  llvm-7-dev,
-  libomp-7-dev
-

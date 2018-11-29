@@ -1,0 +1,176 @@
+Author: Alastair McKinstry <mckinstry@debian.org>
+Desctiption: DESC_INT needs to be declared before use, for gfortran to compile
+Forwarded: no
+Last-Updated: 2018-11-29
+
+Index: flang-flang_20180921/runtime/flang/mmul_cplx16contmxm.F95
+===================================================================
+--- flang-flang_20180921.orig/runtime/flang/mmul_cplx16contmxm.F95
++++ flang-flang_20180921/runtime/flang/mmul_cplx16contmxm.F95
+@@ -18,13 +18,13 @@
+ #include "mmul_dir.h"
+ 
+ subroutine F90_matmul_cplx16_contmxm(dest, src1, src2, k_extent,m_extent,n_extent)
++ DESC_INT k_extent
++  DESC_INT n_extent
++  DESC_INT m_extent
+ 
+   COMPLEX*16, dimension(k_extent,m_extent) :: src1
+   COMPLEX*16, dimension(m_extent,n_extent) :: src2
+   COMPLEX*16, dimension(k_extent,n_extent) :: dest
+-  DESC_INT k_extent
+-  DESC_INT n_extent
+-  DESC_INT m_extent
+ 
+   DESC_INT k
+   DESC_INT n
+Index: flang-flang_20180921/runtime/flang/mmul_cplx8contmxm.F95
+===================================================================
+--- flang-flang_20180921.orig/runtime/flang/mmul_cplx8contmxm.F95
++++ flang-flang_20180921/runtime/flang/mmul_cplx8contmxm.F95
+@@ -19,12 +19,12 @@
+ 
+ subroutine F90_matmul_cplx8_contmxm(dest, src1, src2, k_extent, m_extent, n_extent)
+ 
+-  COMPLEX*8, dimension(k_extent,m_extent) :: src1
+-  COMPLEX*8, dimension(m_extent,n_extent) :: src2
+-  COMPLEX*8, dimension(k_extent,n_extent) :: dest
+   DESC_INT k_extent
+   DESC_INT n_extent
+   DESC_INT m_extent
++  COMPLEX*8, dimension(k_extent,m_extent) :: src1
++  COMPLEX*8, dimension(m_extent,n_extent) :: src2
++  COMPLEX*8, dimension(k_extent,n_extent) :: dest
+ 
+   DESC_INT k
+   DESC_INT n
+Index: flang-flang_20180921/runtime/flang/mmul_int1contmxm.F95
+===================================================================
+--- flang-flang_20180921.orig/runtime/flang/mmul_int1contmxm.F95
++++ flang-flang_20180921/runtime/flang/mmul_int1contmxm.F95
+@@ -18,13 +18,13 @@
+ #include "mmul_dir.h"
+ 
+ subroutine F90_matmul_int1_contmxm(dest, src1, src2, k_extent, m_extent, n_extent)
++  DESC_INT k_extent
++  DESC_INT n_extent
++  DESC_INT m_extent
+ 
+   INTEGER*1, dimension(k_extent,m_extent) :: src1
+   INTEGER*1, dimension(m_extent,n_extent) :: src2
+   INTEGER*1, dimension(k_extent,n_extent) :: dest
+-  DESC_INT k_extent
+-  DESC_INT n_extent
+-  DESC_INT m_extent
+ 
+   DESC_INT k
+   DESC_INT n
+Index: flang-flang_20180921/runtime/flang/mmul_int2contmxm.F95
+===================================================================
+--- flang-flang_20180921.orig/runtime/flang/mmul_int2contmxm.F95
++++ flang-flang_20180921/runtime/flang/mmul_int2contmxm.F95
+@@ -19,12 +19,12 @@
+ 
+ subroutine F90_matmul_int2_contmxm(dest, src1, src2, k_extent, m_extent, n_extent)
+ 
+-  INTEGER*2, dimension(k_extent,m_extent):: src1
+-  INTEGER*2, dimension(m_extent,n_extent) :: src2
+-  INTEGER*2, dimension(k_extent,n_extent) :: dest
+   DESC_INT k_extent
+   DESC_INT n_extent
+   DESC_INT m_extent
++  INTEGER*2, dimension(k_extent,m_extent):: src1
++  INTEGER*2, dimension(m_extent,n_extent) :: src2
++  INTEGER*2, dimension(k_extent,n_extent) :: dest
+ 
+   DESC_INT k
+   DESC_INT n
+Index: flang-flang_20180921/runtime/flang/mmul_int4contmxm.F95
+===================================================================
+--- flang-flang_20180921.orig/runtime/flang/mmul_int4contmxm.F95
++++ flang-flang_20180921/runtime/flang/mmul_int4contmxm.F95
+@@ -19,12 +19,12 @@
+ 
+ subroutine F90_matmul_int4_contmxm(dest, src1, src2, k_extent, m_extent, n_extent)
+ 
+-  INTEGER*4, dimension(k_extent,m_extent) :: src1
+-  INTEGER*4, dimension(m_extent,n_extent) :: src2
+-  INTEGER*4, dimension(k_extent,n_extent) :: dest
+   DESC_INT k_extent
+   DESC_INT n_extent
+   DESC_INT m_extent
++  INTEGER*4, dimension(k_extent,m_extent) :: src1
++  INTEGER*4, dimension(m_extent,n_extent) :: src2
++  INTEGER*4, dimension(k_extent,n_extent) :: dest
+ 
+   DESC_INT k
+   DESC_INT n
+Index: flang-flang_20180921/runtime/flang/mmul_int8contmxm.F95
+===================================================================
+--- flang-flang_20180921.orig/runtime/flang/mmul_int8contmxm.F95
++++ flang-flang_20180921/runtime/flang/mmul_int8contmxm.F95
+@@ -19,12 +19,12 @@
+ 
+ subroutine F90_matmul_int8_contmxm(dest, src1, src2, k_extent, m_extent, n_extent)
+ 
+-  INTEGER*8, dimension(k_extent,m_extent) :: src1
+-  INTEGER*8, dimension(m_extent,n_extent) :: src2
+-  INTEGER*8, dimension(k_extent,n_extent) :: dest
+   DESC_INT k_extent
+   DESC_INT n_extent
+   DESC_INT m_extent
++  INTEGER*8, dimension(k_extent,m_extent) :: src1
++  INTEGER*8, dimension(m_extent,n_extent) :: src2
++  INTEGER*8, dimension(k_extent,n_extent) :: dest
+ 
+   DESC_INT k
+   DESC_INT n
+Index: flang-flang_20180921/runtime/flang/mmul_log1contmxm.F95
+===================================================================
+--- flang-flang_20180921.orig/runtime/flang/mmul_log1contmxm.F95
++++ flang-flang_20180921/runtime/flang/mmul_log1contmxm.F95
+@@ -19,12 +19,12 @@
+ 
+ subroutine F90_matmul_log1_contmxm(dest, src1, src2, k_extent, m_extent, n_extent)
+ 
+-  LOGICAL*1, dimension(k_extent,m_extent) :: src1
+-  LOGICAL*1, dimension(m_extent,n_extent) :: src2
+-  LOGICAL*1, dimension(k_extent,n_extent) :: dest
+   DESC_INT k_extent
+   DESC_INT n_extent
+   DESC_INT m_extent
++  LOGICAL*1, dimension(k_extent,m_extent) :: src1
++  LOGICAL*1, dimension(m_extent,n_extent) :: src2
++  LOGICAL*1, dimension(k_extent,n_extent) :: dest
+ 
+   DESC_INT k
+   DESC_INT n
+Index: flang-flang_20180921/runtime/flang/mmul_log2contmxm.F95
+===================================================================
+--- flang-flang_20180921.orig/runtime/flang/mmul_log2contmxm.F95
++++ flang-flang_20180921/runtime/flang/mmul_log2contmxm.F95
+@@ -19,12 +19,12 @@
+ 
+ subroutine F90_matmul_log2_contmxm(dest, src1, src2, k_extent, m_extent, n_extent)
+ 
+-  LOGICAL*2, dimension(k_extent,m_extent) :: src1
+-  LOGICAL*2, dimension(m_extent,n_extent) :: src2
+-  LOGICAL*2, dimension(k_extent,n_extent) :: dest
+   DESC_INT k_extent
+   DESC_INT n_extent
+   DESC_INT m_extent
++  LOGICAL*2, dimension(k_extent,m_extent) :: src1
++  LOGICAL*2, dimension(m_extent,n_extent) :: src2
++  LOGICAL*2, dimension(k_extent,n_extent) :: dest
+ 
+   DESC_INT k
+   DESC_INT n
+@@ -32,7 +32,7 @@ subroutine F90_matmul_log2_contmxm(dest,
+ 
+   do n=1,n_extent
+     do k=1,k_extent
+-      dest(k,n) = 0
++      dest(k,n) = .FALSE.
+     end do
+   end do
+   do n=1,n_extent

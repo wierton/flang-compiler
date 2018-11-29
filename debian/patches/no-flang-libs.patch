@@ -1,0 +1,20 @@
+Description: Only flang understands "-no-flang-libs", so make it conditional
+Author: Alastair McKinstry <mckinstry@debian.org>
+Forwarded: no
+Last-Updated: 2018-11-29
+
+Index: flang-flang_20180921/runtime/flang/CMakeLists.txt
+===================================================================
+--- flang-flang_20180921.orig/runtime/flang/CMakeLists.txt
++++ flang-flang_20180921/runtime/flang/CMakeLists.txt
+@@ -18,7 +18,9 @@ enable_language(C ASM Fortran) # Enable
+ 
+ SET(ASM_OPTIONS "-DLINUX_ELF")
+ SET(CMAKE_ASM_FLAGS "${CFLAGS} ${ASM_OPTIONS}" )
+-SET(CMAKE_SHARED_LINKER_FLAGS "-no-flang-libs")
++if (CMAKE_Fortran_COMPILER_ID MATCHES "flang")
++  SET(CMAKE_SHARED_LINKER_FLAGS "-no-flang-libs")
++endif()
+ 
+ # We are using Fortran driver to build this library with fresh compiler
+ # components, so point its binary directory to the build directory to pick up

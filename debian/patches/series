@@ -1,0 +1,4 @@
+no-flang-libs.patch
+gfortran-recursive.patch
+ieee_arithmetic.patch
+disable-omp.patch

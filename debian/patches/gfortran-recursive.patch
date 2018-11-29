@@ -1,0 +1,19 @@
+Index: flang-flang_20180921/runtime/flang/CMakeLists.txt
+===================================================================
+--- flang-flang_20180921.orig/runtime/flang/CMakeLists.txt
++++ flang-flang_20180921/runtime/flang/CMakeLists.txt
+@@ -588,7 +588,12 @@ target_compile_options(flang_static PRIV
+ 
+ target_compile_options(flang_shared PRIVATE -fPIC)
+ 
+-target_compile_options(flang_static PUBLIC $<$<COMPILE_LANGUAGE:Fortran>:-Mreentrant>)
++if (CMAKE_Fortran_COMPILER_ID MATCHES "gfortran")
++  target_compile_options(flang_static PUBLIC $<$<COMPILE_LANGUAGE:Fortran>:-frecursive>)
+ 
+-target_compile_options(flang_shared PUBLIC $<$<COMPILE_LANGUAGE:Fortran>:-Mreentrant>)
++  target_compile_options(flang_shared PUBLIC $<$<COMPILE_LANGUAGE:Fortran>:-frecursive>)
++else()  
++  target_compile_options(flang_static PUBLIC $<$<COMPILE_LANGUAGE:Fortran>:-Mreentrant>)
+ 
++  target_compile_options(flang_shared PUBLIC $<$<COMPILE_LANGUAGE:Fortran>:-Mreentrant>)
++endif()
