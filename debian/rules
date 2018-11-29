@@ -10,7 +10,7 @@ DEB_HOST_MULTIARCH ?= $(shell dpkg-architecture -qDEB_HOST_MULTIARCH)
 LIBDIR=/usr/lib/$(DEB_HOST_MULTIARCH)
 
 %:
-	dh $@ --buildsystem=cmake  --with=fortran_mod 
+	dh $@ --buildsystem=cmake  --with=fortran_mod  --builddirectory=$(BUILDDIR)
 
 override_dh_auto_configure:
 	# Configuration and build are interleaved, so no configure here
@@ -27,7 +27,7 @@ override_dh_auto_build:
 	    -DCMAKE_Fortran_COMPILER_ID=gfortran \
 	    -DLLVM_CONFIG=/usr/lib/llvm-7/bin/llvm-config \
 	    -DFLANG_LIBOMP=$(LIBDIR)/libomp5.so	\
-	    -DLIBPGMATH=$(CURDIR)/$(BUILDDIR)/usr/lib/libpgmath.so \
+	    -DLIBPGMATH=$(CURDIR)/debian/tmp/usr/lib/libpgmath.so \
 	    ../.. && \
 	    $(MAKE) install DESTDIR=$(CURDIR)/debian/tmp )
 	( cd $(BUILDDIR)/flang-driver && cmake \
