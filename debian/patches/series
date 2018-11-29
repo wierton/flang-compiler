@@ -6,3 +6,4 @@ link-polly.patch
 fix-iso-c-bind.patch
 disable-exceptions.patch
 no-range-check.patch
+disable-ieee-arith.patch
