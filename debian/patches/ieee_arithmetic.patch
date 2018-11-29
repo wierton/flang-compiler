@@ -510,3 +510,114 @@ Index: flang-20180921/runtime/flang/mmul_dir.h
 +#define F90_matmul_real8_str1_mxv_t	f90_mm_real8_str1_mxv_t
 +#define F90_matmul_real8_str1_vxm	f90_mm_real8_str1_vxm
  #endif /* DESC_I8 */
+Index: flang-20180921/runtime/flang/mmul_log8contvxm.F95
+===================================================================
+--- flang-20180921.orig/runtime/flang/mmul_log8contvxm.F95
++++ flang-20180921/runtime/flang/mmul_log8contvxm.F95
+@@ -29,7 +29,7 @@ subroutine F90_matmul_log8_contvxm(dest,
+   DESC_INT m
+ 
+   do n=1,n_extent
+-    dest(n) = 0
++    dest(n) = .FALSE.
+     do m=1,m_extent
+       if ( src1(m) .AND. src2(m,n) ) then
+         dest(n) = .TRUE.
+Index: flang-20180921/runtime/flang/mmul_log4contmxm.F95
+===================================================================
+--- flang-20180921.orig/runtime/flang/mmul_log4contmxm.F95
++++ flang-20180921/runtime/flang/mmul_log4contmxm.F95
+@@ -19,12 +19,12 @@
+ 
+ subroutine F90_matmul_log4_contmxm(dest, src1, src2, k_extent, m_extent, n_extent)
+ 
+-  LOGICAL*4, dimension(k_extent,m_extent) :: src1
+-  LOGICAL*4, dimension(m_extent,n_extent) :: src2
+-  LOGICAL*4, dimension(k_extent,n_extent) :: dest
+   DESC_INT k_extent
+   DESC_INT n_extent
+   DESC_INT m_extent
++  LOGICAL*4, dimension(k_extent,m_extent) :: src1
++  LOGICAL*4, dimension(m_extent,n_extent) :: src2
++  LOGICAL*4, dimension(k_extent,n_extent) :: dest
+ 
+   DESC_INT k
+   DESC_INT n
+@@ -32,7 +32,7 @@ subroutine F90_matmul_log4_contmxm(dest,
+ 
+   do n=1,n_extent
+     do k=1,k_extent
+-      dest(k,n) = 0
++      dest(k,n) = .FALSE.
+     end do
+   end do
+   do n=1,n_extent
+Index: flang-20180921/runtime/flang/mmul_log8contmxm.F95
+===================================================================
+--- flang-20180921.orig/runtime/flang/mmul_log8contmxm.F95
++++ flang-20180921/runtime/flang/mmul_log8contmxm.F95
+@@ -19,12 +19,12 @@
+ 
+ subroutine F90_matmul_log8_contmxm(dest, src1, src2, k_extent, m_extent, n_extent)
+ 
+-  LOGICAL*8, dimension(k_extent,m_extent) :: src1
+-  LOGICAL*8, dimension(m_extent,n_extent) :: src2
+-  LOGICAL*8, dimension(k_extent,n_extent) :: dest
+   DESC_INT k_extent
+   DESC_INT n_extent
+   DESC_INT m_extent
++  LOGICAL*8, dimension(k_extent,m_extent) :: src1
++  LOGICAL*8, dimension(m_extent,n_extent) :: src2
++  LOGICAL*8, dimension(k_extent,n_extent) :: dest
+ 
+   DESC_INT k
+   DESC_INT n
+@@ -32,7 +32,7 @@ subroutine F90_matmul_log8_contmxm(dest,
+ 
+   do n=1,n_extent
+     do k=1,k_extent
+-      dest(k,n) = 0
++      dest(k,n) = .FALSE.
+     end do
+   end do
+   do n=1,n_extent
+Index: flang-20180921/runtime/flang/mmul_real4contmxm.F95
+===================================================================
+--- flang-20180921.orig/runtime/flang/mmul_real4contmxm.F95
++++ flang-20180921/runtime/flang/mmul_real4contmxm.F95
+@@ -19,12 +19,12 @@
+ 
+ subroutine F90_matmul_real4_contmxm(dest, src1, src2, k_extent, m_extent, n_extent)
+ 
+-  REAL*4, dimension(k_extent,m_extent) :: src1
+-  REAL*4, dimension(m_extent,n_extent) :: src2
+-  REAL*4, dimension(k_extent,n_extent) :: dest
+   DESC_INT k_extent
+   DESC_INT n_extent
+   DESC_INT m_extent
++  REAL*4, dimension(k_extent,m_extent) :: src1
++  REAL*4, dimension(m_extent,n_extent) :: src2
++  REAL*4, dimension(k_extent,n_extent) :: dest
+ 
+   DESC_INT k
+   DESC_INT n
+Index: flang-20180921/runtime/flang/mmul_real8contmxm.F95
+===================================================================
+--- flang-20180921.orig/runtime/flang/mmul_real8contmxm.F95
++++ flang-20180921/runtime/flang/mmul_real8contmxm.F95
+@@ -19,12 +19,12 @@
+ 
+ subroutine F90_matmul_real8_contmxm(dest, src1, src2, k_extent, m_extent, n_extent)
+ 
+-  REAL*8, dimension(k_extent,m_extent) :: src1
+-  REAL*8, dimension(m_extent,n_extent) :: src2
+-  REAL*8, dimension(k_extent,n_extent) :: dest
+   DESC_INT k_extent
+   DESC_INT n_extent
+   DESC_INT m_extent
++  REAL*8, dimension(k_extent,m_extent) :: src1
++  REAL*8, dimension(m_extent,n_extent) :: src2
++  REAL*8, dimension(k_extent,n_extent) :: dest
+ 
+   DESC_INT k
+   DESC_INT n
