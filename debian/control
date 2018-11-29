@@ -5,6 +5,7 @@ Maintainer: LLVM Packaging Team <pkg-llvm-team@lists.alioth.debian.org>
 Uploaders: Alastair McKinstry <mckinstry@debian.org>
 Build-Depends:  debhelper (>= 10),
   dh-fortran-mod,
+  cmake,
   llvm-7,
   llvm-7-dev,
   libomp-7-dev,
