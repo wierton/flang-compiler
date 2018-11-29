@@ -10,7 +10,7 @@ DEB_HOST_MULTIARCH ?= $(shell dpkg-architecture -qDEB_HOST_MULTIARCH)
 LIBDIR=/usr/lib/$(DEB_HOST_MULTIARCH)
 
 %:
-	dh $@ --buildsystem=cmake  --with=fortran_mod  --builddirectory=$(BUILDDIR)
+	dh $@ --buildsystem=cmake  --with=fortran_mod 
 
 override_dh_auto_configure:
 	# Configuration and build are interleaved, so no configure here
