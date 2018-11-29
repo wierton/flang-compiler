@@ -13,30 +13,27 @@ LIBDIR=/usr/lib/$(DEB_HOST_MULTIARCH)
 	dh $@ --buildsystem=cmake  --with=fortran_mod 
 
 override_dh_auto_configure:
-	# Unpacking only here; the build is a mix 
-	mkdir flang-driver 
-	( cd $(BUILDDIR)/flang-driver ; tar axpf $(CURDIR)/../flang_$(UPSTREAM_VERSION).orig-flang-driver.tar.xz )
-	patch -p1 < debian/patches/link-polly.patch
+	# Configuration and build are interleaved, so no configure here
 	mkdir -p $(BUILDDIR)/runtime/libpgmath $(BUILDDIR)/flang-driver
 
 override_dh_auto_build:
 	(cd $(BUILDDIR)/runtime/libpgmath && cmake \
 	    -DCMAKE_INSTALL_PREFIX=/usr \
 	    -DLIBPGMATH_LLVM_LIT_EXECUTABLE=/usr/lib/llvm-7/build/utils/lit/lit.py \
-	    ../../../runtime/libpgmath && \
+	    ../../../../runtime/libpgmath && \
 	    $(MAKE) install DESTDIR=$(CURDIR)/debian/tmp )
 	(cd $(BUILDDIR) && cmake \
 	    -DCMAKE_INSTALL_PREFIX=/usr \
 	    -DCMAKE_Fortran_COMPILER_ID=gfortran \
 	    -DLLVM_CONFIG=/usr/lib/llvm-7/bin/llvm-config \
 	    -DFLANG_LIBOMP=$(LIBDIR)/libomp5.so	\
-	    -DLIBPGMATH=$(CURDIR)/$(BUILDDIR)/lib/libpgmath.so \
-	    .. && \
+	    -DLIBPGMATH=$(CURDIR)/$(BUILDDIR)/usr/lib/libpgmath.so \
+	    ../.. && \
 	    $(MAKE) install DESTDIR=$(CURDIR)/debian/tmp )
 	( cd $(BUILDDIR)/flang-driver && cmake \
 		-DCMAKE_INSTALL_PREFIX=/usr \
 		-DLLVM_CONFIG=/usr/lib/llvm-7/bin/llvm-config \
-		../flang-driver &&  \
+		../../flang-driver &&  \
 		$(MAKE) install DESTDIR=$(CURDIR)/debian/tmp )
 	# Rename the driver, so that install can spot it
 	mv $(BUILDDIR)/flang-driver/bin/clang-7 debian/tmp/usr/bin/flang
