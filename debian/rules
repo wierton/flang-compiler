@@ -10,11 +10,13 @@ DEB_HOST_MULTIARCH ?= $(shell dpkg-architecture -qDEB_HOST_MULTIARCH)
 LIBDIR=/usr/lib/$(DEB_HOST_MULTIARCH)
 
 %:
-	dh $@ --buildsystem=cmake  --with=fortran_mod 
+	dh $@ --buildsystem=cmake  --with=fortran_mod --builddirectory=$(BUILDDIR)
 
 override_dh_auto_configure:
 	# Configuration and build are interleaved, so no configure here
 	mkdir -p $(BUILDDIR)/runtime/libpgmath $(BUILDDIR)/flang-driver
+	# needed for some reason
+	mkdir -p debian/build/include
 
 override_dh_auto_build:
 	(cd $(BUILDDIR)/runtime/libpgmath && cmake \
