@@ -32,13 +32,14 @@ override_dh_auto_build:
 	    -DLIBPGMATH=$(CURDIR)/debian/tmp/usr/lib/libpgmath.so \
 	    ../.. && \
 	    $(MAKE) install DESTDIR=$(CURDIR)/debian/tmp )
-	( cd $(BUILDDIR)/flang-driver && cmake \
+	# Hack for LLVMPolly name
+	ln -s /usr/lib/llvm-7/lib/LLVMPolly.so $(BUILDDIR)/lib/libLLVMPolly.so
+	( cd $(BUILDDIR)/flang-driver && \
+		LD_LIBRARY_PATH=$(BUILDDIR)/lib cmake \
 		-DCMAKE_INSTALL_PREFIX=/usr \
 		-DLLVM_CONFIG=/usr/lib/llvm-7/bin/llvm-config \
 		../../../flang-driver &&  \
 		$(MAKE) install DESTDIR=$(CURDIR)/debian/tmp )
-	# Rename the driver, so that install can spot it
-	mv $(BUILDDIR)/flang-driver/bin/clang-7 debian/tmp/usr/bin/flang
 
 override_dh_auto_install:
 	dh_auto_install --builddirectory=$(BUILDDIR)/runtime/libpgmath

@@ -2,7 +2,7 @@ no-flang-libs.patch
 gfortran-recursive.patch
 ieee_arithmetic.patch
 disable-omp.patch
-link-polly.patch
+# link-polly.patch
 fix-iso-c-bind.patch
 disable-exceptions.patch
 no-range-check.patch
