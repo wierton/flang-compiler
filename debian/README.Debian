@@ -26,6 +26,14 @@ Binaries produced are linked against the flang runtime libraries, shipped in lib
 Currently these do not have SONAMEs set (eg. they are named libflang.so) ; I intend to patch this to set SOVERSION to 0d
 as per Debian practice. (Hence the package name libflang0d-7).
 
+flang-driver, which produces the top-end driver, is shipped as a separate tarball but included here as a subdirectory.
+The driver, normally called 'clang-7', is renamed 'flang'
 
-
-
+Flang uses a different module file format to gfortran (Module files, suffixed '.mod', are precompiled header files).
+For the moment, flang places its standard module files in /usr/include, which is ok as gfortran keeps its 
+system module files in /usr/lib/gcc/x86_64-linux-gnu/8/finclude. For interoperability, gfortran and flang will need
+to search for and keep their module files in different directories.  In Redhat/Fedora, Fortran module files are placed
+in $LIBDIR/$FMODDIR, typically /usr/lib/fortran.  I am proposing to put them in /usr/lib/$multarch/fortran/$compiler
+with compiler being gfortran-8, flang-7, etc. (mod file formats can become incompatible between compiler versions, eg.
+gfortran-7 and gfortran-8). I am working on dh-fortran-mod, a debhelper extension, for user packages, and patches
+for gfortran and flang to search $FMODDIR.
