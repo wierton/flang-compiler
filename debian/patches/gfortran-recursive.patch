@@ -1,3 +1,8 @@
+Description: When using the gfortran compiler, use "-frecursive', not '-Mreentrant'
+Author: Alastair McKinstry <mckinstry@debian.org>
+Forwarded: no
+Last-Updated: 2018-11-30
+
 Index: flang-flang_20180921/runtime/flang/CMakeLists.txt
 ===================================================================
 --- flang-flang_20180921.orig/runtime/flang/CMakeLists.txt
