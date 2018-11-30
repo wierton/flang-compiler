@@ -4,14 +4,17 @@ Author: Alastair McKinstry <mckinstry@debian.org>
 Last-Updated: 2018-11-29
 Forwarded: not-needed
 
-Index: flang-flang_20180921/flang-driver/tools/driver/CMakeLists.txt
+Index: flang-20180921/flang-driver/tools/driver/CMakeLists.txt
 ===================================================================
---- flang-flang_20180921.orig/flang-driver/tools/driver/CMakeLists.txt
-+++ flang-flang_20180921/flang-driver/tools/driver/CMakeLists.txt
-@@ -123,5 +123,5 @@ if(CLANG_ORDER_FILE AND
+--- flang-20180921.orig/flang-driver/tools/driver/CMakeLists.txt
++++ flang-20180921/flang-driver/tools/driver/CMakeLists.txt
+@@ -122,6 +122,6 @@ if(CLANG_ORDER_FILE AND
+   endif()
  endif()
  
- if(WITH_POLLY AND LINK_POLLY_INTO_TOOLS)
+-if(WITH_POLLY AND LINK_POLLY_INTO_TOOLS)
 -  target_link_libraries(clang PRIVATE Polly)
-+  target_link_libraries(clang PRIVATE /usr/lib/llvm-7/lib/LLVMPolly.so)
- endif(WITH_POLLY AND LINK_POLLY_INTO_TOOLS)
+-endif(WITH_POLLY AND LINK_POLLY_INTO_TOOLS)
++# if(WITH_POLLY AND LINK_POLLY_INTO_TOOLS)
++target_link_libraries(clang PRIVATE LLVMPolly)
++# endif(WITH_POLLY AND LINK_POLLY_INTO_TOOLS)

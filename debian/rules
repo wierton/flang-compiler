@@ -9,6 +9,7 @@ BUILDDIR=debian/build
 DEB_HOST_MULTIARCH ?= $(shell dpkg-architecture -qDEB_HOST_MULTIARCH)
 LIBDIR=/usr/lib/$(DEB_HOST_MULTIARCH)
 
+
 %:
 	dh $@ --buildsystem=cmake  --with=fortran_mod --builddirectory=$(BUILDDIR)
 
@@ -32,11 +33,9 @@ override_dh_auto_build:
 	    -DLIBPGMATH=$(CURDIR)/debian/tmp/usr/lib/libpgmath.so \
 	    ../.. && \
 	    $(MAKE) install DESTDIR=$(CURDIR)/debian/tmp )
-	# Hack for LLVMPolly name
-	ln -s /usr/lib/llvm-7/lib/LLVMPolly.so $(BUILDDIR)/lib/libLLVMPolly.so
-	( cd $(BUILDDIR)/flang-driver && \
-		LD_LIBRARY_PATH=$(BUILDDIR)/lib cmake \
+	( cd $(BUILDDIR)/flang-driver && cmake \
 		-DCMAKE_INSTALL_PREFIX=/usr \
+		-DWITH_POLLY=True -DLINK_POLLY_INTO_TOOLS=True \
 		-DLLVM_CONFIG=/usr/lib/llvm-7/bin/llvm-config \
 		../../../flang-driver &&  \
 		$(MAKE) install DESTDIR=$(CURDIR)/debian/tmp )
