@@ -35,9 +35,14 @@ override_dh_auto_build:
 	( cd $(BUILDDIR)/flang-driver && cmake \
 		-DCMAKE_INSTALL_PREFIX=/usr \
 		-DLLVM_CONFIG=/usr/lib/llvm-7/bin/llvm-config \
-		../../flang-driver &&  \
+		../../../flang-driver &&  \
 		$(MAKE) install DESTDIR=$(CURDIR)/debian/tmp )
 	# Rename the driver, so that install can spot it
 	mv $(BUILDDIR)/flang-driver/bin/clang-7 debian/tmp/usr/bin/flang
+
+override_dh_auto_install:
+	dh_auto_install --builddirectory=$(BUILDDIR)/runtime/libpgmath
+	dh_auto_install --builddirectory=$(BUILDDIR)
+	cp $(BUILDDIR)/flang-driver/bin/clang-7 debian/tmp/usr/bin/flang
 
 # TODO: Do we need a 2-stage build process, building a second time with flang ?

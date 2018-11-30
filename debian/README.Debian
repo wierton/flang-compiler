@@ -1,0 +1,31 @@
+Notes on flang build for Debian
+===============================
+
+Alastair McKinstry <mckinstry@debian.org>, 2018-11-30
+
+
+This is the first build of flang for Debian; it is built with gcc/gfortran.
+Some patches are required.
+It needs review by the LLVM packaging team.
+
+ieee_arithmetic and ieee_exceptions currently do not compile with gfortran, as it is pickier about the
+quality of the Fortran (!) and C bindings.
+I'm working on patches, and also exploring the possibilty of a 2-stage compile (rebuilding flang using flang).
+
+This build is done against Debian's build of LLVM-7, rather than the adapted LLVM used with flang.
+The flang fork of llvm handles several extensions to llvm debug metadata.
+The flang llvm converts these to DWARF that is specific to Fortran.
+These llvm changes are waiting to be upstreamed; they are in review at llvm.org right now.
+By default, flang does not generate this extended metadata.  There’s a flag that must be set at compile time.
+Currently this is not set, and the code produced appears to work fine in Debian.
+
+As a pre-release, the compiler does not have a version number; I have named the binary package 'flang-7'
+as it uses LLVM-7, with a version 20180921, as this is the release dump of the tarball.
+
+Binaries produced are linked against the flang runtime libraries, shipped in libflang0d-7.
+Currently these do not have SONAMEs set (eg. they are named libflang.so) ; I intend to patch this to set SOVERSION to 0d
+as per Debian practice. (Hence the package name libflang0d-7).
+
+
+
+

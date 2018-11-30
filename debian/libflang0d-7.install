@@ -1,3 +1,1 @@
-libflang.a     libflangArgParser.a  libflangrti.a   libflang.so   libompstub.so  python3.6  R
-libflangADT.a  libflangmain.a       libflangrti.so  libompstub.a  python2.7      python3.7
-/usr/include/
+/usr/lib/*.so
