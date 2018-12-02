@@ -6,7 +6,7 @@ Uploaders: Alastair McKinstry <mckinstry@debian.org>
 Build-Depends:  debhelper (>= 10),
   dh-fortran-mod,
   gawk,
-  zlibg1g-dev,
+  zlib1g-dev,
   cmake,
   llvm-7,
   llvm-7-dev,

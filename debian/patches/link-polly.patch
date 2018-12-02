@@ -16,5 +16,5 @@ Index: flang-20180921/flang-driver/tools/driver/CMakeLists.txt
 -  target_link_libraries(clang PRIVATE Polly)
 -endif(WITH_POLLY AND LINK_POLLY_INTO_TOOLS)
 +# if(WITH_POLLY AND LINK_POLLY_INTO_TOOLS)
-+target_link_libraries(clang PRIVATE LLVMPolly)
++target_link_libraries(clang PRIVATE /usr/lib/llvm-7/lib/LLVMPolly.so)
 +# endif(WITH_POLLY AND LINK_POLLY_INTO_TOOLS)

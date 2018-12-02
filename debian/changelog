@@ -1,6 +1,6 @@
-flang (20180921-1) UNRELEASED; urgency=medium
+flang (20180921-1) unstable; urgency=medium
 
   * Initial release. (Closes: #909463).
     This build has OpenMP and IEEE exceptions support disabled
 
- -- Alastair McKinstry <mckinstry@debian.org>  Wed, 28 Nov 2018 19:45:24 +0000
+ -- Alastair McKinstry <mckinstry@debian.org>  Sun, 02 Dec 2018 13:47:20 +0000

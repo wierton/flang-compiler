@@ -14,9 +14,49 @@ Files: runtime/libpgmath/lib/common/{misc.h, helperavx2_128.h, helperavx2.h, hel
 Copyright: Naoki Shibata 2010 - 2017. Copyright (c) 2018, NVIDIA CORPORATION.  All rights reserved.
 License: Boost
 
-Files: runtime/libpgmath/lib/x86_64/{alog.c atan2.c atan.c cosh.c datan2.c datan.c dcosh.c dexp2.c dexp.c dlog.c dsincosp.c dsinh.c dtan.c dtanh.c exp.c fast/fastmath.h fast/fastmath_vex.h libm_amd.h libm_errno_amd.h libm_inlines_amd.h libm_util_amd.h log.c rpow.c sincosp.c sinh.c tan.c tanh.c}
+Files: runtime/libpgmath/lib/x86_64/{alog.c, atan2.c, atan.c, cosh.c, datan2.c, datan.c, dcosh.c, dexp2.c, dexp.c, dlog.c, sincosp.c, dsinh.c, dtan.c, dtanh.c, exp.c, fast/fastmath.h, fast/fastmath_vex.h, libm_amd.h, libm_errno_amd.h, libm_inlines_amd.h, libm_util_amd.h, log.c, rpow.c, sincosp.c, sinh.c, tan.c, tanh.c}
 Copyright: 2002-2015 Advanced Micro Devices, Inc.
 License: BSD-3-AMD
+
+Files: runtime/flangrti/s_erf.c
+Copyright: (C) 1993 by Sun Microsystems, Inc. All rights reserved.
+License:
+ * Developed at SunPro, a Sun Microsystems, Inc. business.
+ * Permission to use, copy, modify, and distribute this
+ * software is freely granted, provided that this notice
+ * is preserved.
+
+Files: runtime/libpgmath/cmake/config.guess
+Copyright: Copyright (C) 1990-2011Free Software Foundation, Inc.
+License: GPL-2
+ The texts of this license can be found in /usr/share/common-licenses/GPL-2.0
+
+Files: openmp_examples/src/omp_copyright.txt
+Copyrighti: (c) 1997-2016 OpenMP Architecture Review Board.
+ All rights reserved.
+ .
+ Permission to redistribute and use without fee all or part of the source
+ codes and the associated document (the Software), with or without
+ modification, is granted, provided that the following conditions are met:
+ .
+ * Redistributions of the software must retain the above copyright
+   notice, this list of conditions and the following disclaimer.
+ .
+ * Neither the name of the OpenMP Architecture Review Board nor the
+   names of its contributors may be used to endorse or promote products
+   derived from this software without specific prior written permission.
+ .
+ THIS SOFTWARE IS PROVIDED BY THE OPENMP ARCHITECTURE REVIEW BOARD "AS IS"
+ AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
+ THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+ PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE OPENMP ARCHITECTURE REVIEW
+ BOARD BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY,
+ OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+ CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
+ THE POSSIBILITY OF SUCH DAMAGE.
 
 License: Apache
  Licensed under the Apache License, Version 2.0 (the "License");
