@@ -1,0 +1,31 @@
+Index: flang-20180921/runtime/libpgmath/lib/CMakeLists.txt
+===================================================================
+--- flang-20180921.orig/runtime/libpgmath/lib/CMakeLists.txt
++++ flang-20180921/runtime/libpgmath/lib/CMakeLists.txt
+@@ -240,6 +240,7 @@ get_property(TARGET_OBJECTS GLOBAL PROPE
+ add_library(${LIBPGMATH_LIBRARY_NAME} SHARED ${TARGET_OBJECTS})
+ add_library(${LIBPGMATH_LIBRARY_NAME}_static STATIC ${TARGET_OBJECTS})
+ set_target_properties(${LIBPGMATH_LIBRARY_NAME}_static PROPERTIES OUTPUT_NAME ${LIBPGMATH_LIBRARY_NAME})
++set_target_properties(${LIBPGMATH_LIBRARY_NAME} PROPERTIES SOVERSION "0d" SONAME "libpgmath.so.0d")
+ install(TARGETS ${LIBPGMATH_LIBRARY_NAME}
+   LIBRARY DESTINATION lib)
+ install(TARGETS ${LIBPGMATH_LIBRARY_NAME}_static
+Index: flang-20180921/runtime/ompstub/CMakeLists.txt
+===================================================================
+--- flang-20180921.orig/runtime/ompstub/CMakeLists.txt
++++ flang-20180921/runtime/ompstub/CMakeLists.txt
+@@ -1,4 +1,4 @@
+-#
++#
+ # Copyright (c) 2017, NVIDIA CORPORATION.  All rights reserved.
+ #
+ # Licensed under the Apache License, Version 2.0 (the "License");
+@@ -21,7 +21,7 @@ set_property(TARGET ompstub_static PROPE
+ 
+ set(SHARED_LIBRARY TRUE)
+ add_flang_library(ompstub_shared ${OMPSTUB_SRC})
+-set_property(TARGET ompstub_shared PROPERTY OUTPUT_NAME ompstub)
++set_target_properties(ompstub_shared PROPERTY OUTPUT_NAME ompstub SONAME "libompstub.so.0d" SOVERSION "0d")
+ set(SHARED_LIBRARY FALSE)
+ 
+ set_target_properties(ompstub_static ompstub_shared
