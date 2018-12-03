@@ -38,7 +38,7 @@ override_dh_auto_build:
 		-DLINK_POLLY_INTO_TOOLS=False \
 		-DLLVM_CONFIG=/usr/lib/llvm-7/bin/llvm-config \
 		../../../flang-driver &&  \
-		$(MAKE) install DESTDIR=$(CURDIR)/debian/tmp )
+		$(MAKE) DESTDIR=$(CURDIR)/debian/tmp )
 
 override_dh_auto_install:
 	dh_auto_install --builddirectory=$(BUILDDIR)/runtime/libpgmath

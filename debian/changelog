@@ -1,6 +1,7 @@
 flang (20180921-1) unstable; urgency=medium
 
   * Initial release. (Closes: #909463).
-    This build has OpenMP and IEEE exceptions support disabled
+    This build has OpenMP and IEEE exceptions support,
+    LLVMPolly support disabled
 
- -- Alastair McKinstry <mckinstry@debian.org>  Sun, 02 Dec 2018 13:47:20 +0000
+ -- Alastair McKinstry <mckinstry@debian.org>  Mon, 03 Dec 2018 13:50:03 +0000
