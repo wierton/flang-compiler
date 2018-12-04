@@ -28,6 +28,7 @@ Description: Fortran compiler front-end for LLVM
 Package: libflang0d-7
 Section: libs
 Architecture:  amd64 ppc64el arm64
+Multi-Arch: same
 Depends: ${misc:Depends}, ${shlib:Depends}
 Description: Runtime libraries for the flang Fortran compiler
  Flang is a Fortran compiler for the LLVM toolchain.
@@ -37,6 +38,7 @@ Description: Runtime libraries for the flang Fortran compiler
 Package: libflang-dev
 Section: libdevel
 Architecture:  amd64 ppc64el arm64
+Multi-Arch: same
 Depends: ${misc:Depends}, libflang0d-7 (= ${binary:Version})
 Description: flang library - Development package.
  Flang is a Fortran compiler for the LLVM toolchain.

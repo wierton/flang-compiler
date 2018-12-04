@@ -1,0 +1,7 @@
+debian/build/lib/libflang.a		/usr/lib/@TRIPLET@
+debian/build/lib/libflangADT.a		/usr/lib/@TRIPLET@
+debian/build/lib/libflangmain.a		/usr/lib/@TRIPLET@
+debian/build/lib/libflangArgParser.a		/usr/lib/@TRIPLET@
+debian/build/lib/libflangrti.a		/usr/lib/@TRIPLET@
+debian/build/lib/libompstub.a		/usr/lib/@TRIPLET@
+debian/build/lib/libpgmath.a		/usr/lib/@TRIPLET@
