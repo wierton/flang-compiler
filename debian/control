@@ -22,7 +22,7 @@ Vcs-Git: https://salsa.debian.org:/mckinstry/flang.git
 Package: flang-7
 Architecture: amd64 ppc64el arm64
 Provides: fortran-compiler
-Depends: ${misc:Depends}, ${shlib:Depends}, libflang0d-7 ( = ${binary:Version})
+Depends: ${misc:Depends}, ${shlibs:Depends}, libflang0d-7 ( = ${binary:Version})
 Description: Fortran compiler front-end for LLVM
  This is a Fortran compiler using LLVM.
 
@@ -30,7 +30,7 @@ Package: libflang0d-7
 Section: libs
 Architecture:  amd64 ppc64el arm64
 Multi-Arch: same
-Depends: ${misc:Depends}, ${shlib:Depends}
+Depends: ${misc:Depends}, ${shlibs:Depends}
 Description: Runtime libraries for the flang Fortran compiler
  Flang is a Fortran compiler for the LLVM toolchain.
  .
