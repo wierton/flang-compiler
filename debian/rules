@@ -54,4 +54,7 @@ override_dh_auto_install:
 	mkdir -p debian/tmp/usr/bin
 	cp $(BUILDDIR)/flang-driver/bin/clang-7 debian/tmp/usr/bin/flang
 
+override_dh_shlibdeps:
+	dh_shlibdeps --dpkg-shlibdeps-params=--ignore-missing-info
+
 # TODO: Do we need a 2-stage build process, building a second time with flang ?
