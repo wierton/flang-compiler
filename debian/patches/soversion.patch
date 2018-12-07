@@ -14,18 +14,41 @@ Index: flang-20180921/runtime/ompstub/CMakeLists.txt
 ===================================================================
 --- flang-20180921.orig/runtime/ompstub/CMakeLists.txt
 +++ flang-20180921/runtime/ompstub/CMakeLists.txt
-@@ -1,4 +1,4 @@
--#
-+#
- # Copyright (c) 2017, NVIDIA CORPORATION.  All rights reserved.
- #
- # Licensed under the Apache License, Version 2.0 (the "License");
-@@ -21,7 +21,7 @@ set_property(TARGET ompstub_static PROPE
- 
+@@ -22,6 +22,7 @@ set_property(TARGET ompstub_static PROPE
  set(SHARED_LIBRARY TRUE)
  add_flang_library(ompstub_shared ${OMPSTUB_SRC})
--set_property(TARGET ompstub_shared PROPERTY OUTPUT_NAME ompstub)
-+set_target_properties(ompstub_shared PROPERTY OUTPUT_NAME ompstub SONAME "libompstub.so.0d" SOVERSION "0d")
+ set_property(TARGET ompstub_shared PROPERTY OUTPUT_NAME ompstub)
++set_target_properties(ompstub_shared PROPERTIES SONAME "libompstub.so.0d" SOVERSION "0d")
  set(SHARED_LIBRARY FALSE)
  
  set_target_properties(ompstub_static ompstub_shared
+Index: flang-20180921/runtime/flang/CMakeLists.txt
+===================================================================
+--- flang-20180921.orig/runtime/flang/CMakeLists.txt
++++ flang-20180921/runtime/flang/CMakeLists.txt
+@@ -483,6 +483,7 @@ add_flang_library(flang_shared
+   )
+ set_property(TARGET flang_shared PROPERTY OUTPUT_NAME flang)
+ target_link_libraries(flang_shared ${CMAKE_BINARY_DIR}/${CMAKE_CFG_INTDIR}/lib/libflangrti.so)
++set_target_properties(flang_shared PROPERTIES SOVERSION "0d" SONAME "libflang.so.0d")
+ # Resolve symbols against libm and librt
+ target_link_libraries(flang_shared m rt)
+ 
+Index: flang-20180921/runtime/flangrti/CMakeLists.txt
+===================================================================
+--- flang-20180921.orig/runtime/flangrti/CMakeLists.txt
++++ flang-20180921/runtime/flangrti/CMakeLists.txt
+@@ -83,12 +83,12 @@ add_flang_library(flangrti_static
+   )
+ set_property(TARGET flangrti_static PROPERTY OUTPUT_NAME flangrti)
+ 
+-
+ set(SHARED_LIBRARY TRUE)
+ add_flang_library(flangrti_shared
+   ${PGC_SRC_FILES}
+   ${SHARED_SOURCES}
+   )
++set_target_properties(flangrti_shared PROPERTIES SOVERSION "0d" SONAME "libflangrti.so.0d")
+ 
+ # Resolve symbols against libm
+ target_link_libraries(flangrti_shared m)
