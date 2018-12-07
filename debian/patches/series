@@ -7,5 +7,5 @@ fix-iso-c-bind.patch
 disable-exceptions.patch
 no-range-check.patch
 disable-ieee-arith.patch
-# soversion.patch
+soversion.patch
 disable-polly.patch

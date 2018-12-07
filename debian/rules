@@ -39,7 +39,7 @@ override_dh_auto_build:
 	    -DFLANG_LIBOMP=$(LIBDIR)/libomp5.so	\
 	    -DLIBPGMATH=$(CURDIR)/debian/tmp/usr/lib/libpgmath.so \
 	    ../.. && \
-	    $(MAKE) install DESTDIR=$(CURDIR)/debian/tmp )
+	    $(MAKE) DESTDIR=$(CURDIR)/debian/tmp )
 	( cd $(BUILDDIR)/flang-driver && cmake \
 		-DCMAKE_INSTALL_PREFIX=/usr \
 		-DLINK_POLLY_INTO_TOOLS=False \
