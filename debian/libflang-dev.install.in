@@ -5,3 +5,4 @@ debian/build/lib/libflangArgParser.a		/usr/lib/@ARCH@
 debian/build/lib/libflangrti.a		/usr/lib/@ARCH@
 debian/build/lib/libompstub.a		/usr/lib/@ARCH@
 debian/build/runtime/libpgmath/lib/libpgmath.a /usr/lib/@ARCH@
+debian/tmp/usr/lib/*.so			/usr/lib/@ARCH@

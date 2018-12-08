@@ -1,2 +1,1 @@
-debian/build/lib/*.so	/usr/lib/@ARCH@
-debian/build/runtime/libpgmath/lib/*.so /usr/lib/@ARCH@
+debian/tmp/usr/lib/*.so.*	/usr/lib/@ARCH@

@@ -31,7 +31,7 @@ override_dh_auto_build:
 	    -DCMAKE_INSTALL_PREFIX=/usr \
 	    -DLIBPGMATH_LLVM_LIT_EXECUTABLE=/usr/lib/llvm-7/build/utils/lit/lit.py \
 	    ../../../../runtime/libpgmath && \
-	    $(MAKE) install DESTDIR=$(CURDIR)/debian/tmp )
+	    $(MAKE) V=1 install DESTDIR=$(CURDIR)/debian/tmp )
 	(cd $(BUILDDIR) && cmake \
 	    -DCMAKE_INSTALL_PREFIX=/usr \
 	    -DCMAKE_Fortran_COMPILER_ID=gfortran \
@@ -39,19 +39,20 @@ override_dh_auto_build:
 	    -DFLANG_LIBOMP=$(LIBDIR)/libomp5.so	\
 	    -DLIBPGMATH=$(CURDIR)/debian/tmp/usr/lib/libpgmath.so \
 	    ../.. && \
-	    $(MAKE) DESTDIR=$(CURDIR)/debian/tmp )
+	    $(MAKE) V=1 DESTDIR=$(CURDIR)/debian/tmp )
 	( cd $(BUILDDIR)/flang-driver && cmake \
-		-DCMAKE_INSTALL_PREFIX=/usr \
-		-DLINK_POLLY_INTO_TOOLS=False \
-		-DLLVM_CONFIG=/usr/lib/llvm-7/bin/llvm-config \
-		../../../flang-driver &&  \
-		$(MAKE) DESTDIR=$(CURDIR)/debian/tmp )
+	    -DCMAKE_INSTALL_PREFIX=/usr \
+  	    -DLINK_POLLY_INTO_TOOLS=False \
+  	    -DLLVM_CONFIG=/usr/lib/llvm-7/bin/llvm-config \
+	    ../../../flang-driver &&  \
+	    $(MAKE) V=1 DESTDIR=$(CURDIR)/debian/tmp )
 
 override_dh_auto_install:
 	dh_auto_install --builddirectory=$(BUILDDIR)/runtime/libpgmath
 	# Do in install scripts; fails within pdebuild, why ?
-	dh_auto_install --builddirectory=$(BUILDDIR)
-	chrpath -d debian/tmp/usr/lib/*.so
+	# dh_auto_install --builddirectory=$(BUILDDIR)
+	( cd debian/build && make V=1 install DESTDIR=$(CURDIR)/debian/tmp )
+	chrpath -d debian/tmp/usr/lib/*.so*
 	cp -L $(BUILDDIR)/flang-driver/bin/clang-7 debian/tmp/usr/bin/flang
 	chrpath -d debian/tmp/usr/bin/flang*
 
