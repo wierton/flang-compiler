@@ -1,0 +1,28 @@
+Description: Disable ieee_arithmetic.F95 and ieee_exceptions.F95 
+  as not compiling on gfortran at the moment
+Author: Alastair McKinstry <mckinstry@debian.org>
+Forwarded: no
+Last-Updated: 2018-11-29
+
+Index: flang-20180921/runtime/flang/CMakeLists.txt
+===================================================================
+--- flang-20180921.orig/runtime/flang/CMakeLists.txt
++++ flang-20180921/runtime/flang/CMakeLists.txt
+@@ -455,10 +455,13 @@ FOREACH(file ${FTN_SUPPORT_DESC_DEP})
+     LIST(APPEND FTN_SUPPORT_I8 ${I8_FILE})
+ ENDFOREACH(file)
+ 
+-LIST(APPEND FTN_SUPPORT_DESC_DEP ieee_arithmetic.F95)
+-LIST(APPEND FTN_SUPPORT_DESC_DEP ieee_exceptions.F95)
+-LIST(APPEND FTN_SUPPORT_I8 "${I8_FILES_DIR}/ieee_arithmetic.F95")
+-LIST(APPEND FTN_SUPPORT_I8 "${I8_FILES_DIR}/ieee_exceptions.F95")
++if (CMAKE_Fortran_COMPILER_ID MATCHES "flang")
++  LIST(APPEND FTN_SUPPORT_DESC_DEP ieee_arithmetic.F95)
++  LIST(APPEND FTN_SUPPORT_DESC_DEP ieee_exceptions.F95)
++  LIST(APPEND FTN_SUPPORT_I8 "${I8_FILES_DIR}/ieee_arithmetic.F95")
++  LIST(APPEND FTN_SUPPORT_I8 "${I8_FILES_DIR}/ieee_exceptions.F95")
++endif()
++
+ 
+ add_flang_library(flang_static
+   ${FTN_INTRINSICS_DESC_INDEP}
