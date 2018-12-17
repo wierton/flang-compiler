@@ -1,7 +1,7 @@
 flang (20180921-2) UNRELEASED; urgency=medium
 
-  * WIP: Two stage Build: first stage with gfortran
-         second stage with flang
+  * Two stage Build: first stage with gfortran
+      second stage with flang
 
  -- Alastair McKinstry <mckinstry@debian.org>  Fri, 14 Dec 2018 11:26:41 +0000
 
