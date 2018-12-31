@@ -1,0 +1,30 @@
+Index: flang-20180921/flang-driver/lib/Driver/ToolChains/Linux.cpp
+===================================================================
+--- flang-20180921.orig/flang-driver/lib/Driver/ToolChains/Linux.cpp
++++ flang-20180921/flang-driver/lib/Driver/ToolChains/Linux.cpp
+@@ -700,21 +700,14 @@ void Linux::AddFlangSystemIncludeArgs(co
+   // Implement generic Debian multiarch support.
+   const StringRef X86_64MultiarchIncludeDirs[] = {
+       "/usr/include/x86_64-linux-gnu",
+-
+-      // FIXME: These are older forms of multiarch. It's not clear that they're
+-      // in use in any released version of Debian, so we should consider
+-      // removing them.
+-      "/usr/include/i686-linux-gnu/64", "/usr/include/i486-linux-gnu/64"};
++      "/usr/lib/x86_64-linux-gnu/fortran/flang-7"
++    };
+   const StringRef X86MultiarchIncludeDirs[] = {
+       "/usr/include/i386-linux-gnu",
+-
+-      // FIXME: These are older forms of multiarch. It's not clear that they're
+-      // in use in any released version of Debian, so we should consider
+-      // removing them.
+-      "/usr/include/x86_64-linux-gnu/32", "/usr/include/i686-linux-gnu",
+-      "/usr/include/i486-linux-gnu"};
++      "/usr/lib/i386-linux-gnu/fortran/flang-7" };
+   const StringRef AArch64MultiarchIncludeDirs[] = {
+       "/usr/include/aarch64-linux-gnu"};
++      "/usr/lib/aarch64-linux-gnu/fortran/flang-7"};
+   const StringRef ARMMultiarchIncludeDirs[] = {
+       "/usr/include/arm-linux-gnueabi"};
+   const StringRef ARMHFMultiarchIncludeDirs[] = {

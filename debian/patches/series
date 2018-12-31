@@ -8,3 +8,4 @@ no-range-check.patch
 disable-ieee-arith-execpts.patch
 soversion.patch
 disable-polly.patch
+fmoddir.patch

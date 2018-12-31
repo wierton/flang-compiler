@@ -2,6 +2,7 @@ flang (20180921-2) UNRELEASED; urgency=medium
 
   * Two stage Build: first stage with gfortran
       second stage with flang
+  * Test  patch
 
  -- Alastair McKinstry <mckinstry@debian.org>  Fri, 14 Dec 2018 11:26:41 +0000
 
