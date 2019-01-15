@@ -1,5 +1,6 @@
-flang (20180921-2) UNRELEASED; urgency=medium
+flang (20181226-1) UNRELEASED; urgency=medium
 
+  * New upstream release
   * Two stage Build: first stage with gfortran
       second stage with flang
   * Add $fmoddir to standard include path

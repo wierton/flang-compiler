@@ -3,7 +3,7 @@
 # Uncomment this to turn on verbose mode.
 export DH_VERBOSE=1
 
-UPSTREAM_VERSION=20180921
+UPSTREAM_VERSION=20181226
 
 BUILDDIR=$(CURDIR)/debian/build
 DEB_HOST_MULTIARCH ?= $(shell dpkg-architecture -qDEB_HOST_MULTIARCH)
