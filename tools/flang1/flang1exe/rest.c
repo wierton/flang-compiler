@@ -351,6 +351,12 @@ insert_comm_before(int std, int ast, LOGICAL *rhs_is_dist, LOGICAL is_subscript)
   case A_MP_ATOMICWRITE:
   case A_MP_ATOMICUPDATE:
   case A_MP_ATOMICCAPTURE:
+  case A_MP_MAP:
+  case A_MP_TARGETLOOPTRIPCOUNT:
+  case A_MP_EMAP:
+  case A_MP_EREDUCTION:
+  case A_MP_BREDUCTION:
+  case A_MP_REDUCTIONITEM:
     return a;
   default:
     interr("insert_comm_before: unknown expression", std, 2);
@@ -1350,6 +1356,11 @@ transform_call(int std, int ast)
       inface_arg = aux.dpdsc_base[dscptr + i];
       needdescr = needs_descriptor(inface_arg);
       /* actually, only for pointer or assumed-shape arguments dummy */
+      if (XBIT(54, 0x80) && inface_arg > NOSYM && ast_is_sym(ele) &&
+          needs_descriptor(memsym_of_ast(ele))) {
+        /* Generate contiguity check at call-site */
+        gen_contig_check(mk_id(inface_arg), ele, 0, gbl.lineno, true, std); 
+      }
     }
     if (ele == 0) {
       ARGT_ARG(newargt, newi) = ele;
@@ -1487,16 +1498,24 @@ transform_call(int std, int ast)
         ++newi;
         needdescr = needs_descriptor(inface_arg);
         if (needdescr) {
-          if (STYPEG(sptr) == ST_PROC) {
-            int tmp = get_proc_ptr(sptr);
-            if (INTERNALG(sptr)) {
-              add_ptr_assign(mk_id(tmp), ele, std);
-              A_INVOKING_DESCP(ast, mk_id(SDSCG(tmp)));
+          if (STYPEG(sptr) == ST_PROC && (SCG(sptr) != SC_DUMMY || 
+              SDSCG(sptr))) {
+            if (SCG(sptr) != SC_DUMMY) {
+              int tmp = get_proc_ptr(sptr);
+              if (INTERNALG(sptr)) {
+                add_ptr_assign(mk_id(tmp), ele, std);
+              }
+              ARGT_ARG(newargt, newj) = mk_id(SDSCG(tmp));
+            } else {
+              ARGT_ARG(newargt, newj) = mk_id(SDSCG(sptr));
             }
-            ARGT_ARG(newargt, newj) = mk_id(SDSCG(tmp));
           } else {
             ARGT_ARG(newargt, newj) = get_descr_or_placeholder_arg(inface_arg,
                                                                    ele, std);
+          }
+          if (INTERNALG(entry)) {
+            int tmp = get_proc_ptr(entry);
+            A_INVOKING_DESCP(ast, mk_id(SDSCG(tmp)));
           }
           ++newj;
         }
@@ -4172,6 +4191,12 @@ transform_all_call(int std, int ast)
   case A_MP_ATOMICWRITE:
   case A_MP_ATOMICUPDATE:
   case A_MP_ATOMICCAPTURE:
+  case A_MP_MAP:
+  case A_MP_TARGETLOOPTRIPCOUNT:
+  case A_MP_EMAP:
+  case A_MP_EREDUCTION:
+  case A_MP_BREDUCTION:
+  case A_MP_REDUCTIONITEM:
     return a;
   case A_PRAGMA:
     return a;

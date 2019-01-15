@@ -947,6 +947,10 @@ func_call2(SST *stktop, ITEM *list, int flag)
 
               SST_ASTP(sp, new_ast);
               SST_IDP(sp, S_EXPR);
+            } else if (A_TYPEG(ARGT_ARG(A_ARGSG(SST_ASTG(sp)), 0)) != A_ID) {
+              // Inlining has problems with an expression in this context.
+              // Downstream code can always handle simple variables.
+              (void)tempify(sp);
             }
             /* else
              * iso_c_loc by reference pointer to pointer */
@@ -5031,7 +5035,11 @@ ref_intrin(SST *stktop, ITEM *list)
   const_getcon:
     conval = getcon(res, dtype);
   const_return:
-    dtype = INTTYPG(sptr);
+    if (ARGTYPG(sptr) == INTTYPG(sptr) && dtyper) {
+      dtype = dtyper;
+    } else {
+      dtype = INTTYPG(sptr);
+    }
   const_return_2:
     SST_IDP(stktop, S_CONST);
     SST_DTYPEP(stktop, dtype);
@@ -5109,7 +5117,8 @@ no_const_fold:
           break;
 #ifdef I_C_ASSOCIATED
         case IM_C_ASSOC:
-          /*mkexpr(sp);*/
+          if (SST_IDG(sp) == S_EXPR)
+            (void)tempify(sp);
           mkarg(sp, &dum);
           break;
 #endif

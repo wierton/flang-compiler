@@ -32,6 +32,7 @@
 #include "semstk.h"
 #include "machar.h"
 #include "ast.h"
+#define RTE_C
 #include "rte.h"
 #include "pd.h"
 #include "direct.h"
@@ -65,6 +66,9 @@ static LOGICAL subst_lhs_arrfn(int, int, int);
 static LOGICAL subst_lhs_pointer(int, int, int);
 static LOGICAL not_in_arrfn(int, int);
 static int find_pointer_variable_assign(int, int);
+
+static int inline_contig_check(int src, SPTR src_sptr, SPTR sdsc, int std);
+
 
 /*---------------------------------------------------------------------*/
 
@@ -1307,6 +1311,7 @@ mklvalue(SST *stkptr, int stmt_type)
         sptr = insert_sym(sptr);
       DTYPEP(sptr, dtype);
       DCLDP(sptr, dcld);
+      DCLCHK(sptr);
     } else if (stmt_type == 5) {
       int doif = sem.doif_depth;
       dtype = DI_FORALL_DTYPE(doif) ? DI_FORALL_DTYPE(doif) : DTYPEG(sptr);
@@ -1315,6 +1320,7 @@ mklvalue(SST *stkptr, int stmt_type)
         sptr = insert_sym(sptr);
       DTYPEP(sptr, dtype);
       DCLDP(sptr, dcld);
+      DCLCHK(sptr);
     }
 
     switch (STYPEG(sptr)) {
@@ -1692,9 +1698,6 @@ mklvalue(SST *stkptr, int stmt_type)
       set_assn(sptr);
   } else if (stmt_type == 1 && !POINTERG(lval ? memsym_of_ast(lval) : sptr)) {
     if (!lval) {
-      /* it's legal for inherited submodules to access protected variables 
-         defined parent modules, otherwise it's illegal */
-      if (!is_used_by_submod(gbl.currsub, sptr))
         set_assn(sptr);
     }
     else
@@ -1718,7 +1721,7 @@ static INT
 const_xtoi(INT conval1, INT cnt, int dtype)
 {
   union {
-    INT64 i64;
+    DBLINT64 i64;
     BIGINT64 bgi;
   } u;
 
@@ -3776,6 +3779,8 @@ add_ptr_assign(int dest, int src, int std)
   int ast;
   int dtype, tag;
   int dtype2, tag2, dtype3;
+  SPTR dest_sptr, src_sptr, sdsc;
+  int newargt, astnew;
 
   /* Check if the dest is scalar, if so assign len to descriptor
    * For array, it was done in runtime.
@@ -3847,17 +3852,15 @@ add_ptr_assign(int dest, int src, int std)
       add_stmt(cvlen);
   }
 
-  if (DTY(dtype) == TY_PTR) {
-    int dest_sptr, src_sptr, sdsc;
-    int newargt, func, astnew, zero;
-
-    if (ast_is_sym(src)) {
-      src_sptr = memsym_of_ast(src);
-    } else {
-      src_sptr = 0;
-    }
+  if (ast_is_sym(src)) {
+    src_sptr = memsym_of_ast(src);
+  } else {
+    src_sptr = 0;
+  }
   
-   dest_sptr = memsym_of_ast(dest);
+  dest_sptr = memsym_of_ast(dest);
+
+  if (DTY(dtype) == TY_PTR) {
 
     if (STYPEG(src_sptr) == ST_PROC) { 
       int iface=0, iface2=0, dpdsc=0, dpdsc2=0;
@@ -3900,13 +3903,198 @@ add_ptr_assign(int dest, int src, int std)
          add_stmt(astnew);
     }
   }
-
   func = intast_sym[I_PTR2_ASSIGN];
   ast = begin_call(A_ICALL, func, 2);
   A_OPTYPEP(ast, I_PTR2_ASSIGN);
   add_arg(dest);
   add_arg(src);
+  if (XBIT(54, 0x40) && ast_is_sym(dest) && CONTIGATTRG(memsym_of_ast(dest))) {
+    /* Add contiguity pointer check. We add the check after the pointer
+     * assignment so we will get the correct section descriptor for dest.
+     */
+    if (std) {
+      std = add_stmt_before(ast, std);
+    } else {
+      std = add_stmt(ast);
+    }
+    ast = mk_stmt(A_CONTINUE, 0);
+    std = add_stmt_after(ast, std);
+    gen_contig_check(dest, dest, 0, gbl.lineno, false, std);
+    ast = mk_stmt(A_CONTINUE, 0); /* return a continue statement */
+  }
   return ast;
+}
+
+/** \brief Generate contiguity check test inline (experimental)
+ *  
+ *  Called by gen_contig_check() below to generate the contiguity check inline.
+ *  This is an experimental test since it looks at the descriptor flags, 
+ *  data type, and src_sptr if src_sptr is an optional dummy argument. The
+ *  endif asts are generated in gen_contig_check().
+ *
+ *  \param src is the source/pointer target ast.
+ *  \param src_sptr is the source/pointer target sptr.
+ *  \param sdsc is the source/pointer target's descriptor
+ *  \param std is the optional statement descriptor for adding the check (0 
+ *         if not applicable).
+ *  
+ *  \return the statement descriptor (std) of the generated code.
+ */
+static int  
+inline_contig_check(int src, SPTR src_sptr, SPTR sdsc, int std)
+{
+  int flagsast = get_header_member_with_parent(src, sdsc, DESC_HDR_FLAGS);
+  int lenast = get_header_member_with_parent(src, sdsc, DESC_HDR_BYTE_LEN);
+  int sizeast = size_ast(src_sptr, DDTG(DTYPEG(src_sptr)));
+  int cmp, astnew, seqast, newargt;
+
+  /* Step 1: Add insertion point in AST */
+  astnew = mk_stmt(A_CONTINUE, 0);
+  if (std)
+    std = add_stmt_before(astnew, std);
+  else
+   std = add_stmt(astnew);
+
+  /* Step 2: If src_sptr is an optional argument, then generate an 
+   * argument "present" check. Also generate this check if XBIT(54, 0x200)
+   * is set which says to ignore null pointer targets.
+   */
+  if (XBIT(54, 0x200) || (SCG(src_sptr) == SC_DUMMY && OPTARGG(src_sptr))) {
+    int present = ast_intr(I_PRESENT, stb.user.dt_log, 1, src);
+    astnew = mk_stmt(A_IFTHEN, 0);
+    A_IFEXPRP(astnew, present);
+    std = add_stmt_after(astnew, std);
+  }
+   
+  /* Step 3: Check descriptor flag to see if it includes
+   * __SEQUENTIAL_SECTION.
+   */
+  seqast = mk_isz_cval(__SEQUENTIAL_SECTION, DT_INT);
+  flagsast = ast_intr(I_AND, astb.bnd.dtype, 2, flagsast, seqast);
+  cmp = mk_binop(OP_EQ, flagsast, astb.i0, DT_INT);
+  astnew = mk_stmt(A_IFTHEN, 0);
+  A_IFEXPRP(astnew, cmp); 
+  std = add_stmt_after(astnew, std);
+
+  /* Step 4: Check element size to see if it matches descriptor 
+   * element size (i.e., check for a noncontiguous array subobject like 
+   * p => dt(:)%m where dt has more than one component).
+   */
+  cmp = mk_binop(OP_EQ, lenast, sizeast, DT_INT);
+  astnew = mk_stmt(A_IFTHEN, 0);
+  A_IFEXPRP(astnew, cmp);
+  std = add_stmt_after(astnew, std);
+
+  return std;
+}
+
+/** \brief Generate a contiguous pointer check on a pointer assignment
+ * when applicable.
+ *
+ * \param dest is the destination pointer.
+ * \param src is the pointer target.
+ * \param sdsc is an optional descriptor argument to pass to the check 
+ * function (0 to use src's descriptor).
+ * \param srcLine is the line number associated with the check.
+ * \param cs is true when we are generating the check at a call-site.
+ * \param std is the optional statement descriptor for adding the check (0 
+ * if not applicable).
+ */
+void
+gen_contig_check(int dest, int src, SPTR sdsc, int srcLine, bool cs, int std)
+{
+  int newargt, astnew;
+  SPTR src_sptr, dest_sptr, func;
+  bool isFuncCall, inlineContigCheck, ignoreNullTargets;
+  int argFlags;
+
+  if (ast_is_sym(src)) {
+    src_sptr = memsym_of_ast(src);
+  } else {
+    interr("gen_contig_check: invalid src ast", src, 3);
+    src_sptr = 0; 
+  }
+ 
+  if (ast_is_sym(dest)) {
+    dest_sptr = memsym_of_ast(dest);
+  } else {
+    interr("gen_contig_check: invalid dest ast", dest, 3);
+    dest_sptr = 0;
+  }
+  isFuncCall = (RESULTG(dest_sptr) && FVALG(gbl.currsub) != dest_sptr);
+  /* If XBIT(54, 0x200) is set, we ignore null pointer targets. If
+   * we have an optional argument, then we need to igore it if it's 
+   * null (i.e., not present).
+   */
+  ignoreNullTargets = (XBIT(54, 0x200) || (SCG(dest_sptr) == SC_DUMMY && 
+                                          OPTARGG(dest_sptr)));
+  if (CONTIGATTRG(dest_sptr) || (CONTIGATTRG(src_sptr) && isFuncCall)) {
+    int lineno, ptrnam, srcfil;
+    if (sdsc <= NOSYM)
+      sdsc = SDSCG(src_sptr);
+    if (sdsc <= NOSYM)
+      get_static_descriptor(src_sptr);
+    if (STYPEG(src_sptr) == ST_MEMBER)
+      sdsc = get_member_descriptor(src_sptr);
+    if (sdsc <= NOSYM)
+      sdsc = SDSCG(src_sptr);
+    lineno = mk_cval1(srcLine, DT_INT);
+    lineno = mk_unop(OP_VAL, lineno, DT_INT);
+    ptrnam = !isFuncCall ? getstring(SYMNAME(dest_sptr), 
+                                     strlen(SYMNAME(dest_sptr))+1) :
+             getstring(SYMNAME(src_sptr), strlen(SYMNAME(src_sptr))+1);
+    srcfil = getstring(gbl.curr_file, strlen(gbl.curr_file)+1);
+    /* Check to see if we should inline the contiguity check. We do not
+     * currently inline it if the user is also generating checks at the
+     * call-site. Currently the inlining routine uses an argument structure
+     * that may conflict with the call-site (but not when we're generating
+     * checks for pointer assignments or arguments inside a callee). 
+     * We could possibly support inlining at the call-site by deferring the
+     * check after we generate the call-site code. However, this may be
+     * a lot of work for something that probably will not be used too often.
+     * Generating checks for pointer assignments and for arguments inside a
+     * callee are typically sufficient. The only time one needs to check
+     * the call-site is when the called routine is inside a library that was
+     * not compiled with contiguity checking.
+     */ 
+    inlineContigCheck = (XBIT(54, 0x100) && !cs);
+    if (inlineContigCheck) {
+      std = inline_contig_check(src, src_sptr, sdsc, std);
+    }
+    newargt = mk_argt(6);
+    ARGT_ARG(newargt, 0) = A_TYPEG(src) == A_SUBSCR ? A_LOPG(src) : src;
+    ARGT_ARG(newargt, 1) = STYPEG(sdsc) != ST_MEMBER ? mk_id(sdsc) :
+                           check_member(src, mk_id(sdsc));
+    ARGT_ARG(newargt, 2) = lineno;
+    ARGT_ARG(newargt, 3) = mk_id(ptrnam);
+    ARGT_ARG(newargt, 4) = mk_id(srcfil);
+    /* We can pass some flags about src here. For now, the flag is 1 if
+     * dest_sptr is an optional argument or if we do not want to flag null
+     * pointer targets. That way, we do not indicate a contiguity error
+     * if the argument is not present or if the pointer target is null.
+     */
+    argFlags = mk_cval1( ignoreNullTargets ? 1 : 0, DT_INT);
+    argFlags = mk_unop(OP_VAL, argFlags, DT_INT);
+    ARGT_ARG(newargt, 5) = argFlags;
+       
+    func = mk_id(sym_mkfunc_nodesc(inlineContigCheck ? 
+                                   mkRteRtnNm(RTE_contigerror) :
+                                   mkRteRtnNm(RTE_contigchk), DT_NONE));
+    astnew = mk_func_node(A_CALL, func, 6, newargt);
+    if (inlineContigCheck) {
+      /* generate endifs for inline contiguity checks */
+      std = add_stmt_after(astnew, std);
+      std = add_stmt_after(mk_stmt(A_ENDIF,0), std);
+      if (ignoreNullTargets) {
+        std = add_stmt_after(mk_stmt(A_ENDIF,0), std);
+      }
+      add_stmt_after(mk_stmt(A_ENDIF,0), std);
+    } else if (std) {
+      add_stmt_before(astnew, std);
+    } else {
+      add_stmt(astnew);
+    }
+  }
 }
 
 int
@@ -4151,7 +4339,9 @@ void
 set_assn(int sptr)
 {
   ASSNP(sptr, 1);
-  if (is_protected(sptr)) {
+  /* it's legal for inherited submodules to access protected variables 
+     defined parent modules, otherwise it's illegal */
+  if (is_protected(sptr) && !is_used_by_submod(gbl.currsub, sptr)) {
     err_protected(sptr, "be assigned");
   }
 }
@@ -5323,6 +5513,18 @@ do_parbegin(DOINFO *doinfo)
   A_M1P(ast, doinfo->init_expr);
   A_M2P(ast, doinfo->limit_expr);
   A_M3P(ast, doinfo->step_expr);
+#ifdef OMP_OFFLOAD_LLVM
+  if(DI_ID(sem.doif_depth) == DI_PARDO &&
+     DI_ID(sem.doif_depth-1) == DI_TARGET) {
+    int targetast = DI_BTARGET(1);
+    int ast_looptc = mk_stmt(A_MP_TARGETLOOPTRIPCOUNT, 0);
+    A_LOOPTRIPCOUNTP(targetast, ast_looptc);
+    A_DOVARP(ast_looptc, dovar);
+    A_M1P(ast_looptc, doinfo->init_expr);
+    A_M2P(ast_looptc, doinfo->limit_expr);
+    A_M3P(ast_looptc, doinfo->step_expr);
+  }
+#endif
   if (DI_ID(sem.doif_depth) != DI_TASKLOOP) {
     A_CHUNKP(ast, DI_CHUNK(sem.doif_depth));
     A_DISTCHUNKP(ast, DI_DISTCHUNK(sem.doif_depth)); /* currently unused */
@@ -5574,7 +5776,7 @@ collapse_add(DOINFO *doinfo)
 {
   int dtype;
   SST tsst;
-  int ast, dest_ast;
+  int ast, dest_ast, std;
   int count_var;
 
   dtype = DTYPEG(doinfo->index_var);
@@ -5657,8 +5859,10 @@ collapse_add(DOINFO *doinfo)
       ast = do_simdbegin(dinf);
     else
       ast = do_parbegin(dinf);
-    (void)add_stmt(ast);
+    std = add_stmt(ast);
     sem.doif_depth = sv;
+    if (DI_ID(sv) == DI_DOCONCURRENT)
+      STD_BLKSYM(std) = DI_CONC_BLOCK_SYM(sv);
     /*
      * Compute the values for index variables in the collapsed do loops in
      * the order from inner to outer.
@@ -5782,19 +5986,20 @@ collapse_index(DOINFO *dd)
 void
 do_end(DOINFO *doinfo)
 {
-  int ast, orig_doif, par_doif, std, symi;
+  int ast, i, orig_doif, par_doif, std, symi;
+  SPTR block_sptr, lab, sptr;
 
   orig_doif = sem.doif_depth; // original loop index
 
   // Close do concurrent mask.
+  // Don't emit scn.currlab here.  (Don't use add_stmt.)
   if (DI_ID(orig_doif) == DI_DOCONCURRENT && DI_CONC_MASK_STD(orig_doif))
-    // Don't emit scn.currlab here.  (Don't use add_stmt.)
-    (void)add_stmt_after(mk_stmt(A_ENDIF, 0), STD_PREV(0));
+    (void)add_stmt_after(mk_stmt(A_ENDIF, 0), STD_LAST);
 
   // Loop body is done; emit loop cycle label.
+  // Don't emit scn.currlab here.  (Don't use add_stmt.)
   if (DI_CYCLE_LABEL(orig_doif)) {
-    // Don't emit scn.currlab here.  (Don't use add_stmt.)
-    std = add_stmt_after(mk_stmt(A_CONTINUE, 0), STD_PREV(0));
+    std = add_stmt_after(mk_stmt(A_CONTINUE, 0), STD_LAST);
     STD_LABEL(std) = DI_CYCLE_LABEL(orig_doif);
     DEFDP(DI_CYCLE_LABEL(orig_doif), 1);
   }
@@ -5802,14 +6007,38 @@ do_end(DOINFO *doinfo)
   // Finish do concurrent inner loop processing and move to the outermost loop.
   if (DI_ID(orig_doif) == DI_DOCONCURRENT) {
     check_doconcurrent(orig_doif); // innermost loop has constraint check info
-    for (symi = DI_CONC_SYMS(orig_doif); symi; symi = SYMI_NEXT(symi)) {
-      SPTR sptr = SYMI_SPTR(symi);
-      if (sptr >= DI_CONC_SYMAVL(orig_doif)) // sptr may be SHARED
-        HIDDENP(sptr, 1);
+    std = add_stmt_after(mk_stmt(A_CONTINUE, 0), STD_LAST);
+    STD_LINENO(std) = gbl.lineno;
+    STD_LABEL(std) = lab = getlab();
+    RFCNTI(lab);
+    VOLP(lab, true);
+    block_sptr = DI_CONC_BLOCK_SYM(orig_doif);
+    ENDLINEP(block_sptr, gbl.lineno);
+    ENDLABP(block_sptr, lab);
+    for (i = DI_CONC_COUNT(orig_doif), symi = DI_CONC_SYMS(orig_doif); i;
+         --i, symi = SYMI_NEXT(symi)) {
+      sptr = SYMI_SPTR(symi);
+      HIDDENP(sptr, 1); // do concurrent index construct var
     }
+    for (++sptr; sptr < stb.stg_avail; ++sptr)
+      switch (STYPEG(sptr)) {
+      case ST_UNKNOWN:
+      case ST_IDENT:
+      case ST_VAR:
+      case ST_ARRAY:
+        if (SAVEG(sptr))
+          break;
+        if (!CCSYMG(sptr) && !HCCSYMG(sptr))
+          DCLCHK(sptr);
+        HIDDENP(sptr, 1); // do concurrent non-index construct var
+        if (ENCLFUNCG(sptr) == 0)
+          ENCLFUNCP(sptr, block_sptr);
+      }
     for (; DI_CONC_COUNT(orig_doif) > 1; --orig_doif)
-      if (!DI_DOINFO(orig_doif)->collapse)
-        (void)add_stmt(mk_stmt(A_ENDDO, 0));
+      if (!DI_DOINFO(orig_doif)->collapse) {
+        std = add_stmt(mk_stmt(A_ENDDO, 0));
+        STD_BLKSYM(std) = block_sptr;
+      }
     doinfo = DI_DOINFO(orig_doif);
     sem.doif_depth = orig_doif;
   }
@@ -5959,8 +6188,11 @@ do_end(DOINFO *doinfo)
 
     switch (DI_ID(orig_doif)) {
     case DI_DO:
-    case DI_DOCONCURRENT:
       (void)add_stmt(mk_stmt(A_ENDDO, 0));
+      break;
+    case DI_DOCONCURRENT:
+      std = add_stmt(mk_stmt(A_ENDDO, 0));
+      STD_BLKSYM(std) = block_sptr;
       break;
     case DI_DOWHILE:
       ast = mk_stmt(A_GOTO, 0);
@@ -6119,7 +6351,7 @@ _xtok(INT conval1, BIGINT64 count, int dtype)
   SNGL temp, result;
   SNGL real1, realrs, imag1, imagrs;
   SNGL realpv, temp1;
-  INT64 inum1, ires;
+  DBLINT64 inum1, ires;
   int overr;
   UINT uval, uoldval;
 

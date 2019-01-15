@@ -303,8 +303,7 @@ typedef __INT_T dtype;
 
 /*
  * data type representing the number of elements passed to
- * ENTF90(ALLOC04, alloc04), etc.  * It's either a 64-bit type, or __INT_T
- * which can be either a 64-bit or 32-bit type depending on DESC_I8
+ * ENTF90(ALLOC04, alloc04), etc.
  */
 
 #define __NELEM_T __INT8_T

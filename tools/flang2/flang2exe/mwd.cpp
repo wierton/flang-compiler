@@ -1100,6 +1100,30 @@ dsym(int sptr)
     putnsym("enclfunc", ENCLFUNCG(0));
     ENCLFUNCP(0, 0);
 #endif
+#ifdef OMPACCDEVSYMG
+      putbit("ompaccel", OMPACCDEVSYMG(0));
+      OMPACCDEVSYMP(0, 0);
+#endif
+#ifdef OMPACCSHMEMG
+      putbit("ompaccel-shared", OMPACCSHMEMG(0));
+      OMPACCSHMEMP(0, 0);
+#endif
+#ifdef OMPACCSTRUCTG
+      putbit("ompaccel-host", OMPACCSTRUCTG(0));
+      OMPACCSTRUCTP(0, 0);
+#endif
+#ifdef OMPACCDEVSYMG
+      putbit("ompaccel", OMPACCDEVSYMG(0));
+      OMPACCDEVSYMP(0, 0);
+#endif
+#ifdef OMPACCSHMEMG
+      putbit("ompaccel-shared", OMPACCSHMEMG(0));
+      OMPACCSHMEMP(0, 0);
+#endif
+#ifdef OMPACCSTRUCTG
+      putbit("ompaccel-host", OMPACCSTRUCTG(0));
+      OMPACCSTRUCTP(0, 0);
+#endif
 #ifdef SOCPTRG
     socptr = SOCPTRG(0);
     putnzint("socptr", SOCPTRG(0));
@@ -1705,6 +1729,22 @@ dsym(int sptr)
 #ifdef ACCROUTG
     putnzint("accrout", ACCROUTG(0));
     ACCROUTP(0, 0);
+#endif
+#ifdef OMPACCFUNCDEVG
+    putbit("ompaccel-device", OMPACCFUNCDEVG(0));
+    OMPACCFUNCDEVP(0, 0);
+#endif
+#ifdef OMPACCFUNCKERNELG
+    putbit("ompaccel-kernel", OMPACCFUNCKERNELG(0));
+    OMPACCFUNCKERNELP(0, 0);
+#endif
+#ifdef OMPACCFUNCDEVG
+    putbit("ompaccel-device", OMPACCFUNCDEVG(0));
+    OMPACCFUNCDEVP(0, 0);
+#endif
+#ifdef OMPACCFUNCKERNELG
+    putbit("ompaccel-kernel", OMPACCFUNCKERNELG(0));
+    OMPACCFUNCKERNELP(0, 0);
 #endif
 #ifdef IPAINFOG
     putnzint("ipainfo", IPAINFOG(0));
@@ -2337,6 +2377,8 @@ dsym(int sptr)
   check("f94", stb.stg_base[0].f94);
   check("f95", stb.stg_base[0].f95);
   check("f96", stb.stg_base[0].f96);
+  check("f110", stb.stg_base[0].f110);
+  check("f111", stb.stg_base[0].f111);
   check("w8", stb.stg_base[0].w8);
   check("w9", stb.stg_base[0].w9);
   check("w10", stb.stg_base[0].w10);
@@ -2437,7 +2479,7 @@ dgbl(void)
   putnzint("gbl.func_count", mbl.func_count);
   mbl.func_count = 0;
   putnzint("gbl.rutype=", mbl.rutype);
-  mbl.rutype = (RUTYPE)0; // ??? no 0 value defined
+  mbl.rutype = (RUTYPE)0; // no 0 value defined
   putnzint("gbl.funcline=", mbl.funcline);
   mbl.funcline = 0;
   putnzint("gbl.threadprivate=", mbl.threadprivate);
@@ -3078,8 +3120,8 @@ dumpdtype(DTYPE dtype)
     putint("numdim", numdim);
     putnzint("scheck", AD_SCHECK(ad));
     putnsym("zbase", (SPTR) AD_ZBASE(ad)); // ???
-    putnsym("numelm", (SPTR) AD_NUMELM(ad)); // ???
-    putnsym("sdsc", (SPTR) AD_SDSC(ad)); // ???
+    putnsym("numelm", AD_NUMELM(ad));
+    putnsym("sdsc", AD_SDSC(ad));
     if (numdim >= 1 && numdim <= 7) {
       int i;
       for (i = 0; i < numdim; ++i) {
@@ -3110,7 +3152,7 @@ dumpdtype(DTYPE dtype)
     putint("align", DTyAlgTyAlign(dtype));
     break;
   case TY_VECT:
-    fprintf(dfile, "<%u x ", DTyVecLength(dtype));
+    fprintf(dfile, "<%lu x ", DTyVecLength(dtype));
     putdtype(DTySeqTyElement(dtype));
     fputc('>', dfile);
   default:
@@ -3140,7 +3182,7 @@ dumpdtypes(void)
     dumpdtype(dtype);
   }
   fprintf(dfile, "\n");
-  
+
 } /* dumpdtypes */
 
 void
@@ -4871,6 +4913,7 @@ db(int block)
   putbit("endkernel", BIH_ENDKERNEL(block));
   putbit("midiom", BIH_MIDIOM(block));
   putbit("nodepchk", BIH_NODEPCHK(block));
+  putbit("doconc", BIH_DOCONC(block));
   putline();
 #ifdef BIH_FINDEX
   if (BIH_FINDEX(block) || BIH_FTAG(block)) {
