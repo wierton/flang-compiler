@@ -1,6 +1,7 @@
 flang (20181226-1) UNRELEASED; urgency=medium
 
   * New upstream release
+   - patch needed for libpgmath CMPLX collision with g++
   * Two stage Build: first stage with gfortran
       second stage with flang
   * Add $fmoddir to standard include path

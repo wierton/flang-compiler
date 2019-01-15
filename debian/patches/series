@@ -9,3 +9,4 @@ disable-ieee-arith-execpts.patch
 soversion.patch
 disable-polly.patch
 fmoddir.patch
+libpgmath-fix.patch
