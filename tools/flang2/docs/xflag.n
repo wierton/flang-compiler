@@ -1377,7 +1377,7 @@ LLVM compilers, check use counts
 .XB 0x10000000
 LLVM compilers, don't perform newton's method within llvect
 .XB 0x20000000
-Don't allow CVECT with just one link to flow down this value without merge
+Allow CVECT with just one link to flow down this value without merge
 .XB 0x40000000
 LLVM compilers, don't perform vectorization on induction iterators
 .XB 0x80000000
@@ -1754,6 +1754,24 @@ from STOP commands as the program exit status.
 .XB 0x20:
 Assume that dummy arguments declared EXTERNAL are Fortran routines
 that were compiled with Flang.
+.XB 0x40:
+Enable contiguity pointer checks on pointer assignments and on actual arguments
+inside callees.
+.XB 0x80:
+Enable contiguity pointer checks at call-sites.
+.XB 0x100:
+Use an alternate contiguity pointer check inline that checks whether the
+pointer target's descriptor flags have __SEQUENTIAL_SECTION set and
+whether the object's data type length match the descriptor's data type
+length. This check is experimental and intended for pointer
+assignments and actual arguments inside callees. This check cannot currently
+be generated at a call-sites. The XBIT(54, 0x40) must also be enabled. If
+XBIT(54, 0x80) is enabled, then we perform the contiguity check at
+call-sites using a library routine. Note: In the case of an optional argument,
+the inline check will also check whether the argument is present.
+.XB 0x200:
+When checking contiguity (using XBIT(54,0x40), XBIT(54,0x80), XBIT(54,0x100)), 
+do not flag null pointer targets as noncontiguous. 
 
 .XF "55:" 
 .XB 0x01:
@@ -2139,6 +2157,8 @@ Don't mangle function names
 Use small IPA export protocol.
 .XB 0x40000000
 datadep.c, disable Fortran based-array conflict addition for unknown base vars
+.XB 0x80000000
+Use the 'optimized' datatype for a called function
 
 .XF "67:"
 Branch optimizations.
@@ -5237,6 +5257,8 @@ Print array assignments using pointer arithmetic always.
 Don't demote address KMUL operations
 .XB 0x200000:
 in LLVM output, don't output the instruction info (lilix index, opcode)
+.XB 0x400000:
+reserved
 
 .XF "202:"
 Set number of bigbuffers for multi-buffer memory management for AMD GPU.
@@ -5405,3 +5427,20 @@ Set number of bigbuffers for multi-buffer memory management for AMD GPU.
 (moved to 202)
 .XF "251:"
 (NOT available - check declaration in global.h for flg.x[], all compilers)
+
+.XF "232:"
+OpenMP Accelerator Model flags on Flang
+.XB 0x01:
+Enable outlining for device functions. Compiler creates a extra function for teams, parallel directives in the device.
+.XB 0x02:
+Disable symbol replacer while saving ILM of outlined function. It is enabled normally for OpenMP GPU offload.
+.XB 0x04:
+Disable skipping openmp cpu reduction code generation. We normally skip it since gpu has different implementation.
+.XB 0x08:
+Enable debug information for GPU code. Experimental
+.XB 0x10:
+Init libomptarget library in the main instead of constructor.
+.XB 0x20:
+Enable codegne for push loop trip count for libomptarget runtime.
+.XB 0x40:
+Enable codegen for spmd kernel init.

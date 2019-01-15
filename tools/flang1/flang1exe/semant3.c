@@ -71,7 +71,6 @@ static void end_association(int sptr);
 static int get_sst_named_whole_variable(SST *rhs);
 static int get_derived_type(SST *, LOGICAL);
 
-#define OPT_OMP_ATOMIC !XBIT(69, 0x1000)
 #define IN_OPENMP_ATOMIC (sem.mpaccatomic.ast && !(sem.mpaccatomic.is_acc))
 
 /** \brief semantic actions - part 3.
@@ -557,7 +556,7 @@ semant3(int rednum, SST *top)
         }
         gen_finalization_for_sym(sptr1, std, parent);
       }
-      if (OPT_OMP_ATOMIC && sem.mpaccatomic.seen && !sem.mpaccatomic.is_acc) {
+      if (use_opt_atomic(sem.doif_depth) && sem.mpaccatomic.seen && !sem.mpaccatomic.is_acc) {
         sem.mpaccatomic.accassignc++;
         ast = do_openmp_atomics(RHS(2), RHS(5));
         if (ast) {
@@ -3000,8 +2999,19 @@ semant3(int rednum, SST *top)
       ast = do_distbegin(doinfo, do_label, named_construct);
       SST_ASTP(LHS, ast);
       do_label = 0;
+#ifdef OMP_OFFLOAD_LLVM
+        if(DI_ID(sem.doif_depth-3) == DI_TARGTEAMSDISTPARDO) {
+          int dovar = mk_id(doinfo->index_var);
+          ast1 = DI_BTARGET(3);
+          ast2 = mk_stmt(A_MP_TARGETLOOPTRIPCOUNT, 0);
+          A_LOOPTRIPCOUNTP(ast1, ast2);
+          A_DOVARP(ast2, dovar);
+          A_M1P(ast2, doinfo->init_expr);
+          A_M2P(ast2, doinfo->limit_expr);
+          A_M3P(ast2, doinfo->step_expr);
+        }
+#endif
       break;
-
     } else if (sem.expect_simd_do) {
       /* Note: set sem.expect_simd_do = FALSE after calling to
        * do_lastvalbecause do_lastval check this flag.
@@ -3033,6 +3043,22 @@ semant3(int rednum, SST *top)
           DI_CONC_SYMAVL(doif-1) != sem.doconcurrent_symavl) {
         // First (outermost) control var=triplet.
         DI_CONC_SYMAVL(doif) = sem.doconcurrent_symavl;
+        DI_CONC_BLOCK_SYM(doif) = sptr =
+          getccsym('b', sem.blksymnum++, ST_BLOCK);
+        CCSYMP(sptr, true);
+        STARTLINEP(sptr, gbl.lineno);
+        // If the do concurrent loop is nested in another do concurrent loop,
+        // the outer loop is the parent of the block sym.  Otherwise, the
+        // containing routine is the parent.
+        if (DI_NEST(doif-1) & DI_B(DI_DOCONCURRENT)) {
+          for (i = doif-1; i > 0; --i)
+            if (DI_ID(i) == DI_DOCONCURRENT) {
+              ENCLFUNCP(sptr, DI_CONC_BLOCK_SYM(i));
+              break;
+            }
+        } else {
+          ENCLFUNCP(sptr, gbl.currsub);
+        }
         DI_CONC_SYMS(doif) = symi;
       } else {
         // Second or subsequent control var=triplet.
@@ -3044,6 +3070,8 @@ semant3(int rednum, SST *top)
       }
       DI_CONC_COUNT(doif)++;
       DI_CONC_LAST_SYM(doif) = symi;
+      if (ast)
+        STD_BLKSYM(std) = DI_CONC_BLOCK_SYM(doif);
     }
     DI_DO_LABEL(doif) = do_label;
     DI_DO_AST(doif) = ast;
@@ -3068,7 +3096,7 @@ semant3(int rednum, SST *top)
   case LOOP_CONTROL3:
     // Set the DO CONCURRENT body marker to the last header, mask, or
     // locality assignment std.  Shift to its successor before use.
-    DI_CONC_BODY_STD(sem.doif_depth) = STD_PREV(0);
+    DI_CONC_BODY_STD(sem.doif_depth) = STD_LAST;
     sem.doconcurrent_symavl = SPTR_NULL;
     sem.doconcurrent_dtype = DT_NONE;
     SST_ASTP(LHS, 0);
@@ -3117,8 +3145,7 @@ semant3(int rednum, SST *top)
     doif = sem.doif_depth;
     switch (DI_ID(doif)) {
     case DI_DOCONCURRENT:
-      // <concurrent list> processing was done upstream; process mask here.
-      SST_ASTP(LHS, 0);
+      // <concurrent list> processing was done upstream; process mask.
       if (ast1) {
         if (A_SHAPEG(ast1)) {
           error(1042, ERR_Severe, gbl.lineno, "DO CONCURRENT", CNULL);
@@ -3128,6 +3155,7 @@ semant3(int rednum, SST *top)
           DI_CONC_MASK_STD(doif) = add_stmt(ast);
         }
       }
+      SST_ASTP(LHS, 0);
       break;
     case DI_FORALL:
       // Generate a FORALL ast.
@@ -3377,14 +3405,22 @@ semant3(int rednum, SST *top)
       }
       break;
     }
+    DCLCHK(sptr);
     switch (DI_CONC_KIND(doif)) {
-    case TK_LOCAL:
     case TK_LOCAL_INIT:
+      if (sptr >= DI_CONC_SYMAVL(doif)) {
+        error(1062, ERR_Severe, gbl.lineno, SYMNAME(sptr), CNULL);
+        DI_CONC_ERROR_SYMS(doif) = add_symitem(sptr, DI_CONC_ERROR_SYMS(doif));
+        break;
+      }
+      // fall through
+    case TK_LOCAL:
       if (sptr < DI_CONC_SYMAVL(doif)) {
         // sptr is external to the loop; get a construct instance.
         if (STYPEG(sptr) == ST_PD) {
+          int dcld = DCLDG(sptr);
           sptr = insert_sym(sptr);
-          DCLDP(sptr, 1);
+          DCLDP(sptr, dcld);
         } else {
           sptr = insert_dup_sym(sptr);
         }

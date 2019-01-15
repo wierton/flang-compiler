@@ -1111,15 +1111,10 @@ getdumlen(void)
   return sym;
 }
 
-/** \brief Create a symbol representing the length of a passed-length character
- * argument in the host subprogram.
- */
-int
+SPTR
 gethost_dumlen(int arg, ISZ_T address)
 {
-  int sym;
-
-  sym = getccsym('U', arg, ST_VAR);
+  SPTR sym = getccsym('U', arg, ST_VAR);
   if (CHARLEN_64BIT) {
     DTYPEP(sym, DT_INT8);
   } else {
@@ -3215,11 +3210,21 @@ is_asn_closure_call(int sptr)
 static bool
 is_proc_desc_arg(int ili)
 {
+  SPTR sym;
   if (ILI_OPC(ili) == IL_ACON) {
-    SPTR sym = SymConval1(ILI_SymOPND(ili, 1));
-    if (IS_PROC_DESCRG(sym)) {
+    sym = SymConval1(ILI_SymOPND(ili, 1));
+  } else if (IL_TYPE(ILI_OPC(ili)) == ILTY_LOAD) {
+    int op1 = ILI_OPND(ili,1);
+    if (ILI_OPC(op1) == IL_ACON) {
+      sym = SymConval1(ILI_SymOPND(op1, 1));
+    } else {
+      sym = NME_SYM(ILI_OPND(ili,2));
+     }
+  } else {
+    sym = SPTR_NULL;
+  }
+  if (sym > NOSYM && IS_PROC_DESCRG(sym)) {
       return true;
-    }
   }
   return false;
 }
@@ -5776,10 +5781,6 @@ charlen(SPTR sym)
   int nme;
   int addr;
 
-#if DEBUG
-  assert(CLENG(sym) != 0, "charlen: sym not adjustable-length char", sym,
-         ERR_Severe);
-#endif
   lensym = CLENG(sym);
   if (!INTERNREFG(lensym) && gbl.internal > 1 && INTERNREFG(sym)) {
     /* Its len is passed by value in aux.curr_entry->display after sym */

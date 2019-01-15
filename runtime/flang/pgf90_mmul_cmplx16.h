@@ -25,7 +25,7 @@
     character*1 :: ca, cb
     !
     ! local variables
-  !
+    !
   integer*8  :: colsa, rowsa, rowsb, colsb
   integer*8  :: i, j, jb, k, ak, bk, jend
   integer*8  :: ar, ar_sav,  ac, ac_sav, br, bc
@@ -52,7 +52,14 @@
     complex*16, allocatable, dimension(:) :: buffera, bufferb
   
 !Minimun number of multiplications needed to activate the blocked optimization.
+#ifdef TARGET_X8664
   integer, parameter :: min_blocked_mult = 15000 
+#elif TARGET_LINUX_POWER
+  integer, parameter :: min_blocked_mult = 15000 !Complex calculations not vectorized on OpenPower.
+#else
+  #warning untuned matrix multiplication parameter
+  integer, parameter :: min_blocked_mult = 15000 
+#endif
 
 #undef DCMPLX
 #define DCMPLX(r,i) cmplx(r,i,kind=8)

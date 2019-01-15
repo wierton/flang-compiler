@@ -249,7 +249,7 @@ precedence(int ast)
 static LOGICAL
 negative_constant(int ast)
 {
-  INT64 inum1, inum2;
+  DBLINT64 inum1, inum2;
   DBLE dnum1, dnum2;
 
   if (A_TYPEG(ast) == A_CNST) {
@@ -2242,6 +2242,21 @@ print_ast(int ast)
   case A_MP_ETASKLOOPREG:
     lbuff[0] = '!';
     put_string(astb.atypes[atype]);
+    break;
+  case A_MP_TARGETLOOPTRIPCOUNT:
+    put_string("target loop tripcount");
+    break;
+  case A_MP_MAP:
+    put_string("map");
+    break;
+  case A_MP_EMAP:
+    put_string("end map");
+    break;
+  case A_MP_BREDUCTION:
+    put_string("begin reduction");
+    break;
+  case A_MP_EREDUCTION:
+    put_string("end reduction");
     break;
   case A_MP_CRITICAL:
   case A_MP_ENDCRITICAL:

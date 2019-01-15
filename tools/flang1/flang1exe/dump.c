@@ -1685,6 +1685,13 @@ dastreex(int astx, int l, int notlast)
   case A_MP_BCOPYPRIVATE:
   case A_MP_COPYPRIVATE:
   case A_MP_ECOPYPRIVATE:
+  case A_MP_MAP:
+  case A_MP_EMAP:
+  case A_MP_TARGETLOOPTRIPCOUNT:
+  case A_MP_DISTRIBUTE:
+  case A_MP_EREDUCTION:
+  case A_MP_BREDUCTION:
+  case A_MP_REDUCTIONITEM:
     break;
   default:
     fprintf(gbl.dbgfil, "NO DUMP AVL");
@@ -2249,6 +2256,8 @@ dstd(int stdx)
   putint("ast", astx);
   putnzint("lineno", STD_LINENO(stdx));
   putnsym("label", STD_LABEL(stdx));
+  if (STD_BLKSYM(stdx) != SPTR_NULL)
+    putnsym("blksym", STD_BLKSYM(stdx));
   putint("prev", STD_PREV(stdx));
   putint("next", STD_NEXT(stdx));
 #ifdef STD_TAG

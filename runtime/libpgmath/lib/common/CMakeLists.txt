@@ -35,15 +35,11 @@ get_property(DEFINITIONS GLOBAL PROPERTY "DEFINITIONS_L1")
 set(SRCS)
 if(${CMAKE_SYSTEM_PROCESSOR} MATCHES "x86_64" AND NOT ${LIBPGMATH_WITH_GENERIC})
   if(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
-    add_subdirectory("cos")
-    add_subdirectory("cosf")
     add_subdirectory("sincosf")
-    add_subdirectory("sin")
-    add_subdirectory("sinf")
     add_subdirectory("tanf")
 
     # Specific definition, will probably need to remove when we create a single file for each def
-    set_property(SOURCE dispatch.c APPEND_STRING PROPERTY COMPILE_FLAGS "-fno-builtin-c{sqrt,pow,log,exp,acos,asin,atan,cos,sin,tan,cosh,sinh,tanh}{,f}")
+    set_property(SOURCE dispatch.c APPEND_STRING PROPERTY COMPILE_FLAGS "-fno-builtin-c{sqrt,pow,log,exp,acos,asin,atan,cos,sin,tan,cosh,sinh,tanh}{,f} -fno-builtin-{ceil,floor}{,f}")
     set_property(SOURCE dispatch.c APPEND PROPERTY COMPILE_DEFINITIONS FOR_LIBPGC PGFLANG)
     set_property(SOURCE mth_xintrinsics.c APPEND_STRING PROPERTY COMPILE_FLAGS "-march=core2 ")
     set_property(SOURCE mth_yintrinsics.c APPEND_STRING PROPERTY COMPILE_FLAGS "-march=sandybridge ")
@@ -79,15 +75,11 @@ if(${CMAKE_SYSTEM_PROCESSOR} MATCHES "x86_64" AND NOT ${LIBPGMATH_WITH_GENERIC})
       mth_yintrinsics.c
       mth_zintrinsics.c)
   elseif(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
-    add_subdirectory("cos")
-    add_subdirectory("cosf")
     add_subdirectory("sincosf")
-    add_subdirectory("sin")
-    add_subdirectory("sinf")
     add_subdirectory("tanf")
 
     # Specific definition, will probably need to remove when we create a single file for each def
-    set_property(SOURCE dispatch.c APPEND_STRING PROPERTY COMPILE_FLAGS "-fno-builtin-c{sqrt,pow,log,exp,acos,asin,atan,cos,sin,tan,cosh,sinh,tanh}{,f}")
+    set_property(SOURCE dispatch.c APPEND_STRING PROPERTY COMPILE_FLAGS "-fno-builtin-c{sqrt,pow,log,exp,acos,asin,atan,cos,sin,tan,cosh,sinh,tanh}{,f} -fno-builtin-{ceil,floor}{,f}")
     set_property(SOURCE dispatch.c APPEND PROPERTY COMPILE_DEFINITIONS FOR_LIBPGC PGFLANG)
     set_property(SOURCE mth_xintrinsics.c APPEND_STRING PROPERTY COMPILE_FLAGS "-msse2 ")
     set_property(SOURCE mth_yintrinsics.c APPEND_STRING PROPERTY COMPILE_FLAGS "-mavx ")
@@ -226,6 +218,7 @@ set(SRCS
   bessel_y0.c
   bessel_y1.c
   bessel_yn.c
+  ceil.c
   ${MTH_CMPLX_SRCS}
   cosd.c
   cvt.c
@@ -239,7 +232,9 @@ set(SRCS
   dbessel_y0.c
   dbessel_y1.c
   dbessel_yn.c
+  dceil.c
   dcosd.c
+  dfloor.c
   dmod.c
   dpowi.c
   dpowk.c
@@ -252,6 +247,7 @@ set(SRCS
   erfc_scaledf.c
   erfcf.c
   erff.c
+  floor.c
   fpcvt.c
   gamma.c
   gammaf.c
@@ -281,7 +277,7 @@ libmath_add_object_library("${MTH_CMPLX_SRCS}" "${FLAGS}" "${DEFINITIONS_CMPLX}"
 if(${CMAKE_SYSTEM_PROCESSOR} MATCHES "x86_64" AND NOT ${LIBPGMATH_WITH_GENERIC})
   # Generate mth_128mask.c
   set(TARGET_NAME "mth_128mask")
-  add_custom_command(OUTPUT ${TARGET_NAME}.c PRE_BUILD
+  add_custom_command(OUTPUT ${TARGET_NAME}.c DEPENDS ${LIBPGMATH_TOOLS_DIR}/mth_mask.awk PRE_BUILD
     COMMAND awk -v MAX_VREG_SIZE=128 -v TARGET=X8664 -f ${LIBPGMATH_TOOLS_DIR}/mth_mask.awk > ${TARGET_NAME}.c)
   add_custom_target(${TARGET_NAME} ALL DEPENDS "${TARGET_NAME}.c")
   if(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
@@ -294,7 +290,7 @@ if(${CMAKE_SYSTEM_PROCESSOR} MATCHES "x86_64" AND NOT ${LIBPGMATH_WITH_GENERIC})
 
   # Generate mth_128generic.c
   set(TARGET_NAME "mth_128generic")
-  add_custom_command(OUTPUT ${TARGET_NAME}.c PRE_BUILD
+  add_custom_command(OUTPUT ${TARGET_NAME}.c DEPENDS ${LIBPGMATH_TOOLS_DIR}/mth_generic_frp.awk PRE_BUILD
     COMMAND awk -v MAX_VREG_SIZE=128 -v TARGET=X8664 -f ${LIBPGMATH_TOOLS_DIR}/mth_generic_frp.awk > ${TARGET_NAME}.c)
   add_custom_target(${TARGET_NAME} ALL DEPENDS "${TARGET_NAME}.c")
   if(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
@@ -307,7 +303,7 @@ if(${CMAKE_SYSTEM_PROCESSOR} MATCHES "x86_64" AND NOT ${LIBPGMATH_WITH_GENERIC})
 
   # Generate mth_256mask.c
   set(TARGET_NAME "mth_256mask")
-  add_custom_command(OUTPUT ${TARGET_NAME}.c PRE_BUILD
+  add_custom_command(OUTPUT ${TARGET_NAME}.c DEPENDS ${LIBPGMATH_TOOLS_DIR}/mth_mask.awk PRE_BUILD
     COMMAND awk -v MAX_VREG_SIZE=256 -v TARGET=X8664 -f ${LIBPGMATH_TOOLS_DIR}/mth_mask.awk > ${TARGET_NAME}.c)
   add_custom_target(${TARGET_NAME} ALL DEPENDS "${TARGET_NAME}.c")
   if(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
@@ -320,7 +316,7 @@ if(${CMAKE_SYSTEM_PROCESSOR} MATCHES "x86_64" AND NOT ${LIBPGMATH_WITH_GENERIC})
 
   # Generate mth_256generic.c
   set(TARGET_NAME "mth_256generic")
-  add_custom_command(OUTPUT ${TARGET_NAME}.c PRE_BUILD
+  add_custom_command(OUTPUT ${TARGET_NAME}.c DEPENDS ${LIBPGMATH_TOOLS_DIR}/mth_generic_frp.awk PRE_BUILD
     COMMAND awk -v MAX_VREG_SIZE=256 -v TARGET=X8664 -f ${LIBPGMATH_TOOLS_DIR}/mth_generic_frp.awk > ${TARGET_NAME}.c)
   add_custom_target(${TARGET_NAME} ALL DEPENDS "${TARGET_NAME}.c")
   if(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
@@ -333,7 +329,7 @@ if(${CMAKE_SYSTEM_PROCESSOR} MATCHES "x86_64" AND NOT ${LIBPGMATH_WITH_GENERIC})
 
   # Generate mth_512mask.c
   set(TARGET_NAME "mth_512mask")
-  add_custom_command(OUTPUT ${TARGET_NAME}.c PRE_BUILD
+  add_custom_command(OUTPUT ${TARGET_NAME}.c DEPENDS ${LIBPGMATH_TOOLS_DIR}/mth_mask.awk PRE_BUILD
     COMMAND awk -v MAX_VREG_SIZE=512 -v TARGET=X8664 -f ${LIBPGMATH_TOOLS_DIR}/mth_mask.awk > ${TARGET_NAME}.c)
   add_custom_target(${TARGET_NAME} ALL DEPENDS "${TARGET_NAME}.c")
   set_property(SOURCE ${TARGET_NAME}.c APPEND_STRING PROPERTY COMPILE_FLAGS "")
@@ -347,7 +343,7 @@ if(${CMAKE_SYSTEM_PROCESSOR} MATCHES "x86_64" AND NOT ${LIBPGMATH_WITH_GENERIC})
 
   # Generate mth_512generic.c
   set(TARGET_NAME "mth_512generic")
-  add_custom_command(OUTPUT ${TARGET_NAME}.c PRE_BUILD
+  add_custom_command(OUTPUT ${TARGET_NAME}.c DEPENDS ${LIBPGMATH_TOOLS_DIR}/mth_generic_frp.awk PRE_BUILD
     COMMAND awk -v MAX_VREG_SIZE=512 -v TARGET=X8664 -f ${LIBPGMATH_TOOLS_DIR}/mth_generic_frp.awk > ${TARGET_NAME}.c)
   add_custom_target(${TARGET_NAME} ALL DEPENDS "${TARGET_NAME}.c")
   if(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
@@ -360,7 +356,7 @@ if(${CMAKE_SYSTEM_PROCESSOR} MATCHES "x86_64" AND NOT ${LIBPGMATH_WITH_GENERIC})
 
   # Generate mth_z2yy.c
   set(TARGET_NAME "mth_z2yy")
-  add_custom_command(OUTPUT ${TARGET_NAME}.c PRE_BUILD
+  add_custom_command(OUTPUT ${TARGET_NAME}.c DEPENDS ${LIBPGMATH_TOOLS_DIR}/mth_z2yy.awk PRE_BUILD
     COMMAND awk -v MAX_VREG_SIZE=512 -v TARGET=X8664 -f ${LIBPGMATH_TOOLS_DIR}/mth_z2yy.awk > ${TARGET_NAME}.c)
   add_custom_target(${TARGET_NAME} ALL DEPENDS "${TARGET_NAME}.c")
   if(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
@@ -373,7 +369,7 @@ if(${CMAKE_SYSTEM_PROCESSOR} MATCHES "x86_64" AND NOT ${LIBPGMATH_WITH_GENERIC})
 elseif(${CMAKE_SYSTEM_PROCESSOR} MATCHES "ppc64le")
   # Generate mth_128mask.c
   set(TARGET_NAME "mth_128mask")
-  add_custom_command(OUTPUT ${TARGET_NAME}.c PRE_BUILD
+  add_custom_command(OUTPUT ${TARGET_NAME}.c DEPENDS ${LIBPGMATH_TOOLS_DIR}/mth_mask.awk PRE_BUILD
     COMMAND awk -v MAX_VREG_SIZE=128 -v TARGET=POWER -f ${LIBPGMATH_TOOLS_DIR}/mth_mask.awk > ${TARGET_NAME}.c)
   add_custom_target(${TARGET_NAME} ALL DEPENDS "${TARGET_NAME}.c")
   libmath_add_object_library("${TARGET_NAME}.c" "${FLAGS}" "${DEFINITIONS}" "${TARGET_NAME}_build")
@@ -381,7 +377,7 @@ elseif(${CMAKE_SYSTEM_PROCESSOR} MATCHES "ppc64le")
 
   # Generate mth_128generic.c
   set(TARGET_NAME "mth_128generic")
-  add_custom_command(OUTPUT ${TARGET_NAME}.c PRE_BUILD
+  add_custom_command(OUTPUT ${TARGET_NAME}.c DEPENDS ${LIBPGMATH_TOOLS_DIR}/mth_generic_frp.awk PRE_BUILD
     COMMAND awk -v MAX_VREG_SIZE=128 -v TARGET=POWER -f ${LIBPGMATH_TOOLS_DIR}/mth_generic_frp.awk > ${TARGET_NAME}.c)
   add_custom_target(${TARGET_NAME} ALL DEPENDS "${TARGET_NAME}.c")
   libmath_add_object_library("${TARGET_NAME}.c" "${FLAGS}" "${DEFINITIONS}" "${TARGET_NAME}_build")
@@ -389,7 +385,7 @@ elseif(${CMAKE_SYSTEM_PROCESSOR} MATCHES "ppc64le")
 elseif(${CMAKE_SYSTEM_PROCESSOR} MATCHES "aarch64")
   # Generate mth_128mask.cpp
   set(TARGET_NAME "mth_128mask")
-  add_custom_command(OUTPUT ${TARGET_NAME}.cpp PRE_BUILD
+  add_custom_command(OUTPUT ${TARGET_NAME}.cpp DEPENDS ${LIBPGMATH_TOOLS_DIR}/mth_mask.awk PRE_BUILD
     COMMAND awk -v MAX_VREG_SIZE=128 -v TARGET=ARM64 -f ${LIBPGMATH_TOOLS_DIR}/mth_mask.awk > ${TARGET_NAME}.cpp)
   add_custom_target(${TARGET_NAME} ALL DEPENDS "${TARGET_NAME}.cpp")
   libmath_add_object_library("${TARGET_NAME}.cpp" "${FLAGS}" "${DEFINITIONS}" "${TARGET_NAME}_build")
@@ -397,7 +393,7 @@ elseif(${CMAKE_SYSTEM_PROCESSOR} MATCHES "aarch64")
 
   # Generate mth_128generic.c
   set(TARGET_NAME "mth_128generic")
-  add_custom_command(OUTPUT ${TARGET_NAME}.c PRE_BUILD
+  add_custom_command(OUTPUT ${TARGET_NAME}.c DEPENDS ${LIBPGMATH_TOOLS_DIR}/mth_generic_frp.awk PRE_BUILD
     COMMAND awk -v MAX_VREG_SIZE=128 -v TARGET=ARM64 -f ${LIBPGMATH_TOOLS_DIR}/mth_generic_frp.awk > ${TARGET_NAME}.c)
   add_custom_target(${TARGET_NAME} ALL DEPENDS "${TARGET_NAME}.c")
   libmath_add_object_library("${TARGET_NAME}.c" "${FLAGS}" "${DEFINITIONS}" "${TARGET_NAME}_build")
@@ -405,7 +401,7 @@ elseif(${CMAKE_SYSTEM_PROCESSOR} MATCHES "aarch64")
 else()
   # Generate mth_128mask.c
   set(TARGET_NAME "mth_128mask")
-  add_custom_command(OUTPUT ${TARGET_NAME}.c PRE_BUILD
+  add_custom_command(OUTPUT ${TARGET_NAME}.c DEPENDS ${LIBPGMATH_TOOLS_DIR}/mth_mask.awk PRE_BUILD
     COMMAND awk -v MAX_VREG_SIZE=128 -v TARGET=GENERIC -f ${LIBPGMATH_TOOLS_DIR}/mth_mask.awk > ${TARGET_NAME}.c)
   add_custom_target(${TARGET_NAME} ALL DEPENDS "${TARGET_NAME}.c")
   libmath_add_object_library("${TARGET_NAME}.c" "${FLAGS}" "${DEFINITIONS}" "${TARGET_NAME}_build")
@@ -413,7 +409,7 @@ else()
 
   # Generate mth_128generic.c
   set(TARGET_NAME "mth_128generic")
-  add_custom_command(OUTPUT ${TARGET_NAME}.c PRE_BUILD
+  add_custom_command(OUTPUT ${TARGET_NAME}.c DEPENDS ${LIBPGMATH_TOOLS_DIR}/mth_generic_frp.awk PRE_BUILD
     COMMAND awk -v MAX_VREG_SIZE=128 -v TARGET=GENERIC -f ${LIBPGMATH_TOOLS_DIR}/mth_generic_frp.awk > ${TARGET_NAME}.c)
   add_custom_target(${TARGET_NAME} ALL DEPENDS "${TARGET_NAME}.c")
   libmath_add_object_library("${TARGET_NAME}.c" "${FLAGS}" "${DEFINITIONS}" "${TARGET_NAME}_build")
