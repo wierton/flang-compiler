@@ -3,10 +3,10 @@ Last-Updated: 2019-01-01
 Author: Alastair McKinstry <mckinstry@debian.org>
 Forwarded: no
 
-Index: flang-20180921/flang-driver/lib/Driver/ToolChains/Linux.cpp
+Index: flang-20181226/flang-driver/lib/Driver/ToolChains/Linux.cpp
 ===================================================================
---- flang-20180921.orig/flang-driver/lib/Driver/ToolChains/Linux.cpp
-+++ flang-20180921/flang-driver/lib/Driver/ToolChains/Linux.cpp
+--- flang-20181226.orig/flang-driver/lib/Driver/ToolChains/Linux.cpp
++++ flang-20181226/flang-driver/lib/Driver/ToolChains/Linux.cpp
 @@ -699,44 +699,65 @@ void Linux::AddFlangSystemIncludeArgs(co
  
    // Implement generic Debian multiarch support.

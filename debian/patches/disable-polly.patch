@@ -3,10 +3,10 @@ Author: Alastair McKinstry <mckinstry@debian.org>
 Last-Updated: 2018-12-03
 Forwarded: no
 
-Index: flang-20180921/flang-driver/tools/driver/cc1_main.cpp
+Index: flang-20181226/flang-driver/tools/driver/cc1_main.cpp
 ===================================================================
---- flang-20180921.orig/flang-driver/tools/driver/cc1_main.cpp
-+++ flang-20180921/flang-driver/tools/driver/cc1_main.cpp
+--- flang-20181226.orig/flang-driver/tools/driver/cc1_main.cpp
++++ flang-20181226/flang-driver/tools/driver/cc1_main.cpp
 @@ -67,11 +67,6 @@ static void LLVMErrorHandler(void *UserD
    exit(GenCrashDiag ? 70 : 1);
  }

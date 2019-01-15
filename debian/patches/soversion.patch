@@ -1,7 +1,7 @@
-Index: flang-20180921/runtime/libpgmath/lib/CMakeLists.txt
+Index: flang-20181226/runtime/libpgmath/lib/CMakeLists.txt
 ===================================================================
---- flang-20180921.orig/runtime/libpgmath/lib/CMakeLists.txt
-+++ flang-20180921/runtime/libpgmath/lib/CMakeLists.txt
+--- flang-20181226.orig/runtime/libpgmath/lib/CMakeLists.txt
++++ flang-20181226/runtime/libpgmath/lib/CMakeLists.txt
 @@ -240,6 +240,7 @@ get_property(TARGET_OBJECTS GLOBAL PROPE
  add_library(${LIBPGMATH_LIBRARY_NAME} SHARED ${TARGET_OBJECTS})
  add_library(${LIBPGMATH_LIBRARY_NAME}_static STATIC ${TARGET_OBJECTS})
@@ -10,10 +10,10 @@ Index: flang-20180921/runtime/libpgmath/lib/CMakeLists.txt
  install(TARGETS ${LIBPGMATH_LIBRARY_NAME}
    LIBRARY DESTINATION lib)
  install(TARGETS ${LIBPGMATH_LIBRARY_NAME}_static
-Index: flang-20180921/runtime/ompstub/CMakeLists.txt
+Index: flang-20181226/runtime/ompstub/CMakeLists.txt
 ===================================================================
---- flang-20180921.orig/runtime/ompstub/CMakeLists.txt
-+++ flang-20180921/runtime/ompstub/CMakeLists.txt
+--- flang-20181226.orig/runtime/ompstub/CMakeLists.txt
++++ flang-20181226/runtime/ompstub/CMakeLists.txt
 @@ -22,6 +22,7 @@ set_property(TARGET ompstub_static PROPE
  set(SHARED_LIBRARY TRUE)
  add_flang_library(ompstub_shared ${OMPSTUB_SRC})
@@ -22,11 +22,11 @@ Index: flang-20180921/runtime/ompstub/CMakeLists.txt
  set(SHARED_LIBRARY FALSE)
  
  set_target_properties(ompstub_static ompstub_shared
-Index: flang-20180921/runtime/flang/CMakeLists.txt
+Index: flang-20181226/runtime/flang/CMakeLists.txt
 ===================================================================
---- flang-20180921.orig/runtime/flang/CMakeLists.txt
-+++ flang-20180921/runtime/flang/CMakeLists.txt
-@@ -483,6 +483,7 @@ add_flang_library(flang_shared
+--- flang-20181226.orig/runtime/flang/CMakeLists.txt
++++ flang-20181226/runtime/flang/CMakeLists.txt
+@@ -489,6 +489,7 @@ add_flang_library(flang_shared
    )
  set_property(TARGET flang_shared PROPERTY OUTPUT_NAME flang)
  target_link_libraries(flang_shared ${CMAKE_BINARY_DIR}/${CMAKE_CFG_INTDIR}/lib/libflangrti.so)
@@ -34,10 +34,10 @@ Index: flang-20180921/runtime/flang/CMakeLists.txt
  # Resolve symbols against libm and librt
  target_link_libraries(flang_shared m rt)
  
-Index: flang-20180921/runtime/flangrti/CMakeLists.txt
+Index: flang-20181226/runtime/flangrti/CMakeLists.txt
 ===================================================================
---- flang-20180921.orig/runtime/flangrti/CMakeLists.txt
-+++ flang-20180921/runtime/flangrti/CMakeLists.txt
+--- flang-20181226.orig/runtime/flangrti/CMakeLists.txt
++++ flang-20181226/runtime/flangrti/CMakeLists.txt
 @@ -83,12 +83,12 @@ add_flang_library(flangrti_static
    )
  set_property(TARGET flangrti_static PROPERTY OUTPUT_NAME flangrti)
