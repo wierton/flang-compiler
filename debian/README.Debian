@@ -1,7 +1,7 @@
 Notes on flang build for Debian
 ===============================
 
-Alastair McKinstry <mckinstry@debian.org>, 2018-11-30
+Alastair McKinstry <mckinstry@debian.org>, 2019-01-25
 
 
 This is the first build of flang for Debian; it is built with gcc/gfortran.
@@ -9,8 +9,8 @@ Some patches are required.
 It needs review by the LLVM packaging team.
 
 ieee_arithmetic and ieee_exceptions currently do not compile with gfortran, as it is pickier about the
-quality of the Fortran (!) and C bindings.
-I'm working on patches, and also exploring the possibilty of a 2-stage compile (rebuilding flang using flang).
+quality of the Fortran (!) and C bindings. A two-stage compile is done: the initial compile with
+gfortran, followed by a recompile using the flang from the first stage.
 
 This build is done against Debian's build of LLVM-7, rather than the adapted LLVM used with flang.
 The flang fork of llvm handles several extensions to llvm debug metadata.
@@ -20,18 +20,17 @@ By default, flang does not generate this extended metadata.  There’s a flag th
 Currently this is not set, and the code produced appears to work fine in Debian.
 
 As a pre-release, the compiler does not have a version number; I have named the binary package 'flang-7'
-as it uses LLVM-7, with a version 20180921, as this is the release dump of the tarball.
+as it uses LLVM-7, with a version 20181226, as this is the release dump of the tarball(s).
 
 Binaries produced are linked against the flang runtime libraries, shipped in libflang0d-7.
-Currently these do not have SONAMEs set (eg. they are named libflang.so) ; I intend to patch this to set SOVERSION to 0d
+Currently these do not have SONAMEs set upstream,  They are patched to set SOVERSION to 0d
 as per Debian practice. (Hence the package name libflang0d-7).
 
 flang-driver, which produces the top-end driver, is shipped as a separate tarball but included here as a subdirectory.
 The driver, normally called 'clang-7', is renamed 'flang'
 
 Flang uses a different module file format to gfortran (Module files, suffixed '.mod', are precompiled header files).
-For the moment, flang places its standard module files in /usr/include, which is ok as gfortran keeps its 
-system module files in /usr/lib/gcc/x86_64-linux-gnu/8/finclude. For interoperability, gfortran and flang will need
+For interoperability, gfortran and flang will need
 to search for and keep their module files in different directories.  In Redhat/Fedora, Fortran module files are placed
 in $LIBDIR/$FMODDIR, typically /usr/lib/fortran.  I am proposing to put them in /usr/lib/$multarch/fortran/$compiler
 with compiler being gfortran-8, flang-7, etc. (mod file formats can become incompatible between compiler versions, eg.
