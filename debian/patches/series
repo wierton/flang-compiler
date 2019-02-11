@@ -10,3 +10,4 @@ soversion.patch
 disable-polly.patch
 fmoddir.patch
 libpgmath-fix.patch
+disable-kfreebsd.patch

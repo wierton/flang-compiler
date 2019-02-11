@@ -1,0 +1,31 @@
+Author: Alastair McKinstry <mckinstry@debian.org>
+Description: Patch needed to work with new LLVM-7 changes that _support_ kfreebsd.
+Last-Updated: 2019-02-11
+Forwarded: no
+
+Index: flang-20181226/flang-driver/lib/Basic/Targets.cpp
+===================================================================
+--- flang-20181226.orig/flang-driver/lib/Basic/Targets.cpp
++++ flang-20181226/flang-driver/lib/Basic/Targets.cpp
+@@ -469,8 +469,8 @@ TargetInfo *AllocateTarget(const llvm::T
+       return new OpenBSDI386TargetInfo(Triple, Opts);
+     case llvm::Triple::FreeBSD:
+       return new FreeBSDTargetInfo<X86_32TargetInfo>(Triple, Opts);
+-    case llvm::Triple::KFreeBSD:
+-      return new KFreeBSDTargetInfo<X86_32TargetInfo>(Triple, Opts);
++      //    case llvm::Triple::KFreeBSD:
++      // return new KFreeBSDTargetInfo<X86_32TargetInfo>(Triple, Opts);
+     case llvm::Triple::Minix:
+       return new MinixTargetInfo<X86_32TargetInfo>(Triple, Opts);
+     case llvm::Triple::Solaris:
+@@ -526,8 +526,8 @@ TargetInfo *AllocateTarget(const llvm::T
+       return new FreeBSDTargetInfo<X86_64TargetInfo>(Triple, Opts);
+     case llvm::Triple::Fuchsia:
+       return new FuchsiaTargetInfo<X86_64TargetInfo>(Triple, Opts);
+-    case llvm::Triple::KFreeBSD:
+-      return new KFreeBSDTargetInfo<X86_64TargetInfo>(Triple, Opts);
++      //    case llvm::Triple::KFreeBSD:
++      // return new KFreeBSDTargetInfo<X86_64TargetInfo>(Triple, Opts);
+     case llvm::Triple::Solaris:
+       return new SolarisTargetInfo<X86_64TargetInfo>(Triple, Opts);
+     case llvm::Triple::Win32: {

@@ -65,5 +65,5 @@ override_dh_auto_install:
 	# Do in install scripts; fails within pdebuild, why ?
 	( cd debian/build/stage2 && make VERBOSE=1 install DESTDIR=$(CURDIR)/debian/tmp )
 	chrpath -d debian/tmp/usr/lib/*.so*
-	cp -L $(BUILDDIR)/flang-driver/bin/clang-7 debian/tmp/usr/bin/flang
+	cp -L $(BUILDDIR)/flang-driver/bin/clang-7 debian/tmp/usr/bin/flang-7
 	chrpath -d debian/tmp/usr/bin/flang*

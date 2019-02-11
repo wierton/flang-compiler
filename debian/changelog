@@ -1,3 +1,11 @@
+flang (20181226-2) unstable; urgency=medium
+
+  * Patch for kfreebsd to match llvm-7-dev changes
+  * mv flang -> flang-7 and add symlink
+  * Update README.Debian
+
+ -- Alastair McKinstry <mckinstry@debian.org>  Mon, 11 Feb 2019 09:21:29 +0000
+
 flang (20181226-1) unstable; urgency=medium
 
   * New upstream release. Closes: #909463

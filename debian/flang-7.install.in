@@ -1,4 +1,4 @@
-debian/tmp/usr/bin/flang /usr/bin
+debian/tmp/usr/bin/flang-7 /usr/bin
 debian/tmp/usr/bin/flang1 /usr/bin
 debian/tmp/usr/bin/flang2 /usr/bin
 include/omp_lib.h	/usr/include/@ARCH@
