@@ -23,7 +23,9 @@ Package: flang-7
 Architecture: any
 Provides: fortran-compiler
 Fortran-Mod: ${Fortran-Mod}
-Depends: ${misc:Depends}, ${shlibs:Depends}, libflang0d-7 ( = ${binary:Version}), libflang-dev ( = ${binary:Version})
+Depends: ${misc:Depends}, ${shlibs:Depends}, libflang0d-7 ( = ${binary:Version}), 
+ libflang-dev ( = ${binary:Version}),
+ libomp-7-dev
 Description: Fortran compiler front-end for LLVM
  This is a Fortran compiler using LLVM.
 
