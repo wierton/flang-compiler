@@ -1,0 +1,56 @@
+Author: Alastair McKinstry <mckinstry@debian.org>
+Description: flang compiler dies on spaces before pre-processor directives.
+Last-Updated: 2019-02-19
+Forwarded: no
+
+Index: flang-20181226/runtime/flang/pgf90_mmul_cmplx16.h
+===================================================================
+--- flang-20181226.orig/runtime/flang/pgf90_mmul_cmplx16.h
++++ flang-20181226/runtime/flang/pgf90_mmul_cmplx16.h
+@@ -57,7 +57,7 @@
+ #elif TARGET_LINUX_POWER
+   integer, parameter :: min_blocked_mult = 15000 !Complex calculations not vectorized on OpenPower.
+ #else
+-  #warning untuned matrix multiplication parameter
++#warning untuned matrix multiplication parameter
+   integer, parameter :: min_blocked_mult = 15000 
+ #endif
+ 
+Index: flang-20181226/runtime/flang/pgf90_mmul_cmplx8.h
+===================================================================
+--- flang-20181226.orig/runtime/flang/pgf90_mmul_cmplx8.h
++++ flang-20181226/runtime/flang/pgf90_mmul_cmplx8.h
+@@ -57,7 +57,7 @@
+ #elif TARGET_LINUX_POWER
+   integer, parameter :: min_blocked_mult = 1750  !Complex calculations not vectorized on OpenPower.
+ #else
+-  #warning untuned matrix multiplication parameter
++#warning untuned matrix multiplication parameter
+   integer, parameter :: min_blocked_mult = 1750 
+ #endif
+ 
+Index: flang-20181226/runtime/flang/pgf90_mmul_real4.h
+===================================================================
+--- flang-20181226.orig/runtime/flang/pgf90_mmul_real4.h
++++ flang-20181226/runtime/flang/pgf90_mmul_real4.h
+@@ -55,6 +55,6 @@
+ #elif TARGET_LINUX_POWER
+   integer, parameter :: min_blocked_mult = 10000
+ #else
+-  #warning untuned matrix multiplication parameter
++#warning untuned matrix multiplication parameter
+   integer, parameter :: min_blocked_mult = 5000 
+ #endif
+Index: flang-20181226/runtime/flang/pgf90_mmul_real8.h
+===================================================================
+--- flang-20181226.orig/runtime/flang/pgf90_mmul_real8.h
++++ flang-20181226/runtime/flang/pgf90_mmul_real8.h
+@@ -54,7 +54,7 @@
+ #elif TARGET_LINUX_POWER
+   integer, parameter :: min_blocked_mult = 10000
+ #else
+-  #warning untuned matrix multiplication parameter
++#warning untuned matrix multiplication parameter
+   integer, parameter :: min_blocked_mult = 5000 
+ #endif
+ 

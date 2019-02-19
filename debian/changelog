@@ -1,6 +1,8 @@
 flang (20181226-3) UNRELEASED; urgency=medium
 
   * Add libomp-7-dev as dependency for flang-7. 
+  * preprocessor-spaces.patch: Avoid spaces before preprocessor directives;
+    breaks flang. 
 
  -- Alastair McKinstry <mckinstry@debian.org>  Tue, 19 Feb 2019 15:57:52 +0000
 
