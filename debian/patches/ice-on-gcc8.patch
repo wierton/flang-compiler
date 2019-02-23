@@ -1,0 +1,52 @@
+Description: ICE on gcc-8* on 32-bit (and other?) systems
+ Fix needed for i386, mips* and some other systems (incomplete)
+Author: Alastair McKinstry <mckinstry@debian.org>
+Last-Updated: 2019-02-21
+Forwarded: no
+
+---
+The information above should follow the Patch Tagging Guidelines, please
+checkout http://dep.debian.net/deps/dep3/ to learn about the format. Here
+are templates for supplementary fields that you might want to add:
+
+Origin: <vendor|upstream|other>, <url of original patch>
+Bug: <url in upstream bugtracker>
+Bug-Debian: https://bugs.debian.org/<bugnumber>
+Bug-Ubuntu: https://launchpad.net/bugs/<bugnumber>
+Forwarded: <no|not-needed|url proving that it has been forwarded>
+Reviewed-By: <name and email of someone who approved the patch>
+Last-Update: 2019-02-19
+
+Index: flang-20181226/runtime/libpgmath/CMakeLists.txt
+===================================================================
+--- flang-20181226.orig/runtime/libpgmath/CMakeLists.txt
++++ flang-20181226/runtime/libpgmath/CMakeLists.txt
+@@ -90,6 +90,13 @@ if(CMAKE_C_COMPILER_ID STREQUAL "GNU" AN
+   string(REPLACE "-std=c++11" "-std=gnu++11" CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO}")
+ endif()
+ 
++if(CMAKE_C_COMPILER_ID STREQUAL "GNU" AND ${CMAKE_SYSTEM_PROCESSOR} MATCHES "i686")
++  string(REPLACE "-O2" "" CMAKE_C_FLAGS "${CMAKE_C_FLAGS}")
++  string(REPLACE "-O2" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
++  string(REPLACE "-O3" "" CMAKE_C_FLAGS "${CMAKE_C_FLAGS}")
++  string(REPLACE "-O3" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
++endif()
++
+ # Needs to be changed to support cross-compilation
+ include(GetHostTriple)
+ get_host_triple(LIBPGMATH_HOST_TRIPLE)
+Index: flang-20181226/runtime/libpgmath/lib/common/CMakeLists.txt
+===================================================================
+--- flang-20181226.orig/runtime/libpgmath/lib/common/CMakeLists.txt
++++ flang-20181226/runtime/libpgmath/lib/common/CMakeLists.txt
+@@ -274,6 +274,10 @@ libmath_add_object_library("${SRCS}" "${
+ set(DEFINITIONS_CMPLX ${DEFINITIONS} MTH_CMPLX_C99_ABI)
+ libmath_add_object_library("${MTH_CMPLX_SRCS}" "${FLAGS}" "${DEFINITIONS_CMPLX}" "common_mth_cmplx")
+ 
++# Fix ICE with gcc
++SET_SOURCE_FILES_PROPERTIES(cdpowi.c PROPERTIES COMPILE_FLAGS -O0)
++SET_SOURCE_FILES_PROPERTIES(cdpowk.c PROPERTIES COMPILE_FLAGS -O0)
++
+ if(${CMAKE_SYSTEM_PROCESSOR} MATCHES "x86_64" AND NOT ${LIBPGMATH_WITH_GENERIC})
+   # Generate mth_128mask.c
+   set(TARGET_NAME "mth_128mask")

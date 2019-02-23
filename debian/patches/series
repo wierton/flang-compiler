@@ -12,3 +12,5 @@ fmoddir.patch
 libpgmath-fix.patch
 disable-kfreebsd.patch
 preprocessor-spaces.patch
+ice-on-gcc8.patch
+
