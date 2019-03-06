@@ -21,7 +21,7 @@ Vcs-Git: https://salsa.debian.org/mckinstry/flang.git
 
 Package: flang-7
 Architecture: any
-Provides: fortran-compiler
+Provides: fortran-compiler, flang
 Fortran-Mod: ${Fortran-Mod}
 Depends: ${misc:Depends}, ${shlibs:Depends}, libflang0d-7 ( = ${binary:Version}), 
  libflang-dev ( = ${binary:Version}),

@@ -1,5 +1,13 @@
+flang (20181226-4) UNRELEASED; urgency=medium
+
+  * Add "flibdir" $LIBDIR/fortran/default -> $LIBDIR/fortran/{flang-7,gfortran}
+    as a slave to f95 alternatives; flang-7 compiled libs installed in $flibdir
+
+ -- Alastair McKinstry <mckinstry@debian.org>  Wed, 06 Mar 2019 10:29:37 +0000
+
 flang (20181226-3) experimental; urgency=medium
 
+  * flang-7 now provides: flang
   * Add libomp-7-dev as dependency for flang-7. 
   * preprocessor-spaces.patch: Avoid spaces before preprocessor directives;
     breaks flang.
