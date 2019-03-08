@@ -1,9 +1,9 @@
-flang (20181226-4) UNRELEASED; urgency=medium
+flang (20181226-4) experimental; urgency=medium
 
   * Add "flibdir" $LIBDIR/fortran/default -> $LIBDIR/fortran/{flang-7,gfortran}
     as a slave to f95 alternatives; flang-7 compiled libs installed in $flibdir
 
- -- Alastair McKinstry <mckinstry@debian.org>  Wed, 06 Mar 2019 10:29:37 +0000
+ -- Alastair McKinstry <mckinstry@debian.org>  Fri, 08 Mar 2019 09:45:07 +0000
 
 flang (20181226-3) experimental; urgency=medium
 
