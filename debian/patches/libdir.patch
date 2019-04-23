@@ -1,0 +1,12 @@
+Index: flang/flang-driver/lib/Driver/ToolChains/Linux.cpp
+===================================================================
+--- flang.orig/flang-driver/lib/Driver/ToolChains/Linux.cpp
++++ flang/flang-driver/lib/Driver/ToolChains/Linux.cpp
+@@ -343,6 +343,7 @@ Linux::Linux(const Driver &D, const llvm
+     // configurations but this seems somewhere between questionable and simply
+     // a bug.
+     if (StringRef(LibPath).startswith(SysRoot)) {
++      addPathIfExists(D, LibPath + "/" + MultiarchTriple + "/fortran/flang-7", Paths);
+       addPathIfExists(D, LibPath + "/" + MultiarchTriple, Paths);
+       addPathIfExists(D, LibPath + "/../" + OSLibDir, Paths);
+     }

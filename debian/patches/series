@@ -14,3 +14,4 @@ disable-kfreebsd.patch
 preprocessor-spaces.patch
 ice-on-gcc8.patch
 
+libdir.patch
