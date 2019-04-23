@@ -1,3 +1,8 @@
+Description: Set Debian SO version numbers in shared libraries
+Author: Alastair McKinstry <mckinstry@debian.org>
+Last-Updated: 2019-04-23
+Forwarded: no
+
 Index: flang-20181226/runtime/libpgmath/lib/CMakeLists.txt
 ===================================================================
 --- flang-20181226.orig/runtime/libpgmath/lib/CMakeLists.txt

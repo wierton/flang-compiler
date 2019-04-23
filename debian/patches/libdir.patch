@@ -1,3 +1,9 @@
+Description: Add $LIBDIR/fortran/flang-7 in the library path ahead of the 
+ usual suspects.
+Author: Alastair McKinstry <mckinstry@debian.org>
+Last-Updated: 2019-04-23
+Forwarded: no
+
 Index: flang/flang-driver/lib/Driver/ToolChains/Linux.cpp
 ===================================================================
 --- flang.orig/flang-driver/lib/Driver/ToolChains/Linux.cpp
