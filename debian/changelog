@@ -1,9 +1,10 @@
-flang (20181226-5) UNRELEASED; urgency=medium
+flang (20181226-5) experimental; urgency=medium
 
   * Typo: space in postinst.in. Closes: #924090
   * Add libdir.patch to add $LIBDIR/fortran/flang-7 to search path
+  * add #DEBHELPER# tag to flang-7.prerm
 
- -- Alastair McKinstry <mckinstry@debian.org>  Tue, 23 Apr 2019 08:18:44 +0100
+ -- Alastair McKinstry <mckinstry@debian.org>  Tue, 23 Apr 2019 14:40:13 +0100
 
 flang (20181226-4) experimental; urgency=medium
 

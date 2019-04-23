@@ -6,4 +6,4 @@ if [ $1 != "upgrade" ]; then
     update-alternatives --remove f77 /usr/bin/flang
 fi
 
-
+#DEBHELPER#
