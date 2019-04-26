@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2018, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2018-2019, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -24,6 +24,13 @@ if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Windows")
     add_subdirectory("log")
     add_subdirectory("pow")
   endif()
+  if(${CMAKE_SYSTEM_PROCESSOR} MATCHES "x86_64" AND NOT ${LIBPGMATH_WITH_GENERIC})
+    add_subdirectory("cexp")
+    add_subdirectory("cexpf")
+    add_subdirectory("log10")
+    add_subdirectory("log10f")
+    add_subdirectory("logf")
+  endif()
     add_subdirectory("powi")
     add_subdirectory("sincos")
 endif()
@@ -40,7 +47,7 @@ if(${CMAKE_SYSTEM_PROCESSOR} MATCHES "x86_64" AND NOT ${LIBPGMATH_WITH_GENERIC})
 
     # Specific definition, will probably need to remove when we create a single file for each def
     set_property(SOURCE dispatch.c APPEND_STRING PROPERTY COMPILE_FLAGS "-fno-builtin-c{sqrt,pow,log,exp,acos,asin,atan,cos,sin,tan,cosh,sinh,tanh}{,f} -fno-builtin-{ceil,floor}{,f}")
-    set_property(SOURCE dispatch.c APPEND PROPERTY COMPILE_DEFINITIONS FOR_LIBPGC PGFLANG)
+    set_property(SOURCE dispatch.c APPEND PROPERTY COMPILE_DEFINITIONS PGFLANG)
     set_property(SOURCE mth_xintrinsics.c APPEND_STRING PROPERTY COMPILE_FLAGS "-march=core2 ")
     set_property(SOURCE mth_yintrinsics.c APPEND_STRING PROPERTY COMPILE_FLAGS "-march=sandybridge ")
     set_property(SOURCE mth_zintrinsics.c APPEND_STRING PROPERTY COMPILE_FLAGS "-mtune=knl -march=knl ")
@@ -80,7 +87,7 @@ if(${CMAKE_SYSTEM_PROCESSOR} MATCHES "x86_64" AND NOT ${LIBPGMATH_WITH_GENERIC})
 
     # Specific definition, will probably need to remove when we create a single file for each def
     set_property(SOURCE dispatch.c APPEND_STRING PROPERTY COMPILE_FLAGS "-fno-builtin-c{sqrt,pow,log,exp,acos,asin,atan,cos,sin,tan,cosh,sinh,tanh}{,f} -fno-builtin-{ceil,floor}{,f}")
-    set_property(SOURCE dispatch.c APPEND PROPERTY COMPILE_DEFINITIONS FOR_LIBPGC PGFLANG)
+    set_property(SOURCE dispatch.c APPEND PROPERTY COMPILE_DEFINITIONS PGFLANG)
     set_property(SOURCE mth_xintrinsics.c APPEND_STRING PROPERTY COMPILE_FLAGS "-msse2 ")
     set_property(SOURCE mth_yintrinsics.c APPEND_STRING PROPERTY COMPILE_FLAGS "-mavx ")
     set_property(SOURCE mth_zintrinsics.c APPEND_STRING PROPERTY COMPILE_FLAGS "-mavx512f -mfma ")

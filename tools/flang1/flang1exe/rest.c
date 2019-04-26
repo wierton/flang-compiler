@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1994-2018, NVIDIA CORPORATION.  All rights reserved.
+ * Copyright (c) 1994-2019, NVIDIA CORPORATION.  All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -1317,6 +1317,24 @@ transform_call(int std, int ast)
       inface_arg = aux.dpdsc_base[dscptr + i];
     }
     /* initialize */
+    if (A_TYPEG(ele) == A_FUNC && CFUNCG(entry)) {
+      SPTR arg = memsym_of_ast(ele);
+      if (CFUNCG(arg)) {
+        /* When a BIND(C) function result is used as an argument
+         * to another BIND(C) function, assign the result to a temp
+         * to ensure that the result is passed by value, not by reference.
+         */
+        int tmp_ast, assn_ast;
+        SPTR tmp = getccsym_sc('d', sem.dtemps++, DTY(DTYPEG(arg)) == TY_ARRAY 
+                               ? ST_ARRAY : ST_VAR, SC_LOCAL);
+        DTYPEP(tmp, DTYPEG(arg));
+        tmp_ast = mk_id(tmp);
+        assn_ast = mk_assn_stmt(tmp_ast, ele, DTYPEG(arg));
+        add_stmt_before(assn_ast, std);
+        ele = tmp_ast;
+        ARGT_ARG(argt, i) = ele;
+      }
+    }
     ARGT_ARG(newargt, newi) = ele;
     ++newi;
 
@@ -2526,8 +2544,16 @@ handle_seq_section(int entry, int arr, int loc, int std, int *retval,
   if (DTY(topdtype) == TY_ARRAY)
     topdtype = DTY(topdtype + 1);
 
-  if (simplewholearray && CONTIGATTRG(arraysptr)) {
-    *retval = arr;
+  if (simplewholearray && !is_pointer && CONTIGATTRG(arraysptr)) {
+    /* Note: The call to first_element() uses the descriptor of the declared
+     * dtype of arr which is fine for simple regular arrays. But it does not 
+     * work for pointers since a pointer's descriptor can change depending on 
+     * the pointer target. Typically this is accomplished by creating a section
+     * descriptor first (i.e., call mk_descr_from_section()) which takes into 
+     * account the runtime shape of the pointer target. We handle this and
+     * other pointer cases below. 
+     */ 
+    *retval = first_element(arr); 
     *descr = DESCRG(arraysptr) > NOSYM ?
       check_member(arrayast, mk_id(DESCRG(arraysptr))) : 0;
     return;
