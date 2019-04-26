@@ -1,3 +1,9 @@
+flang (20190329-1) UNRELEASED; urgency=medium
+
+  * New upstream release
+
+ -- Alastair McKinstry <mckinstry@debian.org>  Fri, 26 Apr 2019 15:13:59 +0100
+
 flang (20181226-5) experimental; urgency=medium
 
   * Typo: space in postinst.in. Closes: #924090
