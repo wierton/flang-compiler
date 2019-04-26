@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014-2018, NVIDIA CORPORATION.  All rights reserved.
+ * Copyright (c) 2014-2019, NVIDIA CORPORATION.  All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -2458,12 +2458,19 @@ write_typedescs(void)
       name = getsname(sptr);
       LIBSYMP(sptr, false);
       last = name + strlen(name) - 1;
-      if (strchr(name, '$'))
-        suffix = *last == '_' ? "$ft_" : "$ft";
-      else if (XBIT(119, 0x2000000) && strchr(sname, '_'))
+      if (strchr(name, '$')) {
+        if (*last != '_')
+          suffix = "$ft";
+        else if (XBIT(119, 0x2000000) && strchr(sname, '_'))
+          suffix = "$ft__";
+        else
+          suffix = "$ft_";
+        name = sname;
+      } else if (XBIT(119, 0x2000000) && strchr(sname, '_')) {
         suffix = *last == '_' ? "ft__" : "_ft__";
-      else
+      } else {
         suffix = *last == '_' ? "ft_" : "_ft";
+      }
       /* make sure it is not in ag table first */
       sprintf(ftname, "%s%s", name, suffix);
       gs = find_ag(ftname);
@@ -2554,7 +2561,17 @@ write_typedescs(void)
     put_ll_table_addr(sname, "$vft", false, vft,
                       ll_feature_explicit_gep_load_type(&cpu_llvm_module->ir));
     fprintf(ASMFIL, ",\n");
-    fprintf(ASMFIL, "    i8* null,\n"); /* 0 */
+
+    /* Pointer to parent list */
+    if (level > 0) {
+      fprintf(ASMFIL,
+              "     i8* bitcast(i8* getelementptr(i8, i8* "
+              "bitcast(%%struct%s$parents* @%s$parents to i8*), i32 0) to i8*)"
+              ",\n", name, name);
+    } else {
+      fprintf(ASMFIL, "    i8* null,\n"); /* 0 */
+    }
+ 
 
     /* Pointer to finalizer table (always same size) */
     fprintf(ASMFIL, "    ");
@@ -3911,11 +3928,14 @@ sym_is_refd(SPTR sptr)
        *         frame pointer and the auto area (first offset is -1)
        */
       if (DINITG(sptr) || SAVEG(sptr) ||
-          (!flg.recursive && (!CCSYMG(sptr) || INLNG(sptr)))) {
+          ((STYPEG(sptr) != ST_VAR || gbl.rutype == RU_PROG) && !flg.recursive &&
+	  (!CCSYMG(sptr) || INLNG(sptr)))) {
         /* can't put compiler-created symbols in static memory
          * until sched changes how it accesses its temporaries.
          * if it's a compiler-created symbol created by the
          * inliner, it's ok to place in static memory.
+         * In any case, don't put scalars in static memory by default except
+         * for main programs.
          */
         if (DINITG(sptr) || SAVEG(sptr) || STYPEG(sptr) != ST_VAR) {
           SCP(sptr, SC_STATIC);

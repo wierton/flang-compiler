@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2018, NVIDIA CORPORATION.  All rights reserved.
+ * Copyright (c) 2017-2019, NVIDIA CORPORATION.  All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -52,6 +52,27 @@
  *
  */
 
+#if     defined(TARGET_WIN_X8664)
+/*
+ * The Windows system header files are missing the argument list in the
+ * following function declarations.  Without the argument list, albeit void,
+ * dispatch.c cannot be compiled with the vectorcall ABI.
+ *
+ * Open Tools 10:
+ *  I_RpcMgmtEnableDedicatedThreadPool
+ * Visual Studio 2015:
+ *  EnableMouseInPointerForThread
+ *  GetThreadDpiHostingBehavior
+ */
+
+#define I_RpcMgmtEnableDedicatedThreadPool(...) \
+        I_RpcMgmtEnableDedicatedThreadPool(void)
+#define EnableMouseInPointerForThread(...)      \
+        EnableMouseInPointerForThread(void)
+#define GetThreadDpiHostingBehavior(...)        \
+        GetThreadDpiHostingBehavior(void)
+#endif
+
 #include <stdbool.h>
 #include <string.h>
 #include <ctype.h>
@@ -89,6 +110,12 @@
 #include "x86id.h"
 #endif
 
+#if     defined(TARGET_WIN_X8664)
+#undef  I_RpcMgmtEnableDedicatedThreadPool
+#undef  EnableMouseInPointerForThread
+#undef  GetThreadDpiHostingBehavior
+#endif
+
 /*
  * To build for unit testing:
  *
@@ -124,7 +151,7 @@
 /*
  * Forward prototype definitions
  */
-extern void __math_dispatch_error();
+extern void __math_dispatch_error(void);
 static char *fptr2char(void *);
 static void __pgmath_abort(int, char *);
 
@@ -249,10 +276,10 @@ static char *cfunc[] = {
 #include "math_tables/mth_sleef.h"
 #endif
 #undef  DO_MTH_DISPATCH_FUNC
-#define DO_MTH_DISPATCH_FUNC(name_, func_, sv_, frp_) extern void name_##_init();
+#define DO_MTH_DISPATCH_FUNC(name_, func_, sv_, frp_) extern void name_##_init(void);
 #include "tmp-mth_statsdefs.h"
 #undef  DO_MTH_DISPATCH_FUNC
-#define DO_MTH_DISPATCH_FUNC(name_, func_, sv_, frp_) extern void name_##_prof();
+#define DO_MTH_DISPATCH_FUNC(name_, func_, sv_, frp_) extern void name_##_prof(void);
 #include "tmp-mth_statsdefs.h"
 
 #undef MTHINTRIN
@@ -1333,7 +1360,7 @@ __math_dispatch_init()
 }
 
 void
-__math_dispatch_error()
+__math_dispatch_error(void)
 {
   static bool in_progress = false;
 
@@ -1435,6 +1462,6 @@ main()
 static void
 __pgmath_abort(int ierr, char *s)
 {
-  printf("pgmath_abort:%s", s);
+  fprintf(stderr, "__pgmath_abort:%s", s);
   exit(ierr);
 }

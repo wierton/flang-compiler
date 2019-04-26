@@ -1,5 +1,5 @@
 .\"/*
-.\" * Copyright (c) 1997-2018, NVIDIA CORPORATION.  All rights reserved.
+.\" * Copyright (c) 1997-2019, NVIDIA CORPORATION.  All rights reserved.
 .\" *
 .\" * Licensed under the Apache License, Version 2.0 (the "License");
 .\" * you may not use this file except in compliance with the License.
@@ -290,6 +290,8 @@ or array assignment needs a temp.
 .XB 0x200000
 In Fortran front end, disable early flow analysis to determine if the forall
 or array assignment needs a temp.
+.XB 0x400000
+In Fortran front end, disable kernels rescoping.
 
 .XF "5:"
 CG uses
@@ -2113,7 +2115,8 @@ of instructions that might be matched.
 For user-defined intrinsics, prefix __ to name, convert to lower case,
 like the DMD intrinsics.
 .XB 0x400:
-DO expand st100 intrinsics in GP16 mode
+Disable Scalar Replacement optimization (no chains will be generated and
+no code generation for accelerator region)
 .XB 0x1000:
 Use 'old' integer array dependence test
 .XB 0x2000:
@@ -3809,7 +3812,7 @@ is set to MAX_BLOCKS rather than 500.
 
 .XF "137:"
 .XB 0x01:
-Enable CUDA Fortran parsing.
+Enable CUDA C++ and Fortran parsing.
 .XB 0x02:
 Enable CUDA Fortran emulation.
 .XB 0x04:

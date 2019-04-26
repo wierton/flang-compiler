@@ -76,6 +76,18 @@ void FlangFrontend::ConstructJob(Compilation &C, const JobAction &JA,
   LowerCmdArgs.push_back(ILMFile);
   C.addTempFile(ILMFile);
 
+  // Generate -cmdline
+  std::string CmdLine("'+flang");
+  // ignore the first argument which reads "--driver-mode=fortran" 
+  for (unsigned i = 1; i < Args.getNumInputArgStrings(); ++i) {
+    CmdLine.append(" ");
+    CmdLine.append(Args.getArgString(i));
+  }
+  CmdLine.append("'");
+
+  CommonCmdArgs.push_back("-cmdline");
+  CommonCmdArgs.push_back(Args.MakeArgString(CmdLine));
+
   /***** Process common args *****/
 
   
@@ -171,6 +183,25 @@ void FlangFrontend::ConstructJob(Compilation &C, const JobAction &JA,
     CommonCmdArgs.push_back("-x");
     CommonCmdArgs.push_back("125");
     CommonCmdArgs.push_back("2");
+  }
+
+  // Contiguous pointer checks
+  if (Arg *A = Args.getLastArg(options::OPT_fsanitize_EQ)) {
+    for (const StringRef &val : A->getValues()) {
+      if (val.equals("discontiguous") || val.equals("undefined") ) {
+        // -x 54 0x40 -x 54 0x80 -x 54 0x200
+        UpperCmdArgs.push_back("-x");
+        UpperCmdArgs.push_back("54");
+        UpperCmdArgs.push_back("0x2c0");
+
+        // -fsanitze=discontiguous has no meaning in LLVM, only flang driver needs to
+        // recognize it. However -fsanitize=undefined needs to be passed on for further
+        // processing by the non-flang part of the driver.
+        if (val.equals("discontiguous"))
+          A->claim();
+        break;
+      }
+    }
   }
 
   // Treat backslashes as regular characters
@@ -424,8 +455,8 @@ void FlangFrontend::ConstructJob(Compilation &C, const JobAction &JA,
   unsigned OptLevel = std::stoi(OptOStr.str());
 
   if (Args.hasArg(options::OPT_g_Group)) {
-    // pass -g to lower
-    LowerCmdArgs.push_back("-debug");
+    // pass -g to lower and upper
+    CommonCmdArgs.push_back("-debug");
   }
   
   /* Pick the last among conflicting flags, if a positive and negative flag

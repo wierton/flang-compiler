@@ -1,5 +1,5 @@
 .\"/*
-.\" * Copyright (c) 2014-2018, NVIDIA CORPORATION.  All rights reserved.
+.\" * Copyright (c) 2014-2019, NVIDIA CORPORATION.  All rights reserved.
 .\" *
 .\" * Licensed under the Apache License, Version 2.0 (the "License");
 .\" * you may not use this file except in compliance with the License.
@@ -778,6 +778,16 @@ Real CEILING.
 Double CEILING.
 .AT arth null dp cse
 .CG "roundsd" sse_avx
+
+.IL AINT splnk
+Single precision trunction.
+.AT arth null sp cse
+.CG notAILI
+
+.IL DINT dplnk
+Double precision trunction.
+.AT arth null dp cse
+.CG notAILI
 
 .IL SCMPLXEXP cslnk
 Single-precision complex exponential.
@@ -2268,24 +2278,6 @@ the ILI operand count was only 4.
 \'op5' is actual number of bytes to copy.
 This gets turned into SMOVE and load/store operations by rm_smove
 .AT other null trm dom
-.CG notCG
-
-.IL SMOVEI arlnk arlnk stc nme
-Simple structure copy.  (MOVS is x86 parlance.)
-\'op1' is arlnk to SMOVES
-\'op2' is the destination address
-\'op3' is actual number of bytes to copy.
-\'nme' is names table entry for destination struct.
-This gets turned into SMOVE and load/store operations by rm_smove
-.AT other null trm dom
-.CG notCG
-
-.IL SMOVES arlnk nme
-Simple structure copy source operand (SMOVEI operand 2)
-\'op1' is the source address.
-\'nme' is names table entry for source struct.
-This gets turned into SMOVE and load/store operations by rm_smove
-.AT other null ar dom
 .CG notCG
 
 .IL XMOVE arlnk arlnk nme
@@ -5190,6 +5182,18 @@ Vector pow double to scalar integer
 .CG notCG
 .IL VRSQRT lnk lnk stc
 Vector reciprocal square root
+.AT arth null lnk cse vect
+.CG notCG
+.IL VFLOOR lnk lnk stc
+Vector floor
+.AT arth null lnk cse vect
+.CG notCG
+.IL VCEIL lnk lnk stc
+Vector ceiling
+.AT arth null lnk cse vect
+.CG notCG
+.IL VAINT lnk lnk stc
+Vector ceiling
 .AT arth null lnk cse vect
 .CG notCG
 .IL VRCP lnk lnk stc
