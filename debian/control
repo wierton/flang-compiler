@@ -14,7 +14,7 @@ Build-Depends:  debhelper (>= 12),
   libomp-7-dev,
   llvm-7-tools,
   gfortran
-Standards-Version: 4.3.0
+Standards-Version: 4.4.0
 Homepage: https://github.com/flang-compiler/flang
 Vcs-Browser: https://salsa.debian.org/mckinstry/flang.git
 Vcs-Git: https://salsa.debian.org/mckinstry/flang.git

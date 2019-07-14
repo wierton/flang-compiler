@@ -2,6 +2,7 @@ flang (20190329-1) unstable; urgency=medium
 
   * New upstream release
   * Debhelper 12
+  * Standards-Version: 4.4.0
 
  -- Alastair McKinstry <mckinstry@debian.org>  Fri, 26 Apr 2019 15:13:59 +0100
 
