@@ -4,7 +4,7 @@ Priority: optional
 Maintainer: LLVM Packaging Team <pkg-llvm-team@lists.alioth.debian.org>
 Uploaders: Alastair McKinstry <mckinstry@debian.org>
 Build-Depends:  debhelper (>= 12),
-  dh-fortran-mod,
+  dh-fortran-mod (>= 0.13),
   chrpath,
   gawk,
   zlib1g-dev,

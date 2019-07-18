@@ -1,9 +1,11 @@
-flang (20190329-2) UNRELEASED; urgency=medium
+flang (20190329-2) unstable; urgency=medium
 
   * Drop comments that cause failures in postinst. Closes: #924090
-  * Standards-Version: 3.4.0
+  * B-D on dh-fortran-mod (>= 0.13) for flang-mod-34 support.
+    Closes: #931106, #930628
+  * Standards-Version: 4.4.0
 
- -- Alastair McKinstry <mckinstry@debian.org>  Tue, 16 Jul 2019 08:26:07 +0100
+ -- Alastair McKinstry <mckinstry@debian.org>  Thu, 18 Jul 2019 12:12:13 +0100
 
 flang (20190329-1) unstable; urgency=medium
 
