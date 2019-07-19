@@ -1,3 +1,9 @@
+flang (20190329-3) UNRELEASED; urgency=medium
+
+  * Use debhelper-compat (= 12)
+
+ -- Alastair McKinstry <mckinstry@debian.org>  Fri, 19 Jul 2019 12:05:28 +0100
+
 flang (20190329-2) unstable; urgency=medium
 
   * Drop comments that cause failures in postinst. Closes: #924090
