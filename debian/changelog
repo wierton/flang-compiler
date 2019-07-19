@@ -1,3 +1,10 @@
+flang (20190329-3) unstable; urgency=medium
+
+  * Use debhelper-compat (= 12)
+  * Patch for FTBFS with g++-9 from Gianfranco Costamagna. Closes: #925682
+
+ -- Alastair McKinstry <mckinstry@debian.org>  Thu, 15 Aug 2019 09:06:22 +0100
+
 flang (20190329-2) unstable; urgency=medium
 
   * Drop comments that cause failures in postinst. Closes: #924090

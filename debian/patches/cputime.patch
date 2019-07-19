@@ -1,0 +1,120 @@
+Description: fix gcc-9 build failure due to duplicated getcpu function
+Author: Gianfranco Costamagna <locutusofborg@debian.org>
+Bug-Debian: https://bugs.debian.org/925682
+Last-Update: 2019-07-19
+
+--- flang-20190329.orig/include/legacy-util-api.h
++++ flang-20190329/include/legacy-util-api.h
+@@ -88,7 +88,7 @@ char *mkperm(char *pattern, const char *
+ #define ASMFILE		".s"		/* asm source */
+ 
+ /* Measures user+system CPU milliseconds that elapse between calls. */
+-unsigned long getcpu(void);
++unsigned long getcputime(void);
+ 
+ #ifdef __cplusplus
+ }
+--- flang-20190329.orig/lib/scutil/cpu-stopwatch.c
++++ flang-20190329/lib/scutil/cpu-stopwatch.c
+@@ -26,7 +26,7 @@
+ #include "scutil.h"
+ 
+ unsigned long
+-getcpu(void)
++getcputime(void)
+ {
+   static long ticks_per_second = -1;
+   static unsigned long last = 0;
+--- flang-20190329.orig/tools/flang1/flang1exe/main.c
++++ flang-20190329/tools/flang1/flang1exe/main.c
+@@ -156,7 +156,7 @@ int
+ main(int argc, char *argv[])
+ {
+   int savescope, savecurrmod = 0;
+-  getcpu();
++  getcputime();
+   init(argc, argv); /* initialize */
+   if (gbl.fn == NULL)
+     gbl.fn = gbl.src_file;
+@@ -208,7 +208,7 @@ main(int argc, char *argv[])
+         gbl.func_count == 0) {
+       ipa_export_highpoint();
+     }
+-    xtimes[0] += getcpu();
++    xtimes[0] += getcputime();
+     if (ipa_export_file && ipa_import_mode) {
+       ipa_import();
+       if (gbl.eof_flag & 2)
+@@ -237,7 +237,7 @@ main(int argc, char *argv[])
+       }
+     }
+     TR1("- after semant");
+-    xtimes[1] += getcpu();
++    xtimes[1] += getcputime();
+     DUMP("parser");
+     if (gbl.rutype == RU_BDATA) {
+       /* a module? */
+@@ -521,7 +521,7 @@ main(int argc, char *argv[])
+ 
+     if (flg.xref) {
+       xref(); /* write cross reference map */
+-      xtimes[7] += getcpu();
++      xtimes[7] += getcputime();
+     }
+     skip_compile:
+     (void)summary(FALSE, FALSE);
+--- flang-20190329.orig/tools/flang2/flang2exe/main.cpp
++++ flang-20190329/tools/flang2/flang2exe/main.cpp
+@@ -201,7 +201,7 @@ llvm_restart:
+     if (malloc_verify() != 1)
+       interr("main: malloc_verify failsB", errno, ERR_Fatal);
+ #endif
+-  xtimes[0] += getcpu();
++  xtimes[0] += getcputime();
+   /* don't increment if it is outlined function because it
+    * uses STATICS/BSS from host routine.
+    */
+@@ -222,7 +222,7 @@ llvm_restart:
+   }
+ 
+   is_constructor = gbl.cuda_constructor;
+-  xtimes[1] += getcpu();
++  xtimes[1] += getcputime();
+   DUMP("upper");
+ 
+   if (gbl.cuda_constructor) {
+@@ -325,13 +325,13 @@ llvm_restart:
+         TR("F90 SCHEDULER begins\n");
+         DUMP("before-schedule");
+         schedule();
+-        xtimes[5] += getcpu();
++        xtimes[5] += getcputime();
+         DUMP("schedule");
+       } /* CUDAG(GBL_CURRFUNC) & CUDA_HOST */
+     }
+     TR("F90 ASSEMBLER begins\n");
+     assemble();
+-    xtimes[6] += getcpu();
++    xtimes[6] += getcputime();
+     upper_save_syminfo();
+   }
+   if (DBGBIT(5, 4))
+@@ -360,7 +360,7 @@ llvm_restart:
+ 
+   if (flg.xref) {
+     xref(); /* write cross reference map */
+-    xtimes[7] += getcpu();
++    xtimes[7] += getcputime();
+   }
+   (void)summary(false, 0);
+   cg_llvm_fnend();
+@@ -381,7 +381,7 @@ main(int argc, char *argv[])
+   bool need_constructor = false;
+   int accel_cnt, accel_vendor = 0;
+ 
+-  getcpu();
++  getcputime();
+   init(argc, argv);
+ 
+   saveoptflag = flg.opt;
+
