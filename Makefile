@@ -12,7 +12,7 @@ libpgmath:
 	  -DCMAKE_INSTALL_PREFIX=/usr \
 	  -DLIBPGMATH_LLVM_LIT_EXECUTABLE=/usr/lib/llvm-7/build/utils/lit/lit.py \
 	  $(CURDIR)/runtime/libpgmath && \
-	  $(MAKE) VERBOSE=1 install DESTDIR=$(BUILDDIR)/libpgmath/lib
+	  $(MAKE) VERBOSE=1 install DESTDIR=$(BUILDDIR)/libpgmath/lib -j32
 
 flang-driver: libpgmath
 	mkdir -p $(BUILDDIR)/flang-driver
@@ -24,7 +24,7 @@ flang-driver: libpgmath
 	  $(CURDIR)/flang-driver &&  \
 	  $(MAKE) VERBOSE=1 DESTDIR=$(CURDIR)/flang-driver -j32
 
-libflang: flang-driver
+libflang:
 	mkdir -p $(BUILDDIR)/libflang
 	cd $(BUILDDIR)/libflang && cmake \
 	  -DWITH_WERROR=OFF \
@@ -34,5 +34,5 @@ libflang: flang-driver
 	  -DLLVM_CONFIG=/usr/lib/llvm-7/bin/llvm-config \
 	  -DFLANG_LIBOMP=$(LIBDIR)/libomp5.so	\
 	  -DLIBPGMATH=$(BUILDDIR)/libpgmath/lib/libpgmath.so \
-	  . && \
+	  $(CURDIR) && \
 	  $(MAKE) VERBOSE=1 DESTDIR=$(CURDIR)/libflang

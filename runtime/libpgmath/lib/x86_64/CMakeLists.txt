@@ -90,7 +90,6 @@ list(APPEND DEFINITIONS _GNU_SOURCE _ISOC99_SOURCE)
 if(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
   list(APPEND DEFINITIONS _GNU_SOURCE)
 endif()
-set(FLAGS "${FLAGS}-Wall -W -Wstrict-prototypes -Wwrite-strings -Werror ")
 libmath_add_object_library("${SRCS}" "${FLAGS}" "${DEFINITIONS}" "isoc99")
 
 # isoc99_log2

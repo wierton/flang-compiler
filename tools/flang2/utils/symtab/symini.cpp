@@ -43,7 +43,11 @@
  * out2 -  generated macros which define the predeclared numbers (pd.h)
  *---------------------------------------------------------------------*/
 
+#ifdef UTILSYMTAB
+extern STB stb;
+#else
 STB stb;
+#endif
 
 /**
  * Formats of lines in the symini*.n input file:
