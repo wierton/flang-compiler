@@ -37,7 +37,7 @@ typedef unsigned long long _ULONGLONG_T;
 #define I64_MSH(t) t[1]
 #define I64_LSH(t) t[0]
 
-int __ftn_32in64_;
+int __ftn_32in64_ __attribute__((weak));
 
 #define VOID void
 

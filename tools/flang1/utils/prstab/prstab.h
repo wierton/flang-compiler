@@ -69,32 +69,32 @@ struct {
   FILE *datfil;
   FILE *dbgfil;
   FILE *semfil;
-} files;
+} files __attribute__((weak));
 
-INT *scrtch;
-INT *hashpt;
-CHAR *linech;
-char *filnambuf;
+INT *scrtch __attribute__((weak));
+INT *hashpt __attribute__((weak));
+CHAR *linech __attribute__((weak));
+char *filnambuf __attribute__((weak));
 
 struct {
   INT *item;
   INT *nextt;
-} s4;
+} s4 __attribute__((weak));
 
 struct {
   INT *sstore;
   INT *sthead;
-} s1_1;
+} s1_1 __attribute__((weak));
 
 struct {
   INT garbag;
   INT lstptr;
-} lstcom;
+} lstcom __attribute__((weak));
 
 struct {
   INT qhead;
   INT qtail;
-} qcom;
+} qcom __attribute__((weak));
 
 struct {
   LOGICAL listsw;
@@ -110,11 +110,11 @@ struct {
   LOGICAL dbgcsw;
   LOGICAL dbgdsw;
   LOGICAL dbgesw;
-} switches;
+} switches __attribute__((weak));
 
 struct {
   INT adequt;
-} adqcom;
+} adqcom __attribute__((weak));
 
 struct {
   INT *lftuse;
@@ -128,7 +128,7 @@ struct {
   INT numprd;
   INT goal;
   INT nterms;
-} g_1;
+} g_1 __attribute__((weak));
 
 struct {
   INT nstate;
@@ -145,25 +145,25 @@ struct {
   INT *basis;
   INT *tran;
   INT *red;
-} s_1;
+} s_1 __attribute__((weak));
 
 struct {
   INT sstptr;
   INT shdptr;
-} string_1;
+} string_1 __attribute__((weak));
 
 struct {
   INT linbuf[81];
   INT curchr;
   INT lineno;
   INT fstchr;
-} readcm;
+} readcm __attribute__((weak));
 
 struct {
   INT pnum;
   INT brkflg;
   INT semnum;
-} ptsem;
+} ptsem __attribute__((weak));
 
 /*
  * a local array line is used to constuct a line of text to be written

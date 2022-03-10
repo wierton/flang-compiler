@@ -53,7 +53,11 @@
  * out5 -  output file which will contain ILMs (ilmtp.h)
  *---------------------------------------------------------------------*/
 
+#ifdef UTILSYMTAB
+extern STB stb;
+#else
 STB stb;
+#endif
 
 /**
  * .IN name pcnt atyp dtype ILM pname arrayf

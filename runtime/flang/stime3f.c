@@ -25,6 +25,11 @@
 #include "io3f.h"
 #include "ent3f.h"
 
+int stime(const time_t *t) {
+  abort();
+  return 0;
+}
+
 int ENT3F(STIME, stime)(int *tp)
 {
   int i;

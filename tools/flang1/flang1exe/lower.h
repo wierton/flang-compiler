@@ -242,15 +242,15 @@ typedef struct {
   int refd_list;       /* linked list of pointer/offset/section descriptors in the order they
                         * need to be given addresses */
 } lower_symbol_lists;
-STG_DECLARE(lsymlists, lower_symbol_lists);
+STG_DECLARE(lsymlists __attribute__((weak)), lower_symbol_lists);
 #define LOWER_MEMBER_PARENT(x) lsymlists.stg_base[x].member_parent
 #define LOWER_SYMBOL_REPLACE(x) lsymlists.stg_base[x].symbol_replace
 #define LOWER_POINTER_LIST(x) lsymlists.stg_base[x].pointer_list
 #define LOWER_REFD_LIST(x) lsymlists.stg_base[x].refd_list
 
-int *lower_argument;
-int lower_argument_size;
-int lower_line;
+int *lower_argument __attribute__((weak));
+int lower_argument_size __attribute__((weak));
+int lower_line __attribute__((weak));
 
 /* only one of thenlabel and elselabel should be nonzero;
  * the other is the 'fall through' case */
@@ -258,8 +258,8 @@ typedef struct {
   int thenlabel, elselabel, endlabel;
 } iflabeltype;
 
-int lower_disable_ptr_chk;
-int lower_disable_subscr_chk;
+int lower_disable_ptr_chk __attribute__((weak));
+int lower_disable_subscr_chk __attribute__((weak));
 
 /* types of entries pushed onto the stack */
 #define STKDO 1

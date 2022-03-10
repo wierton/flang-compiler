@@ -684,7 +684,7 @@ typedef struct {
   STG_DECLARE(astb, OAST);
 } OPT;
 
-OPT opt;
+OPT opt __attribute__((weak));
 
 /*****  optimize.c *****/
 void optshrd_init(void);
