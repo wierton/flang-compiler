@@ -83,12 +83,12 @@ add_flang_library(flangrti_static
   )
 set_property(TARGET flangrti_static PROPERTY OUTPUT_NAME flangrti)
 
-
 set(SHARED_LIBRARY TRUE)
 add_flang_library(flangrti_shared
   ${PGC_SRC_FILES}
   ${SHARED_SOURCES}
   )
+set_target_properties(flangrti_shared PROPERTIES SOVERSION "0d" SONAME "libflangrti.so.0d")
 
 # Resolve symbols against libm
 target_link_libraries(flangrti_shared m)

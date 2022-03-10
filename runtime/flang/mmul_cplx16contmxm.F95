@@ -18,13 +18,13 @@
 #include "mmul_dir.h"
 
 subroutine F90_matmul_cplx16_contmxm(dest, src1, src2, k_extent,m_extent,n_extent)
+ DESC_INT k_extent
+  DESC_INT n_extent
+  DESC_INT m_extent
 
   COMPLEX*16, dimension(k_extent,m_extent) :: src1
   COMPLEX*16, dimension(m_extent,n_extent) :: src2
   COMPLEX*16, dimension(k_extent,n_extent) :: dest
-  DESC_INT k_extent
-  DESC_INT n_extent
-  DESC_INT m_extent
 
   DESC_INT k
   DESC_INT n

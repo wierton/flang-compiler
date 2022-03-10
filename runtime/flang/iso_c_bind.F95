@@ -168,13 +168,13 @@
             end function
 
             logical function compare_eq_cfunptrs(a,b)
-            type(C_FUNPTR) :: a,b
+            type(C_FUNPTR), intent(IN) :: a,b
             compare_eq_cfunptrs = (a%val .eq. b%val)
             return
             end function
 
             logical function compare_ne_cfunptrs(a,b)
-            type(C_FUNPTR) :: a,b
+            type(C_FUNPTR), intent(IN) :: a,b
             compare_ne_cfunptrs = (a%val .ne. b%val)
             return
             end function

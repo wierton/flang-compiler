@@ -57,7 +57,7 @@
 #elif TARGET_LINUX_POWER
   integer, parameter :: min_blocked_mult = 15000 !Complex calculations not vectorized on OpenPower.
 #else
-  #warning untuned matrix multiplication parameter
+#warning untuned matrix multiplication parameter
   integer, parameter :: min_blocked_mult = 15000 
 #endif
 

@@ -1,0 +1,16 @@
+no-flang-libs.patch
+gfortran-recursive.patch
+ieee_arithmetic.patch
+disable-omp.patch
+fix-iso-c-bind.patch
+no-range-check.patch
+disable-ieee-arith-execpts.patch
+soversion.patch
+disable-polly.patch
+fmoddir.patch
+libpgmath-fix.patch
+disable-kfreebsd.patch
+preprocessor-spaces.patch
+ice-on-gcc8.patch
+libdir.patch
+cputime.patch

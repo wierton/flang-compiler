@@ -29,7 +29,7 @@ subroutine F90_matmul_log8_contvxm(dest, src1, src2, m_extent, n_extent)
   DESC_INT m
 
   do n=1,n_extent
-    dest(n) = 0
+    dest(n) = .FALSE.
     do m=1,m_extent
       if ( src1(m) .AND. src2(m,n) ) then
         dest(n) = .TRUE.

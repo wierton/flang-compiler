@@ -19,12 +19,12 @@
 
 subroutine F90_matmul_log4_contmxm(dest, src1, src2, k_extent, m_extent, n_extent)
 
-  LOGICAL*4, dimension(k_extent,m_extent) :: src1
-  LOGICAL*4, dimension(m_extent,n_extent) :: src2
-  LOGICAL*4, dimension(k_extent,n_extent) :: dest
   DESC_INT k_extent
   DESC_INT n_extent
   DESC_INT m_extent
+  LOGICAL*4, dimension(k_extent,m_extent) :: src1
+  LOGICAL*4, dimension(m_extent,n_extent) :: src2
+  LOGICAL*4, dimension(k_extent,n_extent) :: dest
 
   DESC_INT k
   DESC_INT n
@@ -32,7 +32,7 @@ subroutine F90_matmul_log4_contmxm(dest, src1, src2, k_extent, m_extent, n_exten
 
   do n=1,n_extent
     do k=1,k_extent
-      dest(k,n) = 0
+      dest(k,n) = .FALSE.
     end do
   end do
   do n=1,n_extent

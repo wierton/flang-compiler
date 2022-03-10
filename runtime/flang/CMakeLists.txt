@@ -18,12 +18,18 @@ enable_language(C ASM Fortran) # Enable assembly and Fortran
 
 SET(ASM_OPTIONS "-DLINUX_ELF")
 SET(CMAKE_ASM_FLAGS "${CFLAGS} ${ASM_OPTIONS}" )
-SET(CMAKE_SHARED_LINKER_FLAGS "-no-flang-libs")
+if (CMAKE_Fortran_COMPILER_ID MATCHES "flang")
+  SET(CMAKE_SHARED_LINKER_FLAGS "-no-flang-libs")
+endif()
 
 # We are using Fortran driver to build this library with fresh compiler
 # components, so point its binary directory to the build directory to pick up
 # flang* executables
-SET(CMAKE_Fortran_FLAGS "-B ${LLVM_RUNTIME_OUTPUT_INTDIR} ${CMAKE_Fortran_FLAGS}")
+if (CMAKE_Fortran_COMPILER_ID MATCHES "gfortran")
+  SET(CMAKE_Fortran_FLAGS "-B ${LLVM_RUNTIME_OUTPUT_INTDIR} ${CMAKE_Fortran_FLAGS} -fno-range-check")
+else()
+  SET(CMAKE_Fortran_FLAGS "-B ${LLVM_RUNTIME_OUTPUT_INTDIR} ${CMAKE_Fortran_FLAGS}")
+endif()
 
 SET(FTN_INTRINSICS_DESC_INDEP
   abort3f.c
@@ -145,7 +151,6 @@ SET(FTN_INTRINSICS_DESC_INDEP
   merge.c
   mvbits3f.c
   nargs3f.c
-  omp_lib.F95
   outstr3f.c
   packtimeqq3f.c
   perror3f.c
@@ -188,6 +193,10 @@ SET(FTN_INTRINSICS_DESC_INDEP
   utils3f.c
   wait3f.c
   )
+
+if (CMAKE_Fortran_COMPILER_ID MATCHES "flang")
+  LIST(APPEND FTN_INTRINSICS_DESC_INDEP omp_lib.F95)
+endif()
 
 SET(FTN_INTRINSICS_DESC_DEP
   red.c
@@ -449,10 +458,13 @@ FOREACH(file ${FTN_SUPPORT_DESC_DEP})
     LIST(APPEND FTN_SUPPORT_I8 ${I8_FILE})
 ENDFOREACH(file)
 
-LIST(APPEND FTN_SUPPORT_DESC_DEP ieee_arithmetic.F95)
-LIST(APPEND FTN_SUPPORT_DESC_DEP ieee_exceptions.F95)
-LIST(APPEND FTN_SUPPORT_I8 "${I8_FILES_DIR}/ieee_arithmetic.F95")
-LIST(APPEND FTN_SUPPORT_I8 "${I8_FILES_DIR}/ieee_exceptions.F95")
+if (CMAKE_Fortran_COMPILER_ID MATCHES "flang")
+  LIST(APPEND FTN_SUPPORT_DESC_DEP ieee_arithmetic.F95)
+  LIST(APPEND FTN_SUPPORT_DESC_DEP ieee_exceptions.F95)
+  LIST(APPEND FTN_SUPPORT_I8 "${I8_FILES_DIR}/ieee_arithmetic.F95")
+  LIST(APPEND FTN_SUPPORT_I8 "${I8_FILES_DIR}/ieee_exceptions.F95")
+endif()
+
 
 add_flang_library(flang_static
   ${FTN_INTRINSICS_DESC_INDEP}
@@ -477,6 +489,7 @@ add_flang_library(flang_shared
   )
 set_property(TARGET flang_shared PROPERTY OUTPUT_NAME flang)
 target_link_libraries(flang_shared ${CMAKE_BINARY_DIR}/${CMAKE_CFG_INTDIR}/lib/libflangrti.so)
+set_target_properties(flang_shared PROPERTIES SOVERSION "0d" SONAME "libflang.so.0d")
 # Resolve symbols against libm and librt
 target_link_libraries(flang_shared m rt)
 
@@ -586,7 +599,12 @@ target_compile_options(flang_static PRIVATE -fPIC)
 
 target_compile_options(flang_shared PRIVATE -fPIC)
 
-target_compile_options(flang_static PUBLIC $<$<COMPILE_LANGUAGE:Fortran>:-Mreentrant>)
+if (CMAKE_Fortran_COMPILER_ID MATCHES "gfortran")
+  target_compile_options(flang_static PUBLIC $<$<COMPILE_LANGUAGE:Fortran>:-frecursive>)
 
-target_compile_options(flang_shared PUBLIC $<$<COMPILE_LANGUAGE:Fortran>:-Mreentrant>)
+  target_compile_options(flang_shared PUBLIC $<$<COMPILE_LANGUAGE:Fortran>:-frecursive>)
+else()  
+  target_compile_options(flang_static PUBLIC $<$<COMPILE_LANGUAGE:Fortran>:-Mreentrant>)
 
+  target_compile_options(flang_shared PUBLIC $<$<COMPILE_LANGUAGE:Fortran>:-Mreentrant>)
+endif()

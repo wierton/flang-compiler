@@ -1,0 +1,8 @@
+debian/build/lib/libflang.a		/usr/lib/x86_64-linux-gnu
+debian/build/lib/libflangADT.a		/usr/lib/x86_64-linux-gnu
+debian/build/lib/libflangmain.a		/usr/lib/x86_64-linux-gnu
+debian/build/lib/libflangArgParser.a		/usr/lib/x86_64-linux-gnu
+debian/build/lib/libflangrti.a		/usr/lib/x86_64-linux-gnu
+debian/build/lib/libompstub.a		/usr/lib/x86_64-linux-gnu
+debian/build/runtime/libpgmath/lib/libpgmath.a /usr/lib/x86_64-linux-gnu
+debian/tmp/usr/lib/*.so			/usr/lib/x86_64-linux-gnu

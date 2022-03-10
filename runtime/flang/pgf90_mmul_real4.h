@@ -55,6 +55,6 @@
 #elif TARGET_LINUX_POWER
   integer, parameter :: min_blocked_mult = 10000
 #else
-  #warning untuned matrix multiplication parameter
+#warning untuned matrix multiplication parameter
   integer, parameter :: min_blocked_mult = 5000 
 #endif

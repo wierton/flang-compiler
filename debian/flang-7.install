@@ -1,0 +1,7 @@
+debian/tmp/usr/bin/flang-7 /usr/bin
+debian/tmp/usr/bin/flang1 /usr/bin
+debian/tmp/usr/bin/flang2 /usr/bin
+include/omp_lib.h	/usr/include/x86_64-linux-gnu
+# ./debian/build/runtime/flang/ieee_features.mod /usr/include
+# ./debian/build/runtime/flang/iso_c_binding.mod /usr/include
+# ./debian/build/runtime/flang/iso_fortran_env.mod /usr/include

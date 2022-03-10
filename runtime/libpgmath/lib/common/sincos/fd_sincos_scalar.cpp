@@ -179,7 +179,7 @@ __attribute__((noinline)) FCN_NAME(double const x)
 
 
 #if     defined(SINCOS)
-#if     defined(CMPLX)
+#if     0
     return CMPLX(rs, rc);
 #else
     struct {

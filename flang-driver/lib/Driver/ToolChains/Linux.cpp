@@ -343,6 +343,7 @@ Linux::Linux(const Driver &D, const llvm::Triple &Triple, const ArgList &Args)
     // configurations but this seems somewhere between questionable and simply
     // a bug.
     if (StringRef(LibPath).startswith(SysRoot)) {
+      addPathIfExists(D, LibPath + "/" + MultiarchTriple + "/fortran/flang-7", Paths);
       addPathIfExists(D, LibPath + "/" + MultiarchTriple, Paths);
       addPathIfExists(D, LibPath + "/../" + OSLibDir, Paths);
     }
@@ -699,44 +700,65 @@ void Linux::AddFlangSystemIncludeArgs(const ArgList &DriverArgs,
 
   // Implement generic Debian multiarch support.
   const StringRef X86_64MultiarchIncludeDirs[] = {
-      "/usr/include/x86_64-linux-gnu",
-
-      // FIXME: These are older forms of multiarch. It's not clear that they're
-      // in use in any released version of Debian, so we should consider
-      // removing them.
-      "/usr/include/i686-linux-gnu/64", "/usr/include/i486-linux-gnu/64"};
+						  "/usr/include/x86_64-linux-gnu",
+						  "/usr/lib/x86_64-linux-gnu/fortran/flang-7"
+  };
   const StringRef X86MultiarchIncludeDirs[] = {
-      "/usr/include/i386-linux-gnu",
-
-      // FIXME: These are older forms of multiarch. It's not clear that they're
-      // in use in any released version of Debian, so we should consider
-      // removing them.
-      "/usr/include/x86_64-linux-gnu/32", "/usr/include/i686-linux-gnu",
-      "/usr/include/i486-linux-gnu"};
+					       "/usr/include/i386-linux-gnu",
+					       "/usr/lib/i386-linux-gnu/fortran/flang-7"
+  };
   const StringRef AArch64MultiarchIncludeDirs[] = {
-      "/usr/include/aarch64-linux-gnu"};
+						   "/usr/include/aarch64-linux-gnu",
+						   "/usr/lib/aarch64-linux-gnu/fortran/flang-7"
+  };
   const StringRef ARMMultiarchIncludeDirs[] = {
-      "/usr/include/arm-linux-gnueabi"};
+					       "/usr/include/arm-linux-gnueabi",
+					       "/usr/lib/arm-linux-gnueabi/fortran/flang-7"
+  };
   const StringRef ARMHFMultiarchIncludeDirs[] = {
-      "/usr/include/arm-linux-gnueabihf"};
-  const StringRef MIPSMultiarchIncludeDirs[] = {"/usr/include/mips-linux-gnu"};
+						 "/usr/include/arm-linux-gnueabihf",
+						 "/usr/lib/arm-linux-gnueabihf/fortran/flang-7"
+  };
+  const StringRef MIPSMultiarchIncludeDirs[] = {
+						"/usr/include/mips-linux-gnu",
+						"/usr/lib/mips-linux-gnu/fortran/flang-7"
+  };
   const StringRef MIPSELMultiarchIncludeDirs[] = {
-      "/usr/include/mipsel-linux-gnu"};
+						  "/usr/include/mipsel-linux-gnu",
+						  "/usr/lib/mipsel-linux-gnu/fortran/flang-7"
+  };
   const StringRef MIPS64MultiarchIncludeDirs[] = {
-      "/usr/include/mips64-linux-gnu", "/usr/include/mips64-linux-gnuabi64"};
+						  "/usr/include/mips64-linux-gnu",
+						  "/usr/include/mips64-linux-gnuabi64",
+						  "/usr/lib/mips64-linux-gnu/fortran/flang-7",
+						  "/usr/lib/mips64-linux-gnuabi64/fortran/flang-7"
+  };
   const StringRef MIPS64ELMultiarchIncludeDirs[] = {
-      "/usr/include/mips64el-linux-gnu",
-      "/usr/include/mips64el-linux-gnuabi64"};
+						    "/usr/include/mips64el-linux-gnu",
+						    "/usr/include/mips64el-linux-gnuabi64",
+						    "/usr/lib/mips64el-linux-gnu/fortran/flang-7",
+						    "/usr/lib/mips64el-linux-gnuabi64/fortran/flang-7"
+  };
   const StringRef PPCMultiarchIncludeDirs[] = {
-      "/usr/include/powerpc-linux-gnu"};
+					       "/usr/include/powerpc-linux-gnu",
+					       "/usr/lib/powerpc-linux-gnu/fortran/flang-7"
+  };
   const StringRef PPC64MultiarchIncludeDirs[] = {
-      "/usr/include/powerpc64-linux-gnu"};
+						 "/usr/include/powerpc64-linux-gnu",
+						 "/usr/lib/powerpc64-linux-gnu/fortran/flang-7"
+  };
   const StringRef PPC64LEMultiarchIncludeDirs[] = {
-      "/usr/include/powerpc64le-linux-gnu"};
+						   "/usr/include/powerpc64le-linux-gnu",
+						   "/usr/lib/powerpc64le-linux-gnu/fortran/flang-7"
+  };
   const StringRef SparcMultiarchIncludeDirs[] = {
-      "/usr/include/sparc-linux-gnu"};
+						 "/usr/include/sparc-linux-gnu",
+						 "/usr/lib/sparc-linux-gnu/fortran/flang-7"
+  };
   const StringRef Sparc64MultiarchIncludeDirs[] = {
-      "/usr/include/sparc64-linux-gnu"};
+						   "/usr/include/sparc64-linux-gnu",
+						   "/usr/lib/sparc64-linux-gnu/fortran/flang-7"
+  };
   ArrayRef<StringRef> MultiarchIncludeDirs;
   switch (getTriple().getArch()) {
   case llvm::Triple::x86_64:
@@ -788,7 +810,6 @@ void Linux::AddFlangSystemIncludeArgs(const ArgList &DriverArgs,
   for (StringRef Dir : MultiarchIncludeDirs) {
     if (llvm::sys::fs::exists(SysRoot + Dir)) {
       IncludePathList.push_back(SysRoot + Dir.str());
-      break;
     }
   }
 
