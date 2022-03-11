@@ -14,7 +14,7 @@ libpgmath:
 	  $(CURDIR)/runtime/libpgmath && \
 	  $(MAKE) VERBOSE=1 install DESTDIR=$(BUILDDIR)/libpgmath/lib -j32
 
-flang-driver: libpgmath
+flang-driver:
 	mkdir -p $(BUILDDIR)/flang-driver
 	cd $(BUILDDIR)/flang-driver && cmake \
 	  -DWITH_WERROR=OFF \
@@ -28,6 +28,7 @@ libflang:
 	mkdir -p $(BUILDDIR)/libflang
 	cd $(BUILDDIR)/libflang && cmake \
 	  -DWITH_WERROR=OFF \
+	  -DCMAKE_VERBOSE_MAKEFILE=ON \
 	  -DCMAKE_INSTALL_PREFIX=/usr \
 	  -DCMAKE_Fortran_COMPILER=/usr/bin/gfortran \
 	  -DCMAKE_Fortran_COMPILER_ID=gfortran \
@@ -36,3 +37,22 @@ libflang:
 	  -DLIBPGMATH=$(BUILDDIR)/libpgmath/lib/libpgmath.so \
 	  $(CURDIR) && \
 	  $(MAKE) VERBOSE=1 DESTDIR=$(CURDIR)/libflang
+
+libflang-bc:
+	rm -rf $(BUILDDIR)/libflang-bc
+	mkdir -p $(BUILDDIR)/libflang-bc
+	cd $(BUILDDIR)/libflang-bc && cmake \
+	  -DWITH_WERROR=OFF \
+	  -DCMAKE_VERBOSE_MAKEFILE=ON \
+	  -DCMAKE_INSTALL_PREFIX=/usr \
+	  -DCMAKE_Fortran_COMPILER=/usr/bin/gfortran \
+	  -DCMAKE_C_COMPILER=clang \
+	  -DCMAKE_CXX_COMPILER=clang \
+	  -DCMAKE_EXE_LINKER_FLAGS="-lstdc++" \
+	  -DCMAKE_SHARED_LINKER_FLAGS="-lstdc++" \
+	  -DCMAKE_Fortran_COMPILER_ID=gfortran \
+	  -DLLVM_CONFIG=/usr/lib/llvm-7/bin/llvm-config \
+	  -DFLANG_LIBOMP=$(LIBDIR)/libomp5.so	\
+	  -DLIBPGMATH=$(BUILDDIR)/libpgmath/lib/libpgmath.so \
+	  $(CURDIR) && \
+	  $(MAKE) VERBOSE=1 DESTDIR=$(CURDIR)/libflang-bc
