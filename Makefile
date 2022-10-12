@@ -6,8 +6,8 @@ DEB_HOST_MULTIARCH ?= $(shell dpkg-architecture -qDEB_HOST_MULTIARCH)
 LIBDIR=/usr/lib/$(DEB_HOST_MULTIARCH)
 
 GFORTRAN != which gfortran
-LLVM_CONFIG_7 != which llvm-config-7
-LLVM_LIT_7 != $(shell $(LLVM_CONFIG_7) --obj-root)/utils/lit/lit.py
+LLVM_CONFIG ?= $(shell which llvm-config-7)
+LLVM_LIT_PY != $(shell $(LLVM_CONFIG) --obj-root)/utils/lit/lit.py
 
 CMAKE_FLAGS=
 ifdef CMAKE_C_FLAGS
@@ -29,7 +29,7 @@ libpgmath:
 	  -DWITH_WERROR=OFF \
 	  -DCMAKE_INSTALL_PREFIX=/usr \
 		$(CMAKE_FLAGS) \
-	  -DLIBPGMATH_LLVM_LIT_EXECUTABLE=$(LLVM_LIT_7) \
+	  -DLIBPGMATH_LLVM_LIT_EXECUTABLE=$(LLVM_LIT_PY) \
 	  $(CURDIR)/runtime/libpgmath && \
 	  $(MAKE) VERBOSE=1 install DESTDIR=$(BUILDDIR)/libpgmath/lib
 
@@ -39,7 +39,7 @@ flang-driver:
 	  -DWITH_WERROR=OFF \
 	  -DCMAKE_INSTALL_PREFIX=/usr \
 	  -DLINK_POLLY_INTO_TOOLS=False \
-	  -DLLVM_CONFIG=$(LLVM_CONFIG_7) \
+	  -DLLVM_CONFIG=$(LLVM_CONFIG) \
 		$(CMAKE_FLAGS) \
 	  $(CURDIR)/flang-driver &&  \
 	  $(MAKE) VERBOSE=1 DESTDIR=$(CURDIR)/flang-driver -j8
@@ -53,7 +53,7 @@ libflang:
 	  -DCMAKE_INSTALL_PREFIX=/usr \
 	  -DCMAKE_Fortran_COMPILER=$(GFORTRAN) \
 	  -DCMAKE_Fortran_COMPILER_ID=gfortran \
-	  -DLLVM_CONFIG=$(LLVM_CONFIG_7) \
+	  -DLLVM_CONFIG=$(LLVM_CONFIG) \
 	  -DFLANG_LIBOMP=$(LIBDIR)/libomp5.so	\
 	  -DLIBPGMATH=$(BUILDDIR)/libpgmath/lib/libpgmath.so \
 	  $(CURDIR) && \
